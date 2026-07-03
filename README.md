@@ -29,8 +29,8 @@ Sekrety: skopiuj `.env.example` do `.env` i uzupełnij (plik `.env` nie trafia d
 
 ## Stan projektu
 
-**Etap 0 (bootstrap) i M1.1 (schemat danych) zakończone** — encje JPA + migracja
-Flyway `V1` (indeksy pg_trgm/tsvector/bpm), repozytoria z testami na Testcontainers,
-rulesety kodowania w [docs/rules/](docs/rules/) (D16). Schemat zamrożony (D17 —
-doprecyzowania). Następne kamienie: **M1.2** (import CSV) ∥ **M1.3** (klienci źródeł)
-∥ **M1.5** (LLM) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**Zakończone: Etap 0, M1.1 (schemat — zamrożony, D17), M1.2 (import CSV)** —
+`POST /api/ingest/file` przyjmuje eksport Exportify/własny CSV: dedup po
+`spotify_id`, szkielet w `track_catalog` + wpis `library_entry` (source=FILE),
+raport `{imported, alreadyExisted, failed[]}`. Następne kamienie: **M1.3**
+(klienci źródeł) ∥ **M1.5** (LLM) zgodnie z [docs/PLAN.md](docs/PLAN.md).

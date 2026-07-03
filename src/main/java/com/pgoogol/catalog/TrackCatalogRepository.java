@@ -2,8 +2,11 @@ package com.pgoogol.catalog;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Zapytania „missing" per grupa pól (D11/D17) — pola-wyznaczniki braków:
@@ -36,4 +39,7 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
 
     @Query("select count(t) from TrackCatalog t where " + AI_MISSING)
     long countAiMissing();
+
+    @Query("select t.spotifyId from TrackCatalog t where t.spotifyId in :spotifyIds")
+    Set<String> findExistingIds(@Param("spotifyIds") Collection<String> spotifyIds);
 }
