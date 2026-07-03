@@ -17,7 +17,18 @@ Deezer (BPM), dowolny model LLM (analiza AI — provider konfigurowalny, do wybo
 | [docs/DECYZJE.md](docs/DECYZJE.md) | Rejestr decyzji projektowych (ADR-lite) — obowiązujące rozstrzygnięcia |
 | [docs/PLAN.md](docs/PLAN.md) | Rozbicie pracy: etapy, kamienie milowe, zależności, ryzyka |
 
+## Szybki start
+
+```bash
+docker compose up -d     # Postgres 16 (profil local łączy się z tą bazą)
+./mvnw verify            # build + testy
+./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+Sekrety: skopiuj `.env.example` do `.env` i uzupełnij (plik `.env` nie trafia do repo — D14).
+
 ## Stan projektu
 
-Faza planowania zakończona — implementacja startuje od **Etapu 0** (bootstrap) i **M1.1**
-(schemat danych) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**Etap 0 (bootstrap) zakończony** — szkielet Spring Boot 3 (Java 21, Maven, pakiety
+`com.pgoogol.*`), Postgres 16 w `docker-compose.yml`, `CLAUDE.md`, CI GitHub Actions.
+Następny kamień: **M1.1** (schemat danych) zgodnie z [docs/PLAN.md](docs/PLAN.md).

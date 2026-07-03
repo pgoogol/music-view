@@ -1,0 +1,8 @@
+# Profil `local` — praca z Postgresem z docker-compose.yml (docker compose up -d).
+# Konfiguracja datasource stanie się aktywna w M1.1 (JPA + Flyway); wartości
+# odpowiadają docker-compose.yml.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/musicview
+    username: musicview
+    password: musicview
