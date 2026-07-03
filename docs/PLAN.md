@@ -1,7 +1,7 @@
 # Plan pracy — rozbicie na etapy i kamienie milowe
 
 Podstawa: [KONCEPT.md](KONCEPT.md) + rozstrzygnięcia z [DECYZJE.md](DECYZJE.md).
-Zasada pracy: **jedna sesja Claude Code = jeden kamień milowy** (kamienie są tak krojone,
+Zasada pracy: **jedna sesja agenta AI = jeden kamień milowy** (kamienie są tak krojone,
 żeby każdy kończył się działającym, testowalnym przyrostem). Kolejność wymuszona zależnościami —
 schemat danych (M1.1) blokuje resztę, bo to jedyna kosztowna rzecz do zmiany (§2.4 konceptu).
 
@@ -30,7 +30,7 @@ erDiagram
         string genre_family "enum D8"
         string style "free-form"
         int bpm
-        string bpm_source "acousticbrainz|deezer|claude"
+        string bpm_source "acousticbrainz|deezer|llm"
         numeric danceability
         string musical_key
         string tempo_class "slow|medium|fast|very_fast"
@@ -98,8 +98,8 @@ erDiagram
 | # | Zadanie |
 |---|---|
 | 0.1 | Szkielet Spring Boot 3.x (Java 21, Maven): moduł główny, pakiety `com.pgoogol.{catalog,library,playlist,ingestion,enrichment,api,common}`, `.gitignore`, `.editorconfig` |
-| 0.2 | `docker-compose.yml` (Postgres 16) + profile `local`; `.env.example` (SPOTIFY_CLIENT_ID/SECRET, ANTHROPIC_API_KEY, MB_USER_AGENT) |
-| 0.3 | `CLAUDE.md` — ruleset Java/Spring (konwencje, komendy build/test, zasady sekretów wg D14) |
+| 0.2 | `docker-compose.yml` (Postgres 16) + profile `local`; `.env.example` (SPOTIFY_CLIENT_ID/SECRET, LLM_PROVIDER, LLM_API_KEY, MB_USER_AGENT) |
+| 0.3 | `AGENTS.md` — ruleset Java/Spring dla dowolnego agenta kodującego (konwencje, komendy build/test, zasady sekretów wg D14); symlink/kopia pod nazwą wymaganą przez wybrane narzędzie (D15) |
 | 0.4 | CI GitHub Actions: build + testy na push/PR |
 
 **DoD:** `docker compose up -d` + `mvn verify` działa na czysto sklonowanym repo; CI zielone.
@@ -158,11 +158,12 @@ test integracyjny na próbce pliku.
 **DoD:** dla próbki ≥50 utworów raport pokrycia: ile z AB, ile z Deezer, ile bez BPM;
 testy kaskady (w tym half-time) zielone.
 
-## M1.5 ClaudeClient + prompt *(po M1.1, równolegle z M1.3/M1.4)*
+## M1.5 LlmClient + prompt *(po M1.1, równolegle z M1.3/M1.4)*
 
-**Cel:** warstwa AI — estymacje.
+**Cel:** warstwa AI — estymacje, niezależna od providera (D15).
 
-- `ClaudeClient` (Haiku; model + wersja promptu w konfiguracji)
+- `LlmClient` — abstrakcja nad dowolnym providerem LLM (własny interfejs lub Spring AI);
+  provider, model i wersja promptu wyłącznie w konfiguracji
 - Prompt „ekspert muzyczny i DJ": wejście = metadane (+bpm jeśli znany), wyjście strukturalne:
   `style`, `genre_family`, `lyrics_theme`, `description_pl`, `energy`, `confidence`,
   `bpm_estimate` tylko na wyraźne żądanie (gdy kaskada M1.4 pusta) — z korektą half-time
@@ -216,8 +217,8 @@ widok z BPM/opisami; build frontu w CI.
 **Cel:** dowód, że Etap 1 jest samodzielnie użyteczny + dane do decyzji o `AudioAnalyzer`.
 
 - Import pełnego CSV (~2500 utworów), wzbogacenie wszystkich grup pól
-- **Raport pokrycia per pole i per źródło** (ile BPM z AB / Deezer / Claude; ile braków)
-- Pomiar kosztu Claude na całość; poprawki promptu jeśli `genre_family`/style odstają
+- **Raport pokrycia per pole i per źródło** (ile BPM z AB / Deezer / LLM; ile braków)
+- Pomiar kosztu LLM na całość; poprawki promptu jeśli `genre_family`/style odstają
 
 **DoD:** ≥95% utworów z kompletem pól D5; raport pokrycia zapisany w `docs/`; decyzja
 „czy potrzebny AudioAnalyzer" podjęta i dopisana do DECYZJE.md.
@@ -244,7 +245,7 @@ bez wychodzenia z aplikacji.
 ```mermaid
 flowchart LR
     E0[Etap 0<br/>bootstrap] --> M11[M1.1<br/>schemat]
-    M11 --> M12[M1.2 CSV] & M13[M1.3 klienci] & M15[M1.5 Claude] & M17[M1.7 REST]
+    M11 --> M12[M1.2 CSV] & M13[M1.3 klienci] & M15[M1.5 LLM] & M17[M1.7 REST]
     M13 --> M14[M1.4 BPM]
     M13 & M14 & M15 --> M16[M1.6 Batch]
     M16 --> M17
@@ -259,9 +260,9 @@ Równolegle da się prowadzić: M1.2 ∥ M1.3 ∥ M1.5 (wspólna zależność ty
 
 | Ryzyko | Wpływ | Mitygacja |
 |---|---|---|
-| Pokrycie BPM: Deezer `bpm=0`, dump AB zamrożony 2022 | brak BPM dla części nowych utworów | kaskada 3 źródeł + Claude fallback; raport pokrycia w M1.9; w odwodzie stub `AudioAnalyzer` (analiza previewu) |
+| Pokrycie BPM: Deezer `bpm=0`, dump AB zamrożony 2022 | brak BPM dla części nowych utworów | kaskada 3 źródeł + fallback LLM; raport pokrycia w M1.9; w odwodzie stub `AudioAnalyzer` (analiza previewu) |
 | MusicBrainz 1 req/s | wolne pierwsze wzbogacanie (~2500 utworów ≈ 40+ min samego MB) | cache trwały w bazie; MB potrzebny tylko do MBID; job w tle, restartowalny |
 | Rozmiar dumpa AcousticBrainz | ETL niewygodny lokalnie | filtrowanie strumieniowe po MBID; dump poza repo; krok udokumentowany, jednorazowy |
-| Koszt Claude | przekroczenie budżetu | Haiku, batch po 5, katalog deduplikuje, selektywne pola; pomiar kosztu w M1.5/M1.9 |
+| Koszt LLM | przekroczenie budżetu | tani model klasy „mini/haiku", batch po 5, katalog deduplikuje, selektywne pola; pomiar kosztu w M1.5/M1.9 |
 | Dryf schematu po M1.1 | kosztowne migracje | schemat zatwierdzany explicit przed M1.2+; zmiany tylko przez Flyway |
 | Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |

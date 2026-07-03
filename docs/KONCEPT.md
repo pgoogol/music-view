@@ -1,6 +1,8 @@
 > **Adnotacja (2026-07-03):** To jest oryginalny dokument koncepcyjny (specyfikacja źródłowa).
 > Część decyzji została zrewidowana po jego powstaniu — m.in. wycofanie multi-user (Etap 3),
-> odchudzenie zestawu pól i źródeł danych oraz zmiana pakietu bazowego na `com.pgoogol`.
+> odchudzenie zestawu pól i źródeł danych, zmiana pakietu bazowego na `com.pgoogol` oraz
+> rezygnacja ze sztywnego wyboru Claude/Anthropic — warstwa AI używa dowolnego providera LLM,
+> a praca może być prowadzona dowolnym agentem kodującym (D15).
 > Obowiązujące rozstrzygnięcia: [DECYZJE.md](DECYZJE.md). Rozbicie pracy: [PLAN.md](PLAN.md).
 
 # Sabor Latino — Music Library & DJ Tooling

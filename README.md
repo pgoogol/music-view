@@ -7,7 +7,7 @@ DJ-a; pozwala przeszukiwać bibliotekę i planować sety/playlisty z eksportem n
 
 **Stack:** Spring Boot 3.x (Java 21, pakiet `com.pgoogol`) + Spring Batch + PostgreSQL +
 React (Vite). Źródła danych: Spotify, MusicBrainz (MBID), AcousticBrainz (dump),
-Deezer (BPM), Claude Haiku (analiza AI).
+Deezer (BPM), dowolny model LLM (analiza AI — provider konfigurowalny, do wyboru).
 
 ## Dokumentacja
 

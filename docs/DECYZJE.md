@@ -62,12 +62,12 @@ Tylko pola, których DJ realnie używa:
 | **MusicBrainz** | wyłącznie lookup ISRC → MBID (klucz do AcousticBrainz) | User-Agent; twardo 1 req/s + cache |
 | **AcousticBrainz** | realne BPM, tonacja, danceability — import podzbioru dumpa (D7) | brak (dump offline) |
 | **Deezer API** | BPM fallback (lookup po ISRC / artist+title) | brak, darmowe |
-| **Claude (Haiku)** | style, genre_family, lyrics_theme, description_pl, energy, confidence; BPM tylko w ostateczności | API Key (jedyny koszt) |
+| **LLM (provider do wyboru — D15)** | style, genre_family, lyrics_theme, description_pl, energy, confidence; BPM tylko w ostateczności | klucz API providera (jedyny koszt) |
 
 **Wycofane:** Last.fm, Discogs, Genius, iTunes Search, GetSongBPM oraz **własna analiza audio**
 (TarsosDSP/librosa) — interfejs `AudioAnalyzer` zostaje w projekcie jako stub na przyszłość.
 
-**Kaskada BPM:** `acousticbrainz → deezer → claude`, wynik audytowany w polu `bpm_source`.
+**Kaskada BPM:** `acousticbrainz → deezer → llm`, wynik audytowany w polu `bpm_source`.
 Sanity-check half-time (§16.1) stosowany do każdego źródła (genre_family=latin i BPM<100 →
 rozważ podwojenie).
 
@@ -84,7 +84,7 @@ Jednorazowy ETL: z dumpa AB wyciągamy rekordy pasujące do MBID-ów biblioteki 
 ## D8. `genre_family` — kontrolowany enum, `style` — free-form
 
 `latin | rock | pop | disco | disco_polo | electronic | hip_hop | other` (§11.2).
-Claude mapuje utwór na jedną wartość `genre_family`; `style` pozostaje wartością swobodną
+LLM mapuje utwór na jedną wartość `genre_family`; `style` pozostaje wartością swobodną
 (np. „timba", „salsa dura", „italo disco").
 
 ## D9. `dj_slot` liczony w aplikacji
@@ -104,8 +104,8 @@ Redukcja z czterech grup konceptu (§5.2). `TAGS` i `TEXT` znikają wraz ze źr�
 
 - **METADATA** — Spotify (fakty, cache na zawsze),
 - **AUDIO** — AcousticBrainz/Deezer: bpm, danceability, musical_key, tempo_class (fakty),
-- **AI** — Claude: style, genre_family, lyrics_theme, description_pl, energy, confidence
-  (estymacje, przeliczalne przy zmianie modelu/promptu).
+- **AI** — LLM: style, genre_family, lyrics_theme, description_pl, energy, confidence
+  (estymacje, przeliczalne przy zmianie providera/modelu/promptu).
 
 ## D12. Stack techniczny startowy
 
@@ -123,7 +123,26 @@ fundament pod pełny front Etapu 2.
 ## D14. Bezpieczeństwo kluczy
 
 Bez auth w aplikacji (narzędzie lokalne). Sekrety wyłącznie w zmiennych środowiskowych /
-`.env` (poza repo; w repo tylko `.env.example`): Spotify Client ID+Secret, Anthropic API Key.
+`.env` (poza repo; w repo tylko `.env.example`): Spotify Client ID+Secret, klucz API
+wybranego providera LLM (D15).
 MusicBrainz wymaga tylko User-Agent z kontaktem; Deezer i dump AB — bez sekretów.
 Klucze, które pojawiły się wcześniej jawnie w czacie — **zrotować** przed ewentualnym
 upublicznieniem repo (§21).
+
+## D15. Provider LLM i agent kodujący — dowolne (nierozstrzygnięte celowo)
+
+Koncept zakładał na sztywno Claude/Anthropic. Decyzja: **nie wiążemy się z jednym providerem** —
+wybór zapadnie później.
+
+- **Warstwa AI w aplikacji:** interfejs **`LlmClient`** (własna abstrakcja; alternatywnie
+  Spring AI jako gotowa warstwa multi-provider). Provider, model i wersja promptu wyłącznie
+  w konfiguracji (`LLM_PROVIDER`, `LLM_API_KEY`, model). Pola audytu `model_used`
+  i `enrich_version` (D3) już to wspierają — zmiana providera/modelu = przeliczenie samych
+  estymacji, bez ponownego odpytywania źródeł faktów.
+- **Kryteria wyboru modelu (gdy zapadnie):** tani model klasy „mini/haiku", strukturalne
+  wyjście JSON, sensowna wiedza muzyczna; łatwa podmiana dzięki abstrakcji.
+- **`bpm_source`:** wartość `llm` (neutralna, zamiast `claude`).
+- **Agent kodujący (dev workflow):** dowolny. Ruleset projektu trzymany w **`AGENTS.md`**
+  (format wspierany przez większość agentów); w razie potrzeby symlink/kopia pod nazwą
+  wymaganą przez konkretne narzędzie (np. `CLAUDE.md`). Plan pracy (PLAN.md) mówi o „sesjach
+  agenta", nie o konkretnym produkcie.
