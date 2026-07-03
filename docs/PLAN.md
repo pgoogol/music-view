@@ -1,7 +1,7 @@
 # Plan pracy — rozbicie na etapy i kamienie milowe
 
 Podstawa: [KONCEPT.md](KONCEPT.md) + rozstrzygnięcia z [DECYZJE.md](DECYZJE.md).
-Zasada pracy: **jedna sesja agenta AI = jeden kamień milowy** (kamienie są tak krojone,
+Zasada pracy: **jedna sesja Claude Code = jeden kamień milowy** (kamienie są tak krojone,
 żeby każdy kończył się działającym, testowalnym przyrostem). Kolejność wymuszona zależnościami —
 schemat danych (M1.1) blokuje resztę, bo to jedyna kosztowna rzecz do zmiany (§2.4 konceptu).
 
@@ -99,7 +99,7 @@ erDiagram
 |---|---|
 | 0.1 | Szkielet Spring Boot 3.x (Java 21, Maven): moduł główny, pakiety `com.pgoogol.{catalog,library,playlist,ingestion,enrichment,api,common}`, `.gitignore`, `.editorconfig` |
 | 0.2 | `docker-compose.yml` (Postgres 16) + profile `local`; `.env.example` (SPOTIFY_CLIENT_ID/SECRET, LLM_PROVIDER, LLM_API_KEY, MB_USER_AGENT) |
-| 0.3 | `AGENTS.md` — ruleset Java/Spring dla dowolnego agenta kodującego (konwencje, komendy build/test, zasady sekretów wg D14); symlink/kopia pod nazwą wymaganą przez wybrane narzędzie (D15) |
+| 0.3 | `CLAUDE.md` — ruleset Java/Spring (konwencje, komendy build/test, zasady sekretów wg D14) |
 | 0.4 | CI GitHub Actions: build + testy na push/PR |
 
 **DoD:** `docker compose up -d` + `mvn verify` działa na czysto sklonowanym repo; CI zielone.

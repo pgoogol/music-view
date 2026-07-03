@@ -129,10 +129,11 @@ MusicBrainz wymaga tylko User-Agent z kontaktem; Deezer i dump AB — bez sekret
 Klucze, które pojawiły się wcześniej jawnie w czacie — **zrotować** przed ewentualnym
 upublicznieniem repo (§21).
 
-## D15. Provider LLM i agent kodujący — dowolne (nierozstrzygnięte celowo)
+## D15. Provider LLM do analizy utworów — dowolny (nierozstrzygnięty celowo)
 
-Koncept zakładał na sztywno Claude/Anthropic. Decyzja: **nie wiążemy się z jednym providerem** —
-wybór zapadnie później.
+Koncept zakładał na sztywno Claude/Anthropic w warstwie wzbogacania. Decyzja: **nie wiążemy
+się z jednym providerem** — wybór zapadnie później. Dotyczy wyłącznie analizy danych utworów
+(grupa AI); workflow deweloperski (Claude Code, CLAUDE.md) bez zmian.
 
 - **Warstwa AI w aplikacji:** interfejs **`LlmClient`** (własna abstrakcja; alternatywnie
   Spring AI jako gotowa warstwa multi-provider). Provider, model i wersja promptu wyłącznie
@@ -142,7 +143,3 @@ wybór zapadnie później.
 - **Kryteria wyboru modelu (gdy zapadnie):** tani model klasy „mini/haiku", strukturalne
   wyjście JSON, sensowna wiedza muzyczna; łatwa podmiana dzięki abstrakcji.
 - **`bpm_source`:** wartość `llm` (neutralna, zamiast `claude`).
-- **Agent kodujący (dev workflow):** dowolny. Ruleset projektu trzymany w **`AGENTS.md`**
-  (format wspierany przez większość agentów); w razie potrzeby symlink/kopia pod nazwą
-  wymaganą przez konkretne narzędzie (np. `CLAUDE.md`). Plan pracy (PLAN.md) mówi o „sesjach
-  agenta", nie o konkretnym produkcie.
