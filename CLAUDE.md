@@ -4,7 +4,7 @@ Osobiste narzędzie DJ-a do zarządzania biblioteką muzyczną. Spring Boot 3.x
 (Java 21, Maven) + Spring Batch + PostgreSQL 16 + React (Vite, od M1.8).
 
 Dokumentacja nadrzędna: [docs/KONCEPT.md](docs/KONCEPT.md) (specyfikacja),
-[docs/DECYZJE.md](docs/DECYZJE.md) (obowiązujące decyzje D1–D15 — nadpisują koncept),
+[docs/DECYZJE.md](docs/DECYZJE.md) (obowiązujące decyzje D1–D17 — nadpisują koncept),
 [docs/PLAN.md](docs/PLAN.md) (etapy i kamienie milowe). Odwołania „Dx" w kodzie
 i commitach wskazują decyzje z DECYZJE.md.
 
@@ -39,6 +39,18 @@ CI (GitHub Actions) uruchamia `./mvnw verify` na każdy push na `master` i każd
   odpowiedziach (WireMock). Nowa logika = nowe testy w tym samym kamieniu.
 - Klienci zewnętrznych API izolowani w dedykowanych klasach (`SpotifyClient` itd.)
   z limiterem i retry+backoff z `common/ratelimit`; MusicBrainz twardo 1 req/s.
+
+## Rulesety szczegółowe (D16)
+
+Obowiązują dla całego nowego kodu — zaadaptowane do projektu (usunięte sekcje
+Kafka/WebFlux/Spring Security-JWT; szczegóły w DECYZJE.md D16). Konflikty
+rozstrzygają DECYZJE.md i PLAN.md.
+
+- [docs/rules/codestyle.md](docs/rules/codestyle.md) — styl kodu, nazewnictwo, konwencje Java 21/Spring
+- [docs/rules/testing.md](docs/rules/testing.md) — narzędzia testowe, nazewnictwo testów, given/when/then, fixtures
+- [docs/rules/errorhandling.md](docs/rules/errorhandling.md) — hierarchia wyjątków, format błędów API, logowanie, retry
+- [docs/rules/database.md](docs/rules/database.md) — Flyway, JPA/Hibernate, zapytania, paginacja, cache
+- [docs/rules/security.md](docs/rules/security.md) — sekrety, walidacja wejścia, tokeny Spotify, actuator
 
 ## Sekrety (D14)
 

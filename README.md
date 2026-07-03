@@ -29,6 +29,8 @@ Sekrety: skopiuj `.env.example` do `.env` i uzupełnij (plik `.env` nie trafia d
 
 ## Stan projektu
 
-**Etap 0 (bootstrap) zakończony** — szkielet Spring Boot 3 (Java 21, Maven, pakiety
-`com.pgoogol.*`), Postgres 16 w `docker-compose.yml`, `CLAUDE.md`, CI GitHub Actions.
-Następny kamień: **M1.1** (schemat danych) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**Etap 0 (bootstrap) i M1.1 (schemat danych) zakończone** — encje JPA + migracja
+Flyway `V1` (indeksy pg_trgm/tsvector/bpm), repozytoria z testami na Testcontainers,
+rulesety kodowania w [docs/rules/](docs/rules/) (D16). Schemat zamrożony (D17 —
+doprecyzowania). Następne kamienie: **M1.2** (import CSV) ∥ **M1.3** (klienci źródeł)
+∥ **M1.5** (LLM) zgodnie z [docs/PLAN.md](docs/PLAN.md).
