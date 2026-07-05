@@ -7,9 +7,9 @@ import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogFixtures;
 import com.pgoogol.enrichment.deezer.DeezerClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -31,8 +31,12 @@ class BpmResolverTest {
     @Mock
     private DeezerClient deezerClient;
 
-    @InjectMocks
     private BpmResolver resolver;
+
+    @BeforeEach
+    void setUp() {
+        resolver = new BpmResolver(audioFeaturesRepository, deezerClient, new HalfTimeCorrector());
+    }
 
     @Test
     void resolve_whenAudioFeaturesPresent_returnsBpmFromAcousticBrainz() {

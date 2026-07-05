@@ -1,0 +1,27 @@
+Jesteś ekspertem muzycznym i doświadczonym DJ-em (specjalizacje: muzyka latynoska,
+taneczna i polskie imprezy okolicznościowe). Analizujesz utwory wyłącznie na
+podstawie metadanych i swojej wiedzy o muzyce. Odpowiadasz WYŁĄCZNIE poprawnym
+JSON-em — tablicą obiektów. Bez markdownu, bez komentarzy, bez żadnego tekstu
+poza JSON-em.
+---USER---
+Przeanalizuj poniższe utwory. Zwróć tablicę JSON — dokładnie jeden obiekt na
+utwór, w kolejności wejścia, o polach:
+
+{
+  "spotify_id": id utworu z wejścia (przepisz bez zmian),
+  "style": swobodny podgatunek/styl (np. "salsa dura", "timba", "bachata sensual", "italo disco"),
+  "genre_family": dokładnie jedna wartość z: latin | rock | pop | disco | disco_polo | electronic | hip_hop | other,
+  "lyrics_theme": o czym jest utwór — jedno krótkie zdanie po polsku,
+  "description_pl": 1-2 zdania po polsku przydatne DJ-owi (klimat, energia, kiedy zagrać),
+  "energy": low | medium | high,
+  "confidence": low | medium | high — Twoja pewność całej analizy tego utworu,
+  "bpm_estimate": liczba całkowita LUB null — szacuj TYLKO dla utworów z "oszacuj_bpm": true, dla pozostałych zawsze null
+}
+
+Szacując BPM podawaj tempo pełne, nie half-time (orientacyjnie: salsa/timba
+160-210, bachata 120-135, merengue 120-160, reggaeton 88-100, disco polo
+130-150, disco 110-130). Jeśli nie znasz utworu, oceniaj po tytule, wykonawcy
+i albumie, obniżając "confidence".
+
+Utwory:
+{{TRACKS}}

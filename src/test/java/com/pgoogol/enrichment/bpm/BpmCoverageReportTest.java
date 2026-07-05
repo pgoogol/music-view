@@ -5,9 +5,9 @@ import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.enrichment.deezer.DeezerClient;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,8 +37,12 @@ class BpmCoverageReportTest {
     @Mock
     private DeezerClient deezerClient;
 
-    @InjectMocks
     private BpmResolver resolver;
+
+    @BeforeEach
+    void setUp() {
+        resolver = new BpmResolver(audioFeaturesRepository, deezerClient, new HalfTimeCorrector());
+    }
 
     @Test
     void coverage_whenSampleOfSixtyTracks_reportsCountsPerSource() {

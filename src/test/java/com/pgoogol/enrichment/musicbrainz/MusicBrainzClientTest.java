@@ -7,7 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.client.RestClient;
+import com.pgoogol.WireMockRestClients;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -125,6 +125,6 @@ class MusicBrainzClientTest {
 
         MusicBrainzProperties properties = new MusicBrainzProperties(
             wireMock.getHttpBaseUrl(), "music-view-test/0.1 (test@example.com)");
-        return new MusicBrainzClient(RestClient.builder(), properties, cacheRepository);
+        return new MusicBrainzClient(WireMockRestClients.builder(), properties, cacheRepository);
     }
 }

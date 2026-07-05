@@ -20,6 +20,18 @@ management:
       exposure:
         include: health,info
 
+# Warstwa AI (D15): provider, model i wersja promptu wyłącznie tutaj — nigdy w kodzie
+llm:
+  provider: ${LLM_PROVIDER:openai}   # openai (i zgodne: OpenRouter/Groq/Mistral/lokalne) | anthropic
+  api-key: ${LLM_API_KEY:}
+  model: ${LLM_MODEL:}
+  base-url: ${LLM_BASE_URL:}         # puste = domyślny URL providera
+  prompt-version: v1
+  batch-size: 5
+  requests-per-second: 2
+  max-tokens: 2048
+  temperature: 0.2
+
 clients:
   spotify:
     base-url: https://api.spotify.com

@@ -3,7 +3,7 @@ package com.pgoogol.enrichment.spotify;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
+import com.pgoogol.WireMockRestClients;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -114,6 +114,6 @@ class SpotifyClientTest {
         SpotifyProperties properties = new SpotifyProperties(
             wireMock.getHttpBaseUrl(), wireMock.getHttpBaseUrl(),
             "test-client-id", "test-client-secret", 100);
-        return new SpotifyClient(RestClient.builder(), properties);
+        return new SpotifyClient(WireMockRestClients.builder(), properties);
     }
 }

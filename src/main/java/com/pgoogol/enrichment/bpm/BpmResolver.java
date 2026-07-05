@@ -3,7 +3,6 @@ package com.pgoogol.enrichment.bpm;
 import com.pgoogol.catalog.AudioFeatures;
 import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.BpmSource;
-import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.enrichment.deezer.DeezerClient;
 import org.springframework.stereotype.Component;
@@ -26,16 +25,16 @@ import java.util.stream.Collectors;
 @Component
 public class BpmResolver {
 
-    private static final int HALF_TIME_THRESHOLD = 100;
-    private static final int MAX_PLAUSIBLE_BPM = 210;
-
     private final AudioFeaturesRepository audioFeaturesRepository;
     private final DeezerClient deezerClient;
+    private final HalfTimeCorrector halfTimeCorrector;
 
-    public BpmResolver(AudioFeaturesRepository audioFeaturesRepository, DeezerClient deezerClient) {
+    public BpmResolver(AudioFeaturesRepository audioFeaturesRepository, DeezerClient deezerClient,
+                       HalfTimeCorrector halfTimeCorrector) {
 
         this.audioFeaturesRepository = audioFeaturesRepository;
         this.deezerClient = deezerClient;
+        this.halfTimeCorrector = halfTimeCorrector;
     }
 
     public Optional<BpmResolution> resolve(TrackCatalog track) {
@@ -86,12 +85,10 @@ public class BpmResolver {
 
     private BpmResolution withHalfTimeCorrection(TrackCatalog track, BpmResolution resolution) {
 
-        boolean latin = Objects.equals(track.getGenreFamily(), GenreFamily.LATIN);
-        int doubled = resolution.bpm() * 2;
-        if (latin && resolution.bpm() < HALF_TIME_THRESHOLD && doubled <= MAX_PLAUSIBLE_BPM) {
-            return new BpmResolution(doubled, resolution.source());
-        }
-        return resolution;
+        int corrected = halfTimeCorrector.correct(track.getGenreFamily(), resolution.bpm());
+        return corrected == resolution.bpm()
+            ? resolution
+            : new BpmResolution(corrected, resolution.source());
     }
 
     private int round(BigDecimal bpm) {

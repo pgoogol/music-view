@@ -34,6 +34,9 @@ M1.3 (klienci źródeł), M1.4 (AudioFeatures + BpmResolver)** — kaskada BPM
 D6: `audio_features` (AcousticBrainz) → Deezer → brak (dla AI), z korektą
 half-time i audytem w `bpm_source`; ETL dumpa AB:
 [docs/AB_ETL.md](docs/AB_ETL.md) + `scripts/filter_acousticbrainz_dump.py`
-(dump poza repo); stub `AudioAnalyzer` (NOOP). Smoke-test realnych API:
-`MV_SMOKE=true ./mvnw test -Dtest=RealApiSmokeTest`. Następny kamień:
-**M1.5** (LlmClient + prompt), potem M1.6 zgodnie z [docs/PLAN.md](docs/PLAN.md).
+(dump poza repo); stub `AudioAnalyzer` (NOOP). **M1.5 (warstwa AI)**: `LlmClient`
+niezależny od providera (openai-compatible / anthropic — D15), prompt „ekspert
+muzyczny i DJ" wersjonowany w konfiguracji, batch po 5, walidacja JSON;
+smoke + pomiar kosztu: `MV_SMOKE=true LLM_API_KEY=… ./mvnw test -Dtest=LlmSmokeTest`.
+Smoke-test klientów źródeł: `MV_SMOKE=true ./mvnw test -Dtest=RealApiSmokeTest`.
+Następny kamień: **M1.6** (Spring Batch) zgodnie z [docs/PLAN.md](docs/PLAN.md).

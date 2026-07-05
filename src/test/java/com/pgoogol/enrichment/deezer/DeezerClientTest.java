@@ -3,7 +3,7 @@ package com.pgoogol.enrichment.deezer;
 import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
+import com.pgoogol.WireMockRestClients;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -100,7 +100,7 @@ class DeezerClientTest {
     }
 
     private DeezerClient deezerClient(WireMockRuntimeInfo wireMock) {
-        return new DeezerClient(RestClient.builder(),
+        return new DeezerClient(WireMockRestClients.builder(),
             new DeezerProperties(wireMock.getHttpBaseUrl(), 100));
     }
 }
