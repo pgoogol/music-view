@@ -1,5 +1,6 @@
 package com.pgoogol.api;
 
+import com.pgoogol.common.ExternalServiceException;
 import com.pgoogol.common.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,6 +33,14 @@ public class GlobalExceptionHandler {
 
         log.warn("Upload rejected: file too large");
         return ErrorResponse.of("FILE_TOO_LARGE", "Przesłany plik przekracza dopuszczalny rozmiar");
+    }
+
+    @ExceptionHandler(ExternalServiceException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    public ErrorResponse handleExternalService(ExternalServiceException ex) {
+
+        log.error("External service failure: {} — {}", ex.getErrorCode(), ex.getMessage());
+        return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

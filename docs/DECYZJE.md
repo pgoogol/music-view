@@ -1,7 +1,7 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
 Status wszystkich decyzji: **przyjęte** (2026-07-03). Decyzje nadpisują [KONCEPT.md](KONCEPT.md)
-tam, gdzie się różnią. Numeracja D1–D17; odwołania §x wskazują sekcje konceptu.
+tam, gdzie się różnią. Numeracja D1–D18; odwołania §x wskazują sekcje konceptu.
 
 ---
 
@@ -182,3 +182,13 @@ Rozstrzygnięcia przy zamrażaniu schematu — uzupełniają diagram ERD z PLAN.
 - Zapytania „missing" per grupa pól (D11) po polach-wyznacznikach: METADATA →
   `isrc/year/duration_ms`, AUDIO → `bpm/musical_key/danceability/tempo_class`,
   AI → `style/genre_family/lyrics_theme/description_pl/energy`.
+
+## D18. Trwały cache MusicBrainz w bazie (tabela techniczna poza ERD)
+
+M1.3 wymaga cache'u wyników ISRC→MBID w bazie (D6: MB wyłącznie do MBID, twardy
+1 req/s). Tabela `musicbrainz_isrc_cache(isrc PK, mbid NULL, resolved_at)`,
+migracja V2; `mbid = NULL` oznacza potwierdzony brak wyniku (negative cache) —
+ponowne wzbogacanie nie odpytuje MB drugi raz. To nie jest zmiana zamrożonego
+modelu domenowego (ERD z PLAN.md) — tabela pomocnicza infrastruktury klienta.
+Bez TTL: mapowanie ISRC→MBID traktujemy jak fakt deterministyczny (wyjątek
+dopuszczony w docs/rules/database.md).

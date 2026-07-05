@@ -16,6 +16,12 @@ public abstract class AppException extends RuntimeException {
         this.errorCode = Objects.requireNonNull(errorCode, "errorCode");
     }
 
+    protected AppException(String errorCode, String message, Throwable cause) {
+
+        super(message, cause);
+        this.errorCode = Objects.requireNonNull(errorCode, "errorCode");
+    }
+
     public String getErrorCode() {
         return errorCode;
     }

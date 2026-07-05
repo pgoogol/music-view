@@ -19,3 +19,18 @@ management:
     web:
       exposure:
         include: health,info
+
+clients:
+  spotify:
+    base-url: https://api.spotify.com
+    auth-url: https://accounts.spotify.com
+    client-id: ${SPOTIFY_CLIENT_ID:}
+    client-secret: ${SPOTIFY_CLIENT_SECRET:}
+    requests-per-second: 8
+  musicbrainz:
+    # twardy limit 1 req/s jest w kodzie klienta (D6) — celowo nie w konfiguracji
+    base-url: https://musicbrainz.org
+    user-agent: ${MB_USER_AGENT:}
+  deezer:
+    base-url: https://api.deezer.com
+    requests-per-second: 10
