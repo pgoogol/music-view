@@ -39,4 +39,8 @@ niezależny od providera (openai-compatible / anthropic — D15), prompt „eksp
 muzyczny i DJ" wersjonowany w konfiguracji, batch po 5, walidacja JSON;
 smoke + pomiar kosztu: `MV_SMOKE=true LLM_API_KEY=… ./mvnw test -Dtest=LlmSmokeTest`.
 Smoke-test klientów źródeł: `MV_SMOKE=true ./mvnw test -Dtest=RealApiSmokeTest`.
-Następny kamień: **M1.6** (Spring Batch) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**M1.6 (job wzbogacania)**: restartowalny pipeline Spring Batch — reader wg
+`scope` (SINGLE/SELECTED/MISSING), chunk=5 z wzbogacaniem METADATA → AUDIO → AI
+i zapisem inkrementalnym; checkpointy w tabelach BATCH_* (Flyway V3), restart
+dokańcza bez duplikatów; `EnrichmentService` (start/status/restart/missing-count).
+Następny kamień: **M1.7** (REST + Swagger) zgodnie z [docs/PLAN.md](docs/PLAN.md).

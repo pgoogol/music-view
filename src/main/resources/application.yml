@@ -10,6 +10,13 @@ spring:
       # pełny eksport Exportify (~2500 wierszy) przekracza domyślny 1MB
       max-file-size: 10MB
       max-request-size: 10MB
+  batch:
+    job:
+      # joby startują wyłącznie przez EnrichmentService, nie przy starcie aplikacji
+      enabled: false
+    jdbc:
+      # tabele BATCH_* zarządza Flyway (migracja V3)
+      initialize-schema: never
 
 server:
   port: 8080

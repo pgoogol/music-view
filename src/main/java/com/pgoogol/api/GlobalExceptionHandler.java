@@ -1,6 +1,7 @@
 package com.pgoogol.api;
 
 import com.pgoogol.common.ExternalServiceException;
+import com.pgoogol.common.NotFoundException;
 import com.pgoogol.common.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,14 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleValidation(ValidationException ex) {
 
         log.warn("Validation failed: {} — {}", ex.getErrorCode(), ex.getMessage());
+        return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleNotFound(NotFoundException ex) {
+
+        log.warn("Resource not found: {}", ex.getErrorCode());
         return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
     }
 
