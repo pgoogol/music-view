@@ -1,15 +1,19 @@
 package com.pgoogol.api;
 
+import com.pgoogol.common.ConflictException;
 import com.pgoogol.common.ExternalServiceException;
 import com.pgoogol.common.NotFoundException;
 import com.pgoogol.common.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+
+import java.util.stream.Collectors;
 
 /**
  * Jedyny punkt mapowania wyjątków na odpowiedzi błędów — bez rozproszonych
@@ -25,6 +29,26 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleValidation(ValidationException ex) {
 
         log.warn("Validation failed: {} — {}", ex.getErrorCode(), ex.getMessage());
+        return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleBeanValidation(MethodArgumentNotValidException ex) {
+
+        String details = ex.getBindingResult().getFieldErrors().stream()
+            .map(error -> error.getField() + ": " + error.getDefaultMessage())
+            .sorted()
+            .collect(Collectors.joining("; "));
+        log.warn("Request body validation failed: {}", details);
+        return ErrorResponse.of("VALIDATION_FAILED", details);
+    }
+
+    @ExceptionHandler(ConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleConflict(ConflictException ex) {
+
+        log.warn("Conflict: {} — {}", ex.getErrorCode(), ex.getMessage());
         return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
     }
 

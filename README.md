@@ -43,4 +43,8 @@ Smoke-test klientów źródeł: `MV_SMOKE=true ./mvnw test -Dtest=RealApiSmokeTe
 `scope` (SINGLE/SELECTED/MISSING), chunk=5 z wzbogacaniem METADATA → AUDIO → AI
 i zapisem inkrementalnym; checkpointy w tabelach BATCH_* (Flyway V3), restart
 dokańcza bez duplikatów; `EnrichmentService` (start/status/restart/missing-count).
-Następny kamień: **M1.7** (REST + Swagger) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**M1.7 (REST + Swagger)**: pełne API Etapu 1 — Catalog (wyszukiwarka
+tsvector+pg_trgm, filtry genre/bpm/tempo/energy, paginacja), Library
+(lista z joinem, POST/PATCH/DELETE danych prywatnych), Enrich (zlecenie,
+joby, status, restart, missing-count); Swagger UI: `/swagger-ui.html`.
+Następny kamień: **M1.8** (viewer React) zgodnie z [docs/PLAN.md](docs/PLAN.md).
