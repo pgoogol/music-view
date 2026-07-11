@@ -42,6 +42,11 @@ public class LibraryService {
         return libraryEntryRepository.findPageWithTrack(pageable);
     }
 
+    @Transactional(readOnly = true)
+    public LibraryEntry get(String spotifyId) {
+        return requireEntry(spotifyId);
+    }
+
     /** Ręczne dodanie utworu — jak import z pliku (source=FILE); szkielet katalogu gdy brak. */
     @Transactional
     public LibraryEntry add(String spotifyId, String title, String artist, String album) {

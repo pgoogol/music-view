@@ -172,6 +172,27 @@ class EnrichmentJobIntegrationTest {
     }
 
     @Test
+    void start_whenLatinTrackWithHalfTimeBpm_appliesCorrectionAfterAiPhase() {
+
+        // given — Deezer daje 92.5 (half-time salsy); gatunek latin znany dopiero
+        // po fazie AI, więc korekta musi zadziałać na końcu chunka
+        seedSkeletons(1);
+        given(deezerClient.findBpmByIsrc(anyString())).willReturn(Optional.of(new BigDecimal("92.5")));
+
+        // when
+        long executionId = enrichmentService.start(
+            EnrichmentScope.MISSING, EnumSet.allOf(FieldGroup.class), List.of());
+        awaitStatus(executionId, "COMPLETED");
+
+        // then — 93 → 186 (latin, <100) i tempo_class z wartości po korekcie
+        assertThat(trackCatalogRepository.findById("trk-000")).hasValueSatisfying(track -> {
+            assertThat(track.getBpm()).isEqualTo(186);
+            assertThat(track.getBpmSource()).isEqualTo(BpmSource.DEEZER);
+            assertThat(track.getTempoClass()).isEqualTo(TempoClass.VERY_FAST);
+        });
+    }
+
+    @Test
     void start_whenSelectedScope_enrichesOnlyChosenTracks() {
 
         // given

@@ -35,6 +35,7 @@ class OpenApiDocsIntegrationTest {
             .andExpect(jsonPath("$.paths['/api/catalog/tracks/{spotifyId}'].get").exists())
             .andExpect(jsonPath("$.paths['/api/library/tracks'].get").exists())
             .andExpect(jsonPath("$.paths['/api/library/tracks'].post").exists())
+            .andExpect(jsonPath("$.paths['/api/library/tracks/{spotifyId}'].get").exists())
             .andExpect(jsonPath("$.paths['/api/library/tracks/{spotifyId}'].patch").exists())
             .andExpect(jsonPath("$.paths['/api/library/tracks/{spotifyId}'].delete").exists())
             .andExpect(jsonPath("$.paths['/api/enrich'].post").exists())

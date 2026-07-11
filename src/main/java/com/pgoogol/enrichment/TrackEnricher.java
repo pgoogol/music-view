@@ -5,6 +5,7 @@ import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.enrichment.bpm.BpmResolver;
+import com.pgoogol.enrichment.bpm.HalfTimeCorrector;
 import com.pgoogol.enrichment.llm.LlmProperties;
 import com.pgoogol.enrichment.llm.TrackAnalysis;
 import com.pgoogol.enrichment.llm.TrackAnalysisResult;
@@ -41,12 +42,13 @@ public class TrackEnricher {
     private final BpmResolver bpmResolver;
     private final TrackAnalysisService trackAnalysisService;
     private final TempoClassifier tempoClassifier;
+    private final HalfTimeCorrector halfTimeCorrector;
     private final LlmProperties llmProperties;
 
     public TrackEnricher(SpotifyClient spotifyClient, MusicBrainzClient musicBrainzClient,
                          AudioFeaturesRepository audioFeaturesRepository, BpmResolver bpmResolver,
                          TrackAnalysisService trackAnalysisService, TempoClassifier tempoClassifier,
-                         LlmProperties llmProperties) {
+                         HalfTimeCorrector halfTimeCorrector, LlmProperties llmProperties) {
 
         this.spotifyClient = spotifyClient;
         this.musicBrainzClient = musicBrainzClient;
@@ -54,6 +56,7 @@ public class TrackEnricher {
         this.bpmResolver = bpmResolver;
         this.trackAnalysisService = trackAnalysisService;
         this.tempoClassifier = tempoClassifier;
+        this.halfTimeCorrector = halfTimeCorrector;
         this.llmProperties = llmProperties;
     }
 
@@ -75,7 +78,19 @@ public class TrackEnricher {
         }
         tracks.stream()
             .filter(track -> Objects.nonNull(track.getBpm()))
-            .forEach(track -> track.setTempoClass(tempoClassifier.classify(track.getBpm())));
+            .forEach(this::finalizeBpm);
+    }
+
+    /**
+     * Kaskada AUDIO biegnie przed AI, więc korekta half-time w BpmResolverze
+     * nie zna jeszcze gatunku — ponawiamy ją tutaj, gdy genre_family jest już
+     * ustalone (idempotentna: po podwojeniu BPM ≥ 100); na końcu tempo_class.
+     */
+    private void finalizeBpm(TrackCatalog track) {
+
+        int corrected = halfTimeCorrector.correct(track.getGenreFamily(), track.getBpm());
+        track.setBpm(corrected);
+        track.setTempoClass(tempoClassifier.classify(corrected));
     }
 
     private void applyMetadata(List<TrackCatalog> tracks) {

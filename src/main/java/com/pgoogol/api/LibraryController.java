@@ -43,6 +43,12 @@ public class LibraryController {
         return PageResponse.of(libraryService.list(pageRequest), mapper::toResponse);
     }
 
+    @GetMapping("/tracks/{spotifyId}")
+    @Operation(summary = "Pojedynczy wpis biblioteki z rekordem katalogu")
+    public LibraryEntryResponse getTrack(@PathVariable String spotifyId) {
+        return mapper.toResponse(libraryService.get(spotifyId));
+    }
+
     @PostMapping("/tracks")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Ręczne dodanie utworu do biblioteki (szkielet katalogu gdy brak)")

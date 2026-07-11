@@ -84,6 +84,23 @@ class LibraryApiIntegrationTest {
     }
 
     @Test
+    void getTrack_whenEntryExists_returnsEntryJoinedWithCatalog() throws Exception {
+
+        mockMvc.perform(post("/api/library/tracks")
+                .contentType(MediaType.APPLICATION_JSON).content(ADD_VIVIR_JSON))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/library/tracks/sp-vivir"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.track.title").value("Vivir Mi Vida"));
+
+        mockMvc.perform(get("/api/library/tracks/sp-nieistnieje"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("LIBRARY_ENTRY_NOT_FOUND"));
+    }
+
+    @Test
     void listTracks_whenEntryExists_returnsEntryJoinedWithCatalog() throws Exception {
 
         mockMvc.perform(post("/api/library/tracks")

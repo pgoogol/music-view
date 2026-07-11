@@ -45,6 +45,12 @@ i zapisem inkrementalnym; checkpointy w tabelach BATCH_* (Flyway V3), restart
 dokańcza bez duplikatów; `EnrichmentService` (start/status/restart/missing-count).
 **M1.7 (REST + Swagger)**: pełne API Etapu 1 — Catalog (wyszukiwarka
 tsvector+pg_trgm, filtry genre/bpm/tempo/energy, paginacja), Library
-(lista z joinem, POST/PATCH/DELETE danych prywatnych), Enrich (zlecenie,
+(lista z joinem, GET/POST/PATCH/DELETE danych prywatnych), Enrich (zlecenie,
 joby, status, restart, missing-count); Swagger UI: `/swagger-ui.html`.
-Następny kamień: **M1.8** (viewer React) zgodnie z [docs/PLAN.md](docs/PLAN.md).
+**M1.8 (viewer React)**: `frontend/` (Vite + React + TS, proxy dev na API) —
+tabela biblioteki (wyszukiwarka, filtry, sortowanie, paginacja, zaznaczanie),
+szczegóły utworu z edycją uwag/tagów/ratingu DJ-a, panel importu CSV
+i panel wzbogacania z podglądem postępu joba; start:
+`cd frontend && npm install && npm run dev` (backend na :8080).
+Następny kamień: **M1.9** (walidacja E2E na realnej bibliotece) —
+[docs/PLAN.md](docs/PLAN.md).
