@@ -52,5 +52,9 @@ tabela biblioteki (wyszukiwarka, filtry, sortowanie, paginacja, zaznaczanie),
 szczegóły utworu z edycją uwag/tagów/ratingu DJ-a, panel importu CSV
 i panel wzbogacania z podglądem postępu joba; start:
 `cd frontend && npm install && npm run dev` (backend na :8080).
-Następny kamień: **M1.9** (walidacja E2E na realnej bibliotece) —
-[docs/PLAN.md](docs/PLAN.md).
+**M1.9 (walidacja E2E)**: pipeline zwalidowany na pełnej skali 2500 utworów
+(próba generalna — [docs/RAPORT_POKRYCIA_M19.md](docs/RAPORT_POKRYCIA_M19.md)):
+komplet pól D5 = 100%, BPM domknięty kaskadą D6 + LLM, koszt ≈ $1.85/biblioteka;
+raport pokrycia: `scripts/coverage_report.sql`, przebieg na realnej bibliotece:
+[docs/M19_WALIDACJA.md](docs/M19_WALIDACJA.md). **Etap 1 zamknięty** — dalej
+Etap 2 (Spotify OAuth + playlisty) wg [docs/PLAN.md](docs/PLAN.md).

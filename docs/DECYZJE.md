@@ -1,7 +1,7 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
 Status wszystkich decyzji: **przyjęte** (2026-07-03). Decyzje nadpisują [KONCEPT.md](KONCEPT.md)
-tam, gdzie się różnią. Numeracja D1–D18; odwołania §x wskazują sekcje konceptu.
+tam, gdzie się różnią. Numeracja D1–D19; odwołania §x wskazują sekcje konceptu.
 
 ---
 
@@ -192,3 +192,16 @@ ponowne wzbogacanie nie odpytuje MB drugi raz. To nie jest zmiana zamrożonego
 modelu domenowego (ERD z PLAN.md) — tabela pomocnicza infrastruktury klienta.
 Bez TTL: mapowanie ISRC→MBID traktujemy jak fakt deterministyczny (wyjątek
 dopuszczony w docs/rules/database.md).
+
+## D19. AudioAnalyzer — kryterium decyzji (M1.9)
+
+Pipeline zwalidowano E2E na pełnej skali 2500 utworów (próba generalna na
+danych syntetycznych — [RAPORT_POKRYCIA_M19.md](RAPORT_POKRYCIA_M19.md)):
+kaskada D6 + fallback LLM domyka BPM do 100%, komplet pól D5 = 100%,
+koszt LLM ≈ 0,0007 USD/utwór. Mechanizm działa; niepewna pozostaje wyłącznie
+jakość pokrycia realnych źródeł (Deezer/dump AB) na prawdziwej bibliotece.
+
+**Decyzja (kryterium):** `AudioAnalyzer` pozostaje stubem. Implementację
+(analiza previewu) odblokowuje dopiero realny przebieg M1.9, jeśli:
+BPM z faktów (AB+Deezer) < 70% biblioteki **lub** komplet pól D5 < 95%.
+Wynik realnego przebiegu dopisać tutaj i do raportu (przebieg B).

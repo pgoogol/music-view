@@ -271,6 +271,8 @@ stawki przez `LLM_COST_INPUT_PER_1M`/`LLM_COST_OUTPUT_PER_1M`). Szacunek dla pro
 (batch po 5): ~150 tokenów wejścia + ~120 wyjścia na utwór → dla modelu klasy
 mini/haiku (~$1/M in, ~$5/M out) **≈ $0.0008/utwór, cała biblioteka ~2500 utworów ≈ $2**.
 Realny pomiar do wpisania tutaj po pierwszym uruchomieniu z kluczem providera
-(sieć środowiska deweloperskiego blokuje zewnętrzne API).
+(sieć środowiska deweloperskiego blokuje zewnętrzne API). **Próba generalna M1.9
+(2500 utworów, stub providera):** 140 tokenów wej. + 120 wyj. na utwór →
+≈ $0.00074/utwór, biblioteka ~2500 utworów ≈ **$1.85** (stawki klasy mini/haiku).
 | Dryf schematu po M1.1 | kosztowne migracje | schemat zatwierdzany explicit przed M1.2+; zmiany tylko przez Flyway |
 | Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |
