@@ -5,8 +5,11 @@ import com.pgoogol.enrichment.deezer.DeezerProperties;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzClient;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzIsrcCacheRepository;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzProperties;
+import com.pgoogol.enrichment.spotify.SpotifyApiExecutor;
+import com.pgoogol.enrichment.spotify.SpotifyAppTokenProvider;
 import com.pgoogol.enrichment.spotify.SpotifyClient;
 import com.pgoogol.enrichment.spotify.SpotifyProperties;
+import com.pgoogol.enrichment.spotify.SpotifyTrackMapper;
 import com.pgoogol.enrichment.spotify.SpotifyTrackMetadata;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -86,9 +89,12 @@ class RealApiSmokeTest {
     void spotify_forFiveRealTracks_returnsMetadataWithIsrc() {
 
         // given
-        SpotifyClient spotify = new SpotifyClient(RestClient.builder(), new SpotifyProperties(
+        SpotifyProperties properties = new SpotifyProperties(
             "https://api.spotify.com", "https://accounts.spotify.com",
-            System.getenv("SPOTIFY_CLIENT_ID"), System.getenv("SPOTIFY_CLIENT_SECRET"), 5));
+            System.getenv("SPOTIFY_CLIENT_ID"), System.getenv("SPOTIFY_CLIENT_SECRET"), 5);
+        SpotifyClient spotify = new SpotifyClient(RestClient.builder(), properties,
+            new SpotifyAppTokenProvider(RestClient.builder(), properties),
+            new SpotifyTrackMapper(), new SpotifyApiExecutor(properties));
 
         // when
         List<SpotifyTrackMetadata> tracks = spotify.getTracks(SPOTIFY_IDS);

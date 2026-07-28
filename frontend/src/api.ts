@@ -53,6 +53,16 @@ export interface IngestFileResponse {
   failed: { line: number; reason: string }[]
 }
 
+export interface IngestPlaylistResponse {
+  playlistId: number
+  spotifyPlaylistId: string
+  name: string
+  tracks: number
+  imported: number
+  alreadyExisted: number
+  skipped: { position: number; reason: string }[]
+}
+
 export interface EnrichJobResponse {
   executionId: number
   jobInstanceId: number
@@ -156,6 +166,10 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     return request('/api/ingest/file', { method: 'POST', body: form })
+  },
+
+  ingestPlaylist(url: string): Promise<IngestPlaylistResponse> {
+    return request('/api/ingest/playlist', jsonInit('POST', { url }))
   },
 
   startEnrichment(scope: string, fields: string[], spotifyIds: string[]): Promise<{ executionId: number }> {

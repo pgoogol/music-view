@@ -105,15 +105,15 @@ class SpotifyClientTest {
         // then
         verify(postRequestedFor(urlPathEqualTo("/api/token"))
             .withBasicAuth(new com.github.tomakehurst.wiremock.client.BasicCredentials(
-                "test-client-id", "test-client-secret"))
+                SpotifyTestProperties.CLIENT_ID, SpotifyTestProperties.CLIENT_SECRET))
             .withRequestBody(equalTo("grant_type=client_credentials")));
     }
 
     private SpotifyClient spotifyClient(WireMockRuntimeInfo wireMock) {
 
-        SpotifyProperties properties = new SpotifyProperties(
-            wireMock.getHttpBaseUrl(), wireMock.getHttpBaseUrl(),
-            "test-client-id", "test-client-secret", 100);
-        return new SpotifyClient(WireMockRestClients.builder(), properties);
+        SpotifyProperties properties = SpotifyTestProperties.pointingAt(wireMock);
+        return new SpotifyClient(WireMockRestClients.builder(), properties,
+            new SpotifyAppTokenProvider(WireMockRestClients.builder(), properties),
+            new SpotifyTrackMapper(), new SpotifyApiExecutor(properties));
     }
 }
