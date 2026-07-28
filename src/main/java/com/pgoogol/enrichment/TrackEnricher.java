@@ -1,0 +1,175 @@
+package com.pgoogol.enrichment;
+
+import com.pgoogol.catalog.AudioFeatures;
+import com.pgoogol.catalog.AudioFeaturesRepository;
+import com.pgoogol.catalog.BpmSource;
+import com.pgoogol.catalog.TrackCatalog;
+import com.pgoogol.enrichment.bpm.BpmResolver;
+import com.pgoogol.enrichment.bpm.HalfTimeCorrector;
+import com.pgoogol.enrichment.llm.LlmProperties;
+import com.pgoogol.enrichment.llm.TrackAnalysis;
+import com.pgoogol.enrichment.llm.TrackAnalysisResult;
+import com.pgoogol.enrichment.llm.TrackAnalysisService;
+import com.pgoogol.enrichment.musicbrainz.MusicBrainzClient;
+import com.pgoogol.enrichment.spotify.SpotifyClient;
+import com.pgoogol.enrichment.spotify.SpotifyTrackMetadata;
+import org.springframework.stereotype.Component;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+/**
+ * Wzbogaca partię utworów w kolejności METADATA → AUDIO → AI (D11) — serce
+ * processora joba M1.6. Pracuje na partii wielkości chunka (5), dzięki czemu
+ * wywołania Spotify i LLM idą batchem. Mutuje encje; zapis należy do writera.
+ */
+@Component
+public class TrackEnricher {
+
+    private static final Pattern VERSION_DIGITS = Pattern.compile("\\d+");
+
+    private final SpotifyClient spotifyClient;
+    private final MusicBrainzClient musicBrainzClient;
+    private final AudioFeaturesRepository audioFeaturesRepository;
+    private final BpmResolver bpmResolver;
+    private final TrackAnalysisService trackAnalysisService;
+    private final TempoClassifier tempoClassifier;
+    private final HalfTimeCorrector halfTimeCorrector;
+    private final LlmProperties llmProperties;
+
+    public TrackEnricher(SpotifyClient spotifyClient, MusicBrainzClient musicBrainzClient,
+                         AudioFeaturesRepository audioFeaturesRepository, BpmResolver bpmResolver,
+                         TrackAnalysisService trackAnalysisService, TempoClassifier tempoClassifier,
+                         HalfTimeCorrector halfTimeCorrector, LlmProperties llmProperties) {
+
+        this.spotifyClient = spotifyClient;
+        this.musicBrainzClient = musicBrainzClient;
+        this.audioFeaturesRepository = audioFeaturesRepository;
+        this.bpmResolver = bpmResolver;
+        this.trackAnalysisService = trackAnalysisService;
+        this.tempoClassifier = tempoClassifier;
+        this.halfTimeCorrector = halfTimeCorrector;
+        this.llmProperties = llmProperties;
+    }
+
+    public void enrich(List<TrackCatalog> tracks, Set<FieldGroup> fields) {
+
+        Objects.requireNonNull(tracks, "tracks");
+        Objects.requireNonNull(fields, "fields");
+        if (tracks.isEmpty()) {
+            return;
+        }
+        if (fields.contains(FieldGroup.METADATA)) {
+            applyMetadata(tracks);
+        }
+        if (fields.contains(FieldGroup.AUDIO)) {
+            applyAudio(tracks);
+        }
+        if (fields.contains(FieldGroup.AI)) {
+            applyAi(tracks);
+        }
+        tracks.stream()
+            .filter(track -> Objects.nonNull(track.getBpm()))
+            .forEach(this::finalizeBpm);
+    }
+
+    /**
+     * Kaskada AUDIO biegnie przed AI, więc korekta half-time w BpmResolverze
+     * nie zna jeszcze gatunku — ponawiamy ją tutaj, gdy genre_family jest już
+     * ustalone (idempotentna: po podwojeniu BPM ≥ 100); na końcu tempo_class.
+     */
+    private void finalizeBpm(TrackCatalog track) {
+
+        int corrected = halfTimeCorrector.correct(track.getGenreFamily(), track.getBpm());
+        track.setBpm(corrected);
+        track.setTempoClass(tempoClassifier.classify(corrected));
+    }
+
+    private void applyMetadata(List<TrackCatalog> tracks) {
+
+        List<String> ids = tracks.stream().map(TrackCatalog::getSpotifyId).toList();
+        Map<String, SpotifyTrackMetadata> bySpotifyId = spotifyClient.getTracks(ids).stream()
+            .collect(Collectors.toMap(SpotifyTrackMetadata::spotifyId, Function.identity()));
+        tracks.forEach(track -> Optional.ofNullable(bySpotifyId.get(track.getSpotifyId()))
+            .ifPresent(metadata -> applyMetadata(track, metadata)));
+    }
+
+    private void applyMetadata(TrackCatalog track, SpotifyTrackMetadata metadata) {
+
+        track.setTitle(metadata.title());
+        track.setArtist(metadata.artist());
+        track.setAlbum(metadata.album());
+        track.setIsrc(metadata.isrc());
+        track.setYear(metadata.year());
+        track.setDurationMs(metadata.durationMs());
+        track.setPopularity(metadata.popularity());
+        track.setExplicit(metadata.explicit());
+        track.setAlbumImageUrl(metadata.albumImageUrl());
+    }
+
+    private void applyAudio(List<TrackCatalog> tracks) {
+
+        tracks.forEach(track -> {
+            if (Objects.nonNull(track.getIsrc())) {
+                // buduje trwały cache ISRC→MBID pod ETL dumpa AB (docs/AB_ETL.md)
+                musicBrainzClient.lookupMbid(track.getIsrc());
+            }
+            audioFeaturesRepository.findByTrackSpotifyId(track.getSpotifyId())
+                .ifPresent(features -> applyAudioFeatures(track, features));
+            bpmResolver.resolve(track).ifPresent(resolution -> {
+                track.setBpm(resolution.bpm());
+                track.setBpmSource(resolution.source());
+            });
+        });
+    }
+
+    private void applyAudioFeatures(TrackCatalog track, AudioFeatures features) {
+
+        if (Objects.nonNull(features.getMusicalKey())) {
+            track.setMusicalKey(features.getMusicalKey());
+        }
+        if (Objects.nonNull(features.getDanceability())) {
+            track.setDanceability(features.getDanceability());
+        }
+    }
+
+    private void applyAi(List<TrackCatalog> tracks) {
+
+        TrackAnalysisResult result = trackAnalysisService.analyze(tracks, true);
+        Map<String, TrackCatalog> byId = tracks.stream()
+            .collect(Collectors.toMap(TrackCatalog::getSpotifyId, Function.identity()));
+        result.analyses().forEach(analysis -> applyAnalysis(byId.get(analysis.spotifyId()), analysis));
+    }
+
+    private void applyAnalysis(TrackCatalog track, TrackAnalysis analysis) {
+
+        track.setStyle(analysis.style());
+        track.setGenreFamily(analysis.genreFamily());
+        track.setLyricsTheme(analysis.lyricsTheme());
+        track.setDescriptionPl(analysis.descriptionPl());
+        track.setEnergy(analysis.energy());
+        track.setConfidence(analysis.confidence());
+        if (Objects.isNull(track.getBpm()) && Objects.nonNull(analysis.bpmEstimate())) {
+            track.setBpm(analysis.bpmEstimate());
+            track.setBpmSource(BpmSource.LLM);
+        }
+        track.setEnrichedAt(Instant.now());
+        track.setModelUsed(llmProperties.model());
+        track.setEnrichVersion(promptVersionNumber());
+    }
+
+    private Integer promptVersionNumber() {
+
+        Matcher matcher = VERSION_DIGITS.matcher(
+            Objects.requireNonNullElse(llmProperties.promptVersion(), ""));
+        return matcher.find() ? Integer.valueOf(matcher.group()) : null;
+    }
+}

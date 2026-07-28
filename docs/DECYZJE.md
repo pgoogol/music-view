@@ -1,7 +1,7 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
 Status wszystkich decyzji: **przyjęte** (2026-07-03). Decyzje nadpisują [KONCEPT.md](KONCEPT.md)
-tam, gdzie się różnią. Numeracja D1–D14; odwołania §x wskazują sekcje konceptu.
+tam, gdzie się różnią. Numeracja D1–D19; odwołania §x wskazują sekcje konceptu.
 
 ---
 
@@ -143,3 +143,65 @@ się z jednym providerem** — wybór zapadnie później. Dotyczy wyłącznie an
 - **Kryteria wyboru modelu (gdy zapadnie):** tani model klasy „mini/haiku", strukturalne
   wyjście JSON, sensowna wiedza muzyczna; łatwa podmiana dzięki abstrakcji.
 - **`bpm_source`:** wartość `llm` (neutralna, zamiast `claude`).
+
+## D16. Rulesety kodowania w docs/rules/
+
+Przyjęto zewnętrzne rulesety (code style, testing, error handling, database, security)
+w wersji **zaadaptowanej do projektu** — pliki w [docs/rules/](rules/), linkowane
+z CLAUDE.md. Usunięte jako nieadekwatne:
+
+- Kafka i testy kontraktowe (Pact) — brak messagingu i mikroserwisów,
+- WebFlux/reactive — aplikacja jest Spring MVC,
+- Spring Security (SecurityFilterChain, method security), JWT/logowanie, hasła/BCrypt,
+  nagłówki security — brak auth w aplikacji (D2/D14).
+
+Dostosowane do projektu: nazewnictwo migracji Flyway sekwencyjne `V{n}__opis.sql`
+(jak w PLAN.md, zamiast datowanego), retry/circuit breakery pod klientów źródeł
+(Resilience4j jako fundament `common/ratelimit`; 429 → honoruj `Retry-After`),
+actuator ograniczony do `health,info`, cache MB trwały w bazie (D6), paginacja
+offsetowa (skala ~2500 utworów). Konflikty rozstrzygają DECYZJE.md i PLAN.md.
+
+## D17. Doprecyzowania schematu danych (M1.1)
+
+Rozstrzygnięcia przy zamrażaniu schematu — uzupełniają diagram ERD z PLAN.md:
+
+- **`library_entry.spotify_id` UNIQUE** — jeden wpis biblioteki na utwór; dedup
+  z M1.2 egzekwowany także na poziomie bazy.
+- **`audio_features.spotify_id` UNIQUE** — relacja 0..1 do utworu (jak w ERD).
+- **`playlist_track`**: UNIQUE `(playlist_id, spotify_id)`; `position` bez unikalności
+  (swobodne reordery w M2.3); FK do playlisty z `ON DELETE CASCADE`.
+- **`library_entry.source`** dostaje enum `LibrarySource` (FILE / PLAYLIST /
+  FOREIGN_PLAYLIST) — uzupełnienie listy enumów z M1.1.
+- Enumy zapisywane jako `varchar` z nazwami Javy (UPPER_SNAKE_CASE,
+  `@Enumerated(STRING)`); bez CHECK-ów w bazie — rozszerzenie enuma nie wymaga migracji.
+- Timestampy jako `timestamptz` (UTC), mapowane na `Instant`.
+- `custom_tags` jako natywny `text[]`.
+- Wyszukiwanie: kolumna generowana `search_vector` (tsvector, konfiguracja `simple`,
+  title+artist+album) z indeksem GIN; indeksy GIN pg_trgm na `title` i `artist`;
+  indeksy btree na `bpm`, `genre_family`, `isrc`.
+- Zapytania „missing" per grupa pól (D11) po polach-wyznacznikach: METADATA →
+  `isrc/year/duration_ms`, AUDIO → `bpm/musical_key/danceability/tempo_class`,
+  AI → `style/genre_family/lyrics_theme/description_pl/energy`.
+
+## D18. Trwały cache MusicBrainz w bazie (tabela techniczna poza ERD)
+
+M1.3 wymaga cache'u wyników ISRC→MBID w bazie (D6: MB wyłącznie do MBID, twardy
+1 req/s). Tabela `musicbrainz_isrc_cache(isrc PK, mbid NULL, resolved_at)`,
+migracja V2; `mbid = NULL` oznacza potwierdzony brak wyniku (negative cache) —
+ponowne wzbogacanie nie odpytuje MB drugi raz. To nie jest zmiana zamrożonego
+modelu domenowego (ERD z PLAN.md) — tabela pomocnicza infrastruktury klienta.
+Bez TTL: mapowanie ISRC→MBID traktujemy jak fakt deterministyczny (wyjątek
+dopuszczony w docs/rules/database.md).
+
+## D19. AudioAnalyzer — kryterium decyzji (M1.9)
+
+Pipeline zwalidowano E2E na pełnej skali 2500 utworów (próba generalna na
+danych syntetycznych — [RAPORT_POKRYCIA_M19.md](RAPORT_POKRYCIA_M19.md)):
+kaskada D6 + fallback LLM domyka BPM do 100%, komplet pól D5 = 100%,
+koszt LLM ≈ 0,0007 USD/utwór. Mechanizm działa; niepewna pozostaje wyłącznie
+jakość pokrycia realnych źródeł (Deezer/dump AB) na prawdziwej bibliotece.
+
+**Decyzja (kryterium):** `AudioAnalyzer` pozostaje stubem. Implementację
+(analiza previewu) odblokowuje dopiero realny przebieg M1.9, jeśli:
+BPM z faktów (AB+Deezer) < 70% biblioteki **lub** komplet pól D5 < 95%.
+Wynik realnego przebiegu dopisać tutaj i do raportu (przebieg B).

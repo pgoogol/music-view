@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: music-view
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  servlet:
+    multipart:
+      # pełny eksport Exportify (~2500 wierszy) przekracza domyślny 1MB
+      max-file-size: 10MB
+      max-request-size: 10MB
+  batch:
+    job:
+      # joby startują wyłącznie przez EnrichmentService, nie przy starcie aplikacji
+      enabled: false
+    jdbc:
+      # tabele BATCH_* zarządza Flyway (migracja V3)
+      initialize-schema: never
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Warstwa AI (D15): provider, model i wersja promptu wyłącznie tutaj — nigdy w kodzie
+llm:
+  provider: ${LLM_PROVIDER:openai}   # openai (i zgodne: OpenRouter/Groq/Mistral/lokalne) | anthropic
+  api-key: ${LLM_API_KEY:}
+  model: ${LLM_MODEL:}
+  base-url: ${LLM_BASE_URL:}         # puste = domyślny URL providera
+  prompt-version: v1
+  batch-size: 5
+  requests-per-second: 2
+  max-tokens: 2048
+  temperature: 0.2
+
+clients:
+  spotify:
+    base-url: https://api.spotify.com
+    auth-url: https://accounts.spotify.com
+    client-id: ${SPOTIFY_CLIENT_ID:}
+    client-secret: ${SPOTIFY_CLIENT_SECRET:}
+    requests-per-second: 8
+  musicbrainz:
+    # twardy limit 1 req/s jest w kodzie klienta (D6) — celowo nie w konfiguracji
+    base-url: https://musicbrainz.org
+    user-agent: ${MB_USER_AGENT:}
+  deezer:
+    base-url: https://api.deezer.com
+    requests-per-second: 10

@@ -264,5 +264,15 @@ Równolegle da się prowadzić: M1.2 ∥ M1.3 ∥ M1.5 (wspólna zależność ty
 | MusicBrainz 1 req/s | wolne pierwsze wzbogacanie (~2500 utworów ≈ 40+ min samego MB) | cache trwały w bazie; MB potrzebny tylko do MBID; job w tle, restartowalny |
 | Rozmiar dumpa AcousticBrainz | ETL niewygodny lokalnie | filtrowanie strumieniowe po MBID; dump poza repo; krok udokumentowany, jednorazowy |
 | Koszt LLM | przekroczenie budżetu | tani model klasy „mini/haiku", batch po 5, katalog deduplikuje, selektywne pola; pomiar kosztu w M1.5/M1.9 |
+
+**Pomiar kosztu LLM (M1.5):** mechanizm gotowy — `LlmSmokeTest` raportuje tokeny
+i koszt/utwór (`MV_SMOKE=true LLM_API_KEY=… LLM_MODEL=… ./mvnw test -Dtest=LlmSmokeTest`,
+stawki przez `LLM_COST_INPUT_PER_1M`/`LLM_COST_OUTPUT_PER_1M`). Szacunek dla promptu v1
+(batch po 5): ~150 tokenów wejścia + ~120 wyjścia na utwór → dla modelu klasy
+mini/haiku (~$1/M in, ~$5/M out) **≈ $0.0008/utwór, cała biblioteka ~2500 utworów ≈ $2**.
+Realny pomiar do wpisania tutaj po pierwszym uruchomieniu z kluczem providera
+(sieć środowiska deweloperskiego blokuje zewnętrzne API). **Próba generalna M1.9
+(2500 utworów, stub providera):** 140 tokenów wej. + 120 wyj. na utwór →
+≈ $0.00074/utwór, biblioteka ~2500 utworów ≈ **$1.85** (stawki klasy mini/haiku).
 | Dryf schematu po M1.1 | kosztowne migracje | schemat zatwierdzany explicit przed M1.2+; zmiany tylko przez Flyway |
 | Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |

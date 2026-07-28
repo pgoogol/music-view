@@ -1,0 +1,11 @@
+# Profil `local` — praca z Postgresem z docker-compose.yml (docker compose up -d).
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/musicview
+    username: musicview
+    password: musicview
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
