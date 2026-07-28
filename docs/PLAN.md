@@ -248,6 +248,35 @@ odhaczenia.
 
 ---
 
+# ETAP 3 — Dopracowanie narzędzia (po zamknięciu Etapu 2)
+
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M3.1** Rozbudowa UI | Zakładki (Biblioteka / Sety / Import / Wzbogacanie), stan widoku w adresie, sortowanie serwerowe katalogu, statystyki i ostrzeżenia setu, historia jobów, testy frontu w CI | M1.8, M2.3 | ✅ |
+
+**M3.1 w skrócie** (rozstrzygnięcia: [D22](DECYZJE.md)):
+
+- **Biblioteka:** okładki i czas trwania w tabeli, znacznik „do wzbogacenia",
+  sortowanie liczone przez bazę (`sort` + `direction` w `GET /api/catalog/tracks`,
+  biała lista kolumn, braki zawsze na końcu), rozmiar strony, filtry i strona
+  zapisane w hashu — odświeżenie wraca do tego samego widoku.
+- **Utwór:** okładka, link do Spotify, ocena gwiazdkami, tagi jako chipsy,
+  slot wieczoru z listy wartości `DjSlot` zamiast wolnego tekstu.
+- **Sety:** statystyki (liczba utworów, czas, zakres i średnia BPM), rozkład faz
+  wieczoru, krzywa tempa, ostrzeżenia (skok > 15 BPM, utwór bez BPM, cofnięcie
+  fazy), układanie wg faz D9 jednym kliknięciem, kolejność zmieniana przeciąganiem
+  albo strzałkami (dostępność z klawiatury).
+- **Wzbogacanie:** pokrycie pól D11 na paskach, historia jobów z restartem
+  nieudanych — postęp przestaje znikać po odświeżeniu strony.
+- **Jakość:** wspólny host powiadomień (błąd API nie ginie przy zmianie widoku),
+  testy Vitest + Testing Library uruchamiane w CI (`npm test`).
+
+**DoD:** `./mvnw verify` i `npm test && npm run build` zielone; pełny przepływ
+(import → przegląd → wzbogacenie → set → eksport) klikalny bez wychodzenia
+z aplikacji i odtwarzalny z adresu.
+
+---
+
 # Zależności między kamieniami
 
 ```mermaid

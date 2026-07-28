@@ -57,17 +57,61 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
           and (cast(:energy as text) is null or lower(t.energy) = lower(cast(:energy as text)))
         """;
 
+    /** Energia jest tekstem (D11), więc sortujemy ją po rosnącej sile, nie alfabetycznie. */
+    String ENERGY_RANK =
+        "case lower(t.energy) when 'low' then 1 when 'medium' then 2 when 'high' then 3 end";
+
+    /**
+     * Sortowanie z białej listy {@link CatalogSort} (M3.1). Każda kolumna dostaje
+     * parę wyrażeń CASE (rosnąco/malejąco) — nieaktywne dają NULL dla wszystkich
+     * wierszy, więc porządek rozstrzyga dopiero wyrażenie wybrane parametrem.
+     * {@code nulls last} trzyma braki (np. utwory bez BPM) na końcu w obie strony.
+     */
+    String SEARCH_ORDER = """
+        order by
+          case when cast(:sort as text) = 'RELEVANCE' and cast(:search as text) is not null
+               then greatest(similarity(t.title, cast(:search as text)),
+                             similarity(t.artist, cast(:search as text))) end desc nulls last,
+          case when cast(:sort as text) = 'TITLE'
+               and cast(:direction as text) = 'ASC' then lower(t.title) end asc nulls last,
+          case when cast(:sort as text) = 'TITLE'
+               and cast(:direction as text) = 'DESC' then lower(t.title) end desc nulls last,
+          case when cast(:sort as text) = 'ARTIST'
+               and cast(:direction as text) = 'ASC' then lower(t.artist) end asc nulls last,
+          case when cast(:sort as text) = 'ARTIST'
+               and cast(:direction as text) = 'DESC' then lower(t.artist) end desc nulls last,
+          case when cast(:sort as text) = 'YEAR'
+               and cast(:direction as text) = 'ASC' then t.year end asc nulls last,
+          case when cast(:sort as text) = 'YEAR'
+               and cast(:direction as text) = 'DESC' then t.year end desc nulls last,
+          case when cast(:sort as text) = 'BPM'
+               and cast(:direction as text) = 'ASC' then t.bpm end asc nulls last,
+          case when cast(:sort as text) = 'BPM'
+               and cast(:direction as text) = 'DESC' then t.bpm end desc nulls last,
+          case when cast(:sort as text) = 'POPULARITY'
+               and cast(:direction as text) = 'ASC' then t.popularity end asc nulls last,
+          case when cast(:sort as text) = 'POPULARITY'
+               and cast(:direction as text) = 'DESC' then t.popularity end desc nulls last,
+          case when cast(:sort as text) = 'DURATION'
+               and cast(:direction as text) = 'ASC' then t.duration_ms end asc nulls last,
+          case when cast(:sort as text) = 'DURATION'
+               and cast(:direction as text) = 'DESC' then t.duration_ms end desc nulls last,
+          case when cast(:sort as text) = 'ENERGY'
+               and cast(:direction as text) = 'ASC' then """ + ENERGY_RANK + """
+               end asc nulls last,
+          case when cast(:sort as text) = 'ENERGY'
+               and cast(:direction as text) = 'DESC' then """ + ENERGY_RANK + """
+               end desc nulls last,
+          t.artist, t.title, t.spotify_id
+        """;
+
     /**
      * Wyszukiwarka katalogu (M1.7): pełnotekstowo po search_vector (tsvector,
      * generowana kolumna z V1) + fuzzy pg_trgm po title/artist; filtry D5.
-     * Przy zapytaniu tekstowym sortowanie po trafności (similarity).
+     * Domyślnie (sort = RELEVANCE) przy zapytaniu tekstowym kolejność wg trafności;
+     * pozostałe porządki wg {@link CatalogSort} (M3.1).
      */
-    @Query(value = "select t.* from track_catalog t " + SEARCH_WHERE + """
-        order by case when cast(:search as text) is null then 0
-                      else greatest(similarity(t.title, cast(:search as text)),
-                                    similarity(t.artist, cast(:search as text))) end desc,
-                 t.artist, t.title, t.spotify_id
-        """,
+    @Query(value = "select t.* from track_catalog t " + SEARCH_WHERE + SEARCH_ORDER,
         countQuery = "select count(*) from track_catalog t " + SEARCH_WHERE,
         nativeQuery = true)
     Page<TrackCatalog> search(@Param("search") String search,
@@ -76,5 +120,7 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
                               @Param("bpmMax") Integer bpmMax,
                               @Param("tempoClass") String tempoClass,
                               @Param("energy") String energy,
+                              @Param("sort") String sort,
+                              @Param("direction") String direction,
                               Pageable pageable);
 }

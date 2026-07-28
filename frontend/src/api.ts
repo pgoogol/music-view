@@ -123,6 +123,22 @@ export interface MissingCountResponse {
   ai: number
 }
 
+/** Biała lista sortowania po stronie API (M3.1, enum CatalogSort). */
+export const CATALOG_SORTS = [
+  'RELEVANCE',
+  'TITLE',
+  'ARTIST',
+  'YEAR',
+  'BPM',
+  'POPULARITY',
+  'DURATION',
+  'ENERGY',
+] as const
+
+export type CatalogSort = (typeof CATALOG_SORTS)[number]
+
+export type SortDirection = 'ASC' | 'DESC'
+
 export interface SearchParams {
   search?: string
   genreFamily?: string
@@ -130,6 +146,8 @@ export interface SearchParams {
   bpmMax?: number
   tempoClass?: string
   energy?: string
+  sort?: CatalogSort
+  direction?: SortDirection
   page?: number
   size?: number
 }
