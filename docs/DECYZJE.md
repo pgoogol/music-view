@@ -205,3 +205,49 @@ jakość pokrycia realnych źródeł (Deezer/dump AB) na prawdziwej bibliotece.
 (analiza previewu) odblokowuje dopiero realny przebieg M1.9, jeśli:
 BPM z faktów (AB+Deezer) < 70% biblioteki **lub** komplet pól D5 < 95%.
 Wynik realnego przebiegu dopisać tutaj i do raportu (przebieg B).
+
+## D20. Konto Spotify właściciela w bazie (tabela techniczna poza ERD)
+
+M2.2 realizuje D4 (Authorization Code + PKCE). Rozstrzygnięcia:
+
+- **Tabela `spotify_account`** (migracja V4) — jeden wiersz o stałym `id = 1`:
+  narzędzie jest jednoosobowe (D2), więc ponowne połączenie nadpisuje ten sam
+  rekord zamiast mnożyć konta. To nie jest zmiana zamrożonego modelu domenowego
+  (ERD z PLAN.md), tylko infrastruktura klienta — jak cache MusicBrainz z D18.
+- **Tokeny wyłącznie server-side:** `access_token`/`refresh_token` żyją w bazie,
+  nie trafiają do odpowiedzi API (`/api/auth/spotify/status` zwraca sam stan)
+  ani do logów. Odświeżanie jest leniwe — przy pierwszym użyciu po wygaśnięciu
+  (margines 60 s).
+- **Rozpoczęte logowanie (`state` + `code_verifier`) trzymamy w pamięci procesu,**
+  nie w bazie: jest ważne 10 minut i dotyczy jednej sesji przeglądarki. Po
+  restarcie aplikacji w trakcie logowania wystarczy powtórzyć `/login`.
+- **Kod Spotify (klient, OAuth, konto) mieszka w `enrichment.spotify`** — bez
+  nowego modułu najwyższego poziomu; lista modułów z CLAUDE.md zostaje bez zmian.
+- **`library_entry.source` rozstrzygane po właścicielu playlisty:** playlista
+  połączonego konta → `PLAYLIST` (tryb B/C), cudza → `FOREIGN_PLAYLIST` (tryb D).
+  Bez połączonego konta każda importowana playlista jest obca.
+- **Zakresy uprawnień:** `playlist-read-private`, `playlist-read-collaborative`
+  (import trybu C) oraz `playlist-modify-private`, `playlist-modify-public`
+  (eksport M2.4) — nadawane raz, przy łączeniu konta.
+
+## D21. Sloty wieczoru i kontrakt kolejności setu (M2.3)
+
+Doprecyzowanie D9 przy implementacji planowania setów:
+
+- **`DjSlot` = enum `WARMUP | MIDDLE | PEAK | CLOSING | BREAK`** (rozgrzewka,
+  środek, szczyt, zamknięcie, przerwa). Nie trafia do bazy jako kolumna katalogu —
+  liczy go `DjSlotCalculator` przy odczycie playlisty (D9).
+- **Kaskada wyliczania** (pierwszy pasujący warunek): bpm < 75 → `BREAK`;
+  energia „low" albo bpm < 95 → `WARMUP`; energia „high" → `PEAK` przy bpm ≥ 120
+  (dla gatunków parkietowych — latin/disco/disco_polo/electronic — już od 110),
+  w przeciwnym razie `CLOSING`; reszta → `MIDDLE`. Brak bpm **i** energii = brak
+  slotu; brak jednego z nich kaskadzie nie przeszkadza. Progi są punktem wyjścia —
+  ostatnie słowo ma i tak override DJ-a.
+- **`library_entry.dj_slot_override` przyjmuje wyłącznie nazwy `DjSlot`**
+  (bez rozróżniania wielkości liter, zapis kanoniczny UPPER). To zawężenie
+  kontraktu `PATCH /api/library/tracks/{id}` z M1.7, gdzie pole było swobodnym
+  tekstem; pusty łańcuch nadal czyści wartość.
+- **`PUT /api/playlists/{id}/tracks` wymaga permutacji** obecnego składu —
+  pominięcie utworu w nowej kolejności to błąd (`PLAYLIST_ORDER_MISMATCH`),
+  a nie ciche usunięcie go z setu. Usuwanie ma własny endpoint i przenumerowuje
+  pozostałe pozycje, żeby zostały zwarte (0..n-1).

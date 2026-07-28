@@ -46,6 +46,9 @@ clients:
     client-id: ${SPOTIFY_CLIENT_ID:}
     client-secret: ${SPOTIFY_CLIENT_SECRET:}
     requests-per-second: 8
+    # OAuth PKCE (D4) — adres musi być identyczny z wpisanym w dashboardzie Spotify
+    redirect-uri: ${SPOTIFY_REDIRECT_URI:http://127.0.0.1:8080/api/auth/spotify/callback}
+    scopes: playlist-read-private playlist-read-collaborative playlist-modify-private playlist-modify-public
   musicbrainz:
     # twardy limit 1 req/s jest w kodzie klienta (D6) — celowo nie w konfiguracji
     base-url: https://musicbrainz.org

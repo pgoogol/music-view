@@ -53,6 +53,16 @@ export interface IngestFileResponse {
   failed: { line: number; reason: string }[]
 }
 
+export interface IngestPlaylistResponse {
+  playlistId: number
+  spotifyPlaylistId: string
+  name: string
+  tracks: number
+  imported: number
+  alreadyExisted: number
+  skipped: { position: number; reason: string }[]
+}
+
 export interface EnrichJobResponse {
   executionId: number
   jobInstanceId: number
@@ -64,6 +74,47 @@ export interface EnrichJobResponse {
   startTime: string | null
   endTime: string | null
   exitDescription: string | null
+}
+
+export interface PlaylistSummaryResponse {
+  id: number
+  name: string
+  spotifyPlaylistId: string | null
+  createdAt: string
+  trackCount: number
+}
+
+export interface PlaylistTrackResponse {
+  position: number
+  djSlot: string | null
+  djSlotOverride: string | null
+  track: TrackResponse
+}
+
+export interface PlaylistResponse {
+  id: number
+  name: string
+  spotifyPlaylistId: string | null
+  createdAt: string
+  tracks: PlaylistTrackResponse[]
+}
+
+export interface PlaylistExportResponse {
+  playlistId: number
+  spotifyPlaylistId: string
+  name: string
+  exportedTracks: number
+  created: boolean
+  spotifyUrl: string
+}
+
+export interface SpotifyAccountResponse {
+  connected: boolean
+  spotifyUserId: string | null
+  displayName: string | null
+  scopes: string | null
+  expiresAt: string | null
+  connectedAt: string | null
 }
 
 export interface MissingCountResponse {
@@ -156,6 +207,56 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     return request('/api/ingest/file', { method: 'POST', body: form })
+  },
+
+  ingestPlaylist(url: string): Promise<IngestPlaylistResponse> {
+    return request('/api/ingest/playlist', jsonInit('POST', { url }))
+  },
+
+  ingestMyPlaylists(): Promise<IngestPlaylistResponse[]> {
+    return request('/api/ingest/my-playlists', { method: 'POST' })
+  },
+
+  spotifyAccount(): Promise<SpotifyAccountResponse> {
+    return request('/api/auth/spotify/status')
+  },
+
+  listPlaylists(): Promise<PlaylistSummaryResponse[]> {
+    return request('/api/playlists')
+  },
+
+  getPlaylist(id: number): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}`)
+  },
+
+  createPlaylist(name: string): Promise<PlaylistSummaryResponse> {
+    return request('/api/playlists', jsonInit('POST', { name }))
+  },
+
+  renamePlaylist(id: number, name: string): Promise<PlaylistSummaryResponse> {
+    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name }))
+  },
+
+  deletePlaylist(id: number): Promise<void> {
+    return request(`/api/playlists/${id}`, { method: 'DELETE' })
+  },
+
+  addPlaylistTrack(id: number, spotifyId: string): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('POST', { spotifyId }))
+  },
+
+  removePlaylistTrack(id: number, spotifyId: string): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks/${encodeURIComponent(spotifyId)}`, {
+      method: 'DELETE',
+    })
+  },
+
+  reorderPlaylist(id: number, spotifyIds: string[]): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds }))
+  },
+
+  exportPlaylist(id: number): Promise<PlaylistExportResponse> {
+    return request(`/api/playlists/${id}/export-to-spotify`, { method: 'POST' })
   },
 
   startEnrichment(scope: string, fields: string[], spotifyIds: string[]): Promise<{ executionId: number }> {

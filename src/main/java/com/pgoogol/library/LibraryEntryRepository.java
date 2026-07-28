@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -27,4 +28,12 @@ public interface LibraryEntryRepository extends JpaRepository<LibraryEntry, Long
 
     @Query("select e.track.spotifyId from LibraryEntry e where e.track.spotifyId in :spotifyIds")
     Set<String> findExistingTrackIds(@Param("spotifyIds") Collection<String> spotifyIds);
+
+    /** Same override'y slotów dla podanych utworów — pod planowanie setu (M2.3). */
+    @Query("""
+        select new com.pgoogol.library.TrackSlotOverride(e.track.spotifyId, e.djSlotOverride)
+        from LibraryEntry e
+        where e.track.spotifyId in :spotifyIds and e.djSlotOverride is not null
+        """)
+    List<TrackSlotOverride> findSlotOverrides(@Param("spotifyIds") Collection<String> spotifyIds);
 }
