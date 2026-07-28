@@ -1,5 +1,6 @@
-// Powłoka aplikacji (M3.1): cztery zakładki zamiast jednej długiej strony,
-// wspólne zaznaczenie utworów przechodzące między widokami i jeden host toastów.
+// Powłoka aplikacji (M3.1, motyw „konsola" M3.2): pięć zakładek zamiast jednej
+// długiej strony, wspólne zaznaczenie utworów przechodzące między widokami
+// i jeden host toastów.
 
 import { useCallback, useState } from 'react'
 import SelectionBar from './components/SelectionBar'
@@ -8,6 +9,7 @@ import { ROUTES, ROUTE_LABELS, useHashRoute } from './hooks/useHashRoute'
 import EnrichView from './views/EnrichView'
 import ImportView from './views/ImportView'
 import LibraryView from './views/LibraryView'
+import PlaylistsView from './views/PlaylistsView'
 import SetsView from './views/SetsView'
 
 export default function App() {
@@ -16,6 +18,22 @@ export default function App() {
     <ToastProvider>
       <AppShell />
     </ToastProvider>
+  )
+}
+
+/**
+ * Poświata kineskopu pod krzywą tempa — rozmyta kopia kreski udaje jarzenie
+ * luminoforu. Filtr musi żyć w dokumencie raz, dlatego siedzi w powłoce,
+ * nie w wykresie.
+ */
+function CrtDefs() {
+
+  return (
+    <svg className="crt-defs" aria-hidden="true" focusable="false">
+      <filter id="crt-glow" x="-20%" y="-40%" width="140%" height="180%">
+        <feGaussianBlur stdDeviation="4" />
+      </filter>
+    </svg>
   )
 }
 
@@ -31,10 +49,12 @@ function AppShell() {
 
   return (
     <div className="app">
+      <CrtDefs />
+
       <header className="app-header">
         <div className="brand">
           <h1>music-view</h1>
-          <span className="subtitle">biblioteka DJ-a — Sabor Latino</span>
+          <span className="subtitle">konsola DJ-a — Sabor Latino</span>
         </div>
         <nav className="tabs" aria-label="widoki">
           {ROUTES.map((name) => (
@@ -61,6 +81,7 @@ function AppShell() {
             onChanged={refresh}
           />
         )}
+        {route === 'playlists' && <PlaylistsView refreshKey={refreshKey} />}
         {route === 'sets' && (
           <SetsView selectedIds={selectedIds} onSelectionUsed={clearSelection} />
         )}

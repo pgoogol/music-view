@@ -1,5 +1,6 @@
-// Zakładka „Import" (M3.1) — trzy tryby zasilania biblioteki obok siebie:
-// plik CSV (tryb A), playlista po linku (B/D) i własne playlisty konta (C).
+// Zakładka „Import" (M3.1, przycięta w M3.2) — dwa tryby zasilania biblioteki:
+// własne playlisty konta (tryb C, z raportem w modalu) i playlista po linku
+// (tryby B/D). Import z pliku CSV zniknął z UI — endpoint został w API.
 
 import ImportPanel from '../components/ImportPanel'
 import SpotifyPanel from '../components/SpotifyPanel'
@@ -12,8 +13,8 @@ export default function ImportView({ onImported }: Props) {
 
   return (
     <div className="panels">
-      <ImportPanel onImported={onImported} />
       <SpotifyPanel onImported={onImported} />
+      <ImportPanel onImported={onImported} />
     </div>
   )
 }

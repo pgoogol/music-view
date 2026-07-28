@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/library")
 @Tag(name = "Library", description = "Biblioteka DJ-a — dane prywatne (D3)")
@@ -41,6 +43,13 @@ public class LibraryController {
         PageRequest pageRequest = PageRequest.of(Math.max(0, page),
             CatalogController.cappedSize(size), Sort.by("addedAt").descending());
         return PageResponse.of(libraryService.list(pageRequest), mapper::toResponse);
+    }
+
+    @GetMapping("/tags")
+    @Operation(summary = "Custom tagi użyte w bibliotece",
+        description = "Posortowany słownik tagów DJ-a — podpowiedzi filtra wyszukiwarki (M3.2).")
+    public List<String> listTags() {
+        return libraryService.listTags();
     }
 
     @GetMapping("/tracks/{spotifyId}")

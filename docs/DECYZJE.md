@@ -288,3 +288,50 @@ Viewer z M1.8 był jedną przewijaną stroną z panelami; przy realnej bibliotec
 - **Testy frontu: Vitest + Testing Library (jsdom)**, uruchamiane w CI obok
   `mvn verify`. Logika bez UI (statystyki setu, ostrzeżenia, układanie, parsowanie
   adresu, formatery) siedzi w czystych modułach i jest testowana bez renderowania.
+
+## D23. Motyw „konsola" (retro-futuryzm), filtry biblioteczne i przegląd playlist (M3.2)
+
+UI z M3.1 był poprawny, ale bezosobowy; do tego wyszukiwarka nie umiała odpowiedzieć
+na najczęstsze pytanie DJ-a („co z tego mam już u siebie?"), a zaimportowane playlisty
+dawało się obejrzeć tylko przez planer setów. Rozstrzygnięcia:
+
+- **Motyw retro-futurystyczny („konsola"), nadal jeden i ciemny.** Pulpit statku
+  z lat 70.: bursztynowy CRT i cyjanowe podświetlenia na granatowej czerni,
+  moduły ze ściętym narożnikiem (`border-radius` z parą wartości) i wewnętrznym
+  włosem świetlnym, pigułkowe formanty, chromowany napis marki (gradient przycięty
+  do liter), linie kineskopu jako nakładka `body::after` (`pointer-events: none`),
+  krzywa tempa rysowana dwa razy — rozmyta poświata pod ostrym odczytem
+  (`feGaussianBlur`). Cała dekoracja z gradientów i SVG inline, **żadnych zasobów
+  z sieci ani webfontów** — narzędzie ma działać offline.
+- **Podział ról kolorów:** bursztyn = akcja (to, co klikalne), cyjan = stan
+  i pomiar (nagłówki, wartości, wykresy). Fazy wieczoru zostają porządkową rampą
+  jednego odcienia z etykietą przy każdym kolorze (D22).
+- **Wersaliki i font o stałej szerokości tylko w „przyrządach"** — nagłówkach,
+  zakładkach, przyciskach, etykietach filtrów i liczbach (BPM, czasy, liczniki).
+  Tytuły i wykonawcy w tabeli zostają w foncie systemowym i normalnej wielkości
+  liter, bo biblioteka ma 2500 wierszy i to ona jest treścią, nie ozdobą.
+  Font wyświetlaczowy ze stosu systemowego (Bahnschrift / DIN Alternate /
+  Eurostile / Futura → `sans-serif`). Przesunięcia znikają przy
+  `prefers-reduced-motion`; poświaty zostają, bo nie są ruchem.
+- **Wyszukiwarka katalogu filtruje po bibliotece, ale nie zwraca jej danych.**
+  `GET /api/catalog/tracks` dostaje `inLibrary`, `ratingMin` i `tag`; SQL dokłada
+  `left join library_entry` (kolumna `spotify_id` jest UNIQUE, więc złączenie nie
+  zwielokrotnia wierszy). Odpowiedzią nadal jest `TrackResponse` — dane prywatne
+  DJ-a (D3) zostają w `/api/library/*` i w szufladzie utworu. Z tego samego powodu
+  **nie ma sortowania po ocenie**: kolumny z oceną nie ma w tabeli, więc porządek
+  byłby niewidoczny.
+- **Słownik tagów jako osobny endpoint** (`GET /api/library/tags`, `unnest`
+  po `custom_tags`) — filtr tagu podpowiada wartości zamiast wymagać pamięci.
+- **Playlisty dostają własny widok do czytania, planer zostaje do pisania.**
+  Zakładka Playlisty pokazuje wszystko, co jest w tabeli `playlist` (import
+  ze Spotify i sety z planera): kafle z szukaniem po nazwie, a w środku szukanie
+  po utworach, krzywa tempa i **zwijane sekcje faz wieczoru** — playlista na 200
+  pozycji nie mieści się na ekranie inaczej. Zmiana kolejności, eksport i usuwanie
+  zostają w zakładce Sety; z podglądu prowadzi tam jeden przycisk.
+- **Import własnych playlist raportuje w modalu, nie w toaście.** Operacja trwa
+  (playlista po playliście, limity Spotify), a raport per playlista jest tym,
+  po co się ją uruchamia — toast z auto-znikaniem gubił wynik długiej operacji.
+- **Import z pliku CSV zniknął z UI, endpoint został.** Biblioteka jedzie ze
+  Spotify (tryby B/C/D z D6); `POST /api/ingest/file` zostaje jako awaryjne
+  wejście trybu A i jest nadal pokryty testami — usunięcie go z ekranu to decyzja
+  o UI, nie o API.

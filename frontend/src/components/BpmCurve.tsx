@@ -1,6 +1,7 @@
-// Krzywa BPM setu (M3.1) — jedna seria, więc bez legendy; linia 2px w kolorze
-// akcentu, punkty bez BPM zaznaczone pustym znacznikiem na dole skali.
-// Etykiety tylko na skrajnych wartościach; szczegóły pod kursorem (title).
+// Krzywa BPM (M3.1, odczyt z przyrządu w M3.2) — jedna seria, więc bez legendy;
+// ostra kreska w kolorze akcentu na własnej poświacie, punkty bez BPM zaznaczone
+// pustym znacznikiem na dole skali. Etykiety tylko na skrajnych wartościach;
+// szczegóły pod kursorem (title).
 
 import { DASH } from '../format'
 
@@ -12,13 +13,15 @@ export interface BpmPoint {
 
 interface Props {
   points: readonly BpmPoint[]
+  /** Podpis pod wykresem — playlisty mówią o „tempie playlisty", sety o secie. */
+  caption?: string
 }
 
 const WIDTH = 640
-const HEIGHT = 120
-const PADDING = { top: 12, right: 12, bottom: 18, left: 32 }
+const HEIGHT = 130
+const PADDING = { top: 14, right: 12, bottom: 20, left: 34 }
 
-export default function BpmCurve({ points }: Props) {
+export default function BpmCurve({ points, caption }: Props) {
 
   const known = points.filter((point) => point.bpm !== null)
   if (known.length < 2) {
@@ -47,7 +50,7 @@ export default function BpmCurve({ points }: Props) {
     .join(' ')
 
   return (
-    <figure className="chart" aria-label={`Krzywa tempa setu, od ${min} do ${max} BPM`}>
+    <figure className="chart" aria-label={`Krzywa tempa, od ${min} do ${max} BPM`}>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" data-testid="bpm-curve">
         <line
           className="chart-axis"
@@ -56,12 +59,14 @@ export default function BpmCurve({ points }: Props) {
           y1={PADDING.top + plotHeight}
           y2={PADDING.top + plotHeight}
         />
-        <text className="chart-tick" x={4} y={PADDING.top + 4}>
+        <text className="chart-tick" x={2} y={PADDING.top + 4}>
           {max}
         </text>
-        <text className="chart-tick" x={4} y={PADDING.top + plotHeight}>
+        <text className="chart-tick" x={2} y={PADDING.top + plotHeight}>
           {min}
         </text>
+        {/* ta sama kreska dwa razy: najpierw rozmyta poświata, potem ostry odczyt */}
+        <polyline className="chart-line-glow" points={line} />
         <polyline className="chart-line" points={line} />
         {points.map((point, index) => (
           <g key={point.position}>
@@ -81,7 +86,7 @@ export default function BpmCurve({ points }: Props) {
         ))}
       </svg>
       <figcaption className="muted">
-        tempo kolejnych pozycji setu ({min}–{max} BPM)
+        {caption ?? 'tempo kolejnych pozycji setu'} ({min}–{max} BPM)
       </figcaption>
     </figure>
   )

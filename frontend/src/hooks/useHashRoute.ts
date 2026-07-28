@@ -1,10 +1,10 @@
-// Routing na hashu (M3.1) — cztery widoki plus stan filtrów w adresie, bez
-// dodatkowej biblioteki routera: aplikacja jest serwowana statycznie, a odświeżenie
-// strony ma wracać do tego samego widoku i tych samych filtrów.
+// Routing na hashu (M3.1, piąty widok w M3.2) — widoki plus stan filtrów
+// w adresie, bez dodatkowej biblioteki routera: aplikacja jest serwowana
+// statycznie, a odświeżenie strony ma wracać do tego samego widoku i filtrów.
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-export const ROUTES = ['library', 'sets', 'import', 'enrich'] as const
+export const ROUTES = ['library', 'playlists', 'sets', 'import', 'enrich'] as const
 
 export type RouteName = (typeof ROUTES)[number]
 
@@ -12,6 +12,7 @@ export const DEFAULT_ROUTE: RouteName = 'library'
 
 export const ROUTE_LABELS: Record<RouteName, string> = {
   library: 'Biblioteka',
+  playlists: 'Playlisty',
   sets: 'Sety',
   import: 'Import',
   enrich: 'Wzbogacanie',

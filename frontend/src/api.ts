@@ -146,6 +146,10 @@ export interface SearchParams {
   bpmMax?: number
   tempoClass?: string
   energy?: string
+  /** Filtry biblioteki DJ-a (M3.2): przynależność, ocena minimalna, custom tag. */
+  inLibrary?: boolean
+  ratingMin?: number
+  tag?: string
   sort?: CatalogSort
   direction?: SortDirection
   page?: number
@@ -204,6 +208,11 @@ export const api = {
       }
     })
     return request(`/api/catalog/tracks?${query}`)
+  },
+
+  /** Słownik custom tagów DJ-a — podpowiedzi filtra bibliotecznego (M3.2). */
+  listTags(): Promise<string[]> {
+    return request('/api/library/tags')
   },
 
   getLibraryEntry(spotifyId: string): Promise<LibraryEntryResponse> {

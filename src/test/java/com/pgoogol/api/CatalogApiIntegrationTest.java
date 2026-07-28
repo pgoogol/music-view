@@ -6,6 +6,9 @@ import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
+import com.pgoogol.library.LibraryEntry;
+import com.pgoogol.library.LibraryEntryRepository;
+import com.pgoogol.library.LibrarySource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,6 +17,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -30,6 +35,9 @@ class CatalogApiIntegrationTest {
     @Autowired
     private TrackCatalogRepository trackCatalogRepository;
 
+    @Autowired
+    private LibraryEntryRepository libraryEntryRepository;
+
     @BeforeEach
     void seedCatalog() {
 
@@ -45,6 +53,8 @@ class CatalogApiIntegrationTest {
 
     @AfterEach
     void cleanDatabase() {
+
+        libraryEntryRepository.deleteAll();
         trackCatalogRepository.deleteAll();
     }
 
@@ -174,6 +184,95 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("search", "carnaval"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+    }
+
+    @Test
+    void searchTracks_whenInLibraryFilter_returnsOnlyTracksFromLibrary() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("inLibrary", "true"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenInLibraryFalse_returnsOnlyTracksOutsideLibrary() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("inLibrary", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.content[*].spotifyId").value(
+                org.hamcrest.Matchers.containsInAnyOrder("sp-carnaval", "sp-bohemian")));
+    }
+
+    @Test
+    void searchTracks_whenRatingMinFilter_dropsWeakerAndUnratedTracks() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+        addToLibrary("sp-carnaval", 2, "wesele");
+        addToLibrary("sp-bohemian", null, null);
+
+        mockMvc.perform(get("/api/catalog/tracks").param("ratingMin", "4"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenTagFilter_matchesCustomTagOfLibraryEntry() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+        addToLibrary("sp-carnaval", 3, "chill");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("tag", "chill"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+    }
+
+    @Test
+    void searchTracks_whenLibraryFilterCombinedWithCatalogFilter_appliesBoth() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+        addToLibrary("sp-bohemian", 5, "wesele");
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("inLibrary", "true")
+                .param("genreFamily", "LATIN"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenLibraryFilterActive_leavesCatalogSortingUntouched() throws Exception {
+
+        addToLibrary("sp-vivir", 5, null);
+        addToLibrary("sp-carnaval", 3, null);
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("inLibrary", "true")
+                .param("sort", "BPM")
+                .param("direction", "DESC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(2))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[1].spotifyId").value("sp-carnaval"));
+    }
+
+    private void addToLibrary(String spotifyId, Integer rating, String tag) {
+
+        LibraryEntry entry = new LibraryEntry(
+            trackCatalogRepository.findById(spotifyId).orElseThrow(), LibrarySource.FILE);
+        entry.setRating(rating);
+        if (tag != null) {
+            entry.setCustomTags(List.of(tag));
+        }
+        libraryEntryRepository.save(entry);
     }
 
     private TrackCatalog latinTrack(String spotifyId, String title, String artist, int bpm) {

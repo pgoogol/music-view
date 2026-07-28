@@ -45,6 +45,14 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
     @Query("select t.spotifyId from TrackCatalog t where t.spotifyId in :spotifyIds")
     Set<String> findExistingIds(@Param("spotifyIds") Collection<String> spotifyIds);
 
+    /**
+     * Katalog z dołączoną biblioteką DJ-a (M3.2). {@code library_entry.spotify_id}
+     * jest UNIQUE (V1), więc lewe złączenie nie zwielokrotnia wierszy katalogu —
+     * utwór spoza biblioteki dostaje po prostu NULL-e w kolumnach {@code l}.
+     */
+    String SEARCH_FROM =
+        " from track_catalog t left join library_entry l on l.spotify_id = t.spotify_id ";
+
     String SEARCH_WHERE = """
         where (cast(:search as text) is null
                or t.search_vector @@ plainto_tsquery('simple', cast(:search as text))
@@ -55,6 +63,11 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
           and (cast(:bpmMax as integer) is null or t.bpm <= cast(:bpmMax as integer))
           and (cast(:tempoClass as text) is null or t.tempo_class = cast(:tempoClass as text))
           and (cast(:energy as text) is null or lower(t.energy) = lower(cast(:energy as text)))
+          and (cast(:inLibrary as boolean) is null
+               or (cast(:inLibrary as boolean) = true and l.id is not null)
+               or (cast(:inLibrary as boolean) = false and l.id is null))
+          and (cast(:ratingMin as integer) is null or l.rating >= cast(:ratingMin as integer))
+          and (cast(:tag as text) is null or cast(:tag as text) = any(l.custom_tags))
         """;
 
     /**
@@ -111,12 +124,13 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
 
     /**
      * Wyszukiwarka katalogu (M1.7): pełnotekstowo po search_vector (tsvector,
-     * generowana kolumna z V1) + fuzzy pg_trgm po title/artist; filtry D5.
-     * Domyślnie (sort = RELEVANCE) przy zapytaniu tekstowym kolejność wg trafności;
-     * pozostałe porządki wg {@link CatalogSort} (M3.1).
+     * generowana kolumna z V1) + fuzzy pg_trgm po title/artist; filtry D5
+     * uzupełnione o filtry biblioteczne (M3.2). Domyślnie (sort = RELEVANCE)
+     * przy zapytaniu tekstowym kolejność wg trafności; pozostałe porządki
+     * wg {@link CatalogSort} (M3.1).
      */
-    @Query(value = "select t.* from track_catalog t " + SEARCH_WHERE + SEARCH_ORDER,
-        countQuery = "select count(*) from track_catalog t " + SEARCH_WHERE,
+    @Query(value = "select t.* " + SEARCH_FROM + SEARCH_WHERE + SEARCH_ORDER,
+        countQuery = "select count(*) " + SEARCH_FROM + SEARCH_WHERE,
         nativeQuery = true)
     Page<TrackCatalog> search(@Param("search") String search,
                               @Param("genreFamily") String genreFamily,
@@ -124,6 +138,9 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
                               @Param("bpmMax") Integer bpmMax,
                               @Param("tempoClass") String tempoClass,
                               @Param("energy") String energy,
+                              @Param("inLibrary") Boolean inLibrary,
+                              @Param("ratingMin") Integer ratingMin,
+                              @Param("tag") String tag,
                               @Param("sort") String sort,
                               @Param("direction") String direction,
                               Pageable pageable);

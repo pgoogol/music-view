@@ -29,6 +29,17 @@ public interface LibraryEntryRepository extends JpaRepository<LibraryEntry, Long
     @Query("select e.track.spotifyId from LibraryEntry e where e.track.spotifyId in :spotifyIds")
     Set<String> findExistingTrackIds(@Param("spotifyIds") Collection<String> spotifyIds);
 
+    /**
+     * Słownik custom tagów użytych w bibliotece (M3.2) — pod podpowiedzi filtra.
+     * Tagi siedzą w kolumnie {@code text[]}, więc rozwija je {@code unnest};
+     * zapytanie natywne, bo JPQL nie zna tablic Postgresa.
+     */
+    @Query(value = """
+        select distinct trim(tag) from library_entry e, unnest(e.custom_tags) as tag
+        where trim(tag) <> '' order by 1
+        """, nativeQuery = true)
+    List<String> findDistinctTags();
+
     /** Same override'y slotów dla podanych utworów — pod planowanie setu (M2.3). */
     @Query("""
         select new com.pgoogol.library.TrackSlotOverride(e.track.spotifyId, e.djSlotOverride)

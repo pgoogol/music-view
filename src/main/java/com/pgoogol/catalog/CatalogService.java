@@ -45,6 +45,12 @@ public class CatalogService {
             criteria.bpmMax(),
             Optional.ofNullable(criteria.tempoClass()).map(Enum::name).orElse(null),
             criteria.energy(),
+            criteria.inLibrary(),
+            criteria.ratingMin(),
+            Optional.ofNullable(criteria.tag())
+                .map(String::strip)
+                .filter(value -> !value.isEmpty())
+                .orElse(null),
             sortOrder.field().name(),
             sortOrder.direction().name(),
             pageable);
