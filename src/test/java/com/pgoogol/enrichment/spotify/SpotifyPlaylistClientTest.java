@@ -16,9 +16,13 @@ import java.util.stream.IntStream;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.matchingJsonPath;
 import static com.github.tomakehurst.wiremock.client.WireMock.notFound;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.put;
+import static com.github.tomakehurst.wiremock.client.WireMock.putRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
@@ -194,6 +198,50 @@ class SpotifyPlaylistClientTest {
             new SpotifyPlaylist("pl-000", "Playlista 0", "dj-pgoogol", "DJ pgoogol", 7));
         verify(2, getRequestedFor(urlPathEqualTo("/v1/me/playlists"))
             .withHeader("Authorization", equalTo("Bearer user-token")));
+    }
+
+    @Test
+    void createPlaylist_whenExporting_createsPrivatePlaylistOnOwnerAccount(
+            WireMockRuntimeInfo wireMock) {
+
+        // given
+        given(accountService.userAccessToken()).willReturn("user-token");
+        stubFor(post(urlPathEqualTo("/v1/users/dj-pgoogol/playlists"))
+            .willReturn(okJson("{\"id\": \"nowa-playlista\", \"name\": \"Wesele\"}")));
+
+        // when
+        String playlistId = playlistClient(wireMock)
+            .createPlaylist("dj-pgoogol", "Wesele", "Set z music-view");
+
+        // then
+        assertThat(playlistId).isEqualTo("nowa-playlista");
+        verify(postRequestedFor(urlPathEqualTo("/v1/users/dj-pgoogol/playlists"))
+            .withHeader("Authorization", equalTo("Bearer user-token"))
+            .withRequestBody(matchingJsonPath("$.name", equalTo("Wesele")))
+            .withRequestBody(matchingJsonPath("$.public", equalTo("false"))));
+    }
+
+    @Test
+    void replaceTracks_whenSetLongerThanBatch_putsFirstHundredThenAppendsRest(
+            WireMockRuntimeInfo wireMock) {
+
+        // given — 250 utworów: 1 × PUT (zastąpienie) + 2 × POST (dopisanie)
+        given(accountService.userAccessToken()).willReturn("user-token");
+        String tracksPath = "/v1/playlists/%s/tracks".formatted(PLAYLIST_ID);
+        stubFor(put(urlPathEqualTo(tracksPath)).willReturn(okJson("{\"snapshot_id\": \"s1\"}")));
+        stubFor(post(urlPathEqualTo(tracksPath)).willReturn(okJson("{\"snapshot_id\": \"s2\"}")));
+        List<String> spotifyIds = IntStream.range(0, 250).mapToObj("trk-%018d"::formatted).toList();
+
+        // when
+        playlistClient(wireMock).replaceTracks(PLAYLIST_ID, spotifyIds);
+
+        // then
+        verify(1, putRequestedFor(urlPathEqualTo(tracksPath))
+            .withRequestBody(matchingJsonPath("$.uris[0]", equalTo("spotify:track:trk-000000000000000000")))
+            .withRequestBody(matchingJsonPath("$.uris[99]", equalTo("spotify:track:trk-000000000000000099"))));
+        verify(2, postRequestedFor(urlPathEqualTo(tracksPath)));
+        verify(postRequestedFor(urlPathEqualTo(tracksPath))
+            .withRequestBody(matchingJsonPath("$.uris[0]", equalTo("spotify:track:trk-000000000000000100"))));
     }
 
     private String myPlaylistsPage(int offset, int size, int total) {

@@ -3,6 +3,7 @@ package com.pgoogol.api;
 import com.pgoogol.api.PlaylistRequests.AddPlaylistTrackRequest;
 import com.pgoogol.api.PlaylistRequests.ReorderPlaylistRequest;
 import com.pgoogol.api.PlaylistRequests.SavePlaylistRequest;
+import com.pgoogol.playlist.PlaylistExportService;
 import com.pgoogol.playlist.PlaylistService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,11 +28,15 @@ import java.util.List;
 public class PlaylistController {
 
     private final PlaylistService playlistService;
+    private final PlaylistExportService playlistExportService;
     private final PlaylistApiMapper mapper;
 
-    public PlaylistController(PlaylistService playlistService, PlaylistApiMapper mapper) {
+    public PlaylistController(PlaylistService playlistService,
+                              PlaylistExportService playlistExportService,
+                              PlaylistApiMapper mapper) {
 
         this.playlistService = playlistService;
+        this.playlistExportService = playlistExportService;
         this.mapper = mapper;
     }
 
@@ -95,5 +100,14 @@ public class PlaylistController {
                                     @Valid @RequestBody ReorderPlaylistRequest request) {
 
         return mapper.toResponse(playlistService.reorder(id, request.spotifyIds()));
+    }
+
+    @PostMapping("/{id}/export-to-spotify")
+    @Operation(summary = "Eksport setu na konto Spotify",
+        description = "Pierwszy eksport zakłada prywatną playlistę na koncie właściciela, "
+            + "kolejne nadpisują jej zawartość — kolejność na Spotify odpowiada setowi. "
+            + "Wymaga połączonego konta (GET /api/auth/spotify/login).")
+    public PlaylistExportResponse exportToSpotify(@PathVariable Long id) {
+        return mapper.toResponse(playlistExportService.export(id));
     }
 }

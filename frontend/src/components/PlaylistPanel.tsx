@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   api,
   ApiError,
+  type PlaylistExportResponse,
   type PlaylistResponse,
   type PlaylistSummaryResponse,
 } from '../api'
@@ -25,6 +26,7 @@ export default function PlaylistPanel({ selectedIds, onSelectionUsed }: Props) {
   const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null)
   const [newName, setNewName] = useState('')
   const [dragFrom, setDragFrom] = useState<number | null>(null)
+  const [exported, setExported] = useState<PlaylistExportResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const refreshList = useCallback(() => {
@@ -92,6 +94,17 @@ export default function PlaylistPanel({ selectedIds, onSelectionUsed }: Props) {
     onSelectionUsed()
   }
 
+  const exportToSpotify = async () => {
+    if (openId === null) return
+    setError(null)
+    try {
+      setExported(await api.exportPlaylist(openId))
+      refreshList()
+    } catch (ex) {
+      setError(ex instanceof ApiError ? `${ex.errorCode}: ${ex.message}` : String(ex))
+    }
+  }
+
   const drop = (to: number) => {
     if (openId === null || playlist === null || dragFrom === null || dragFrom === to) return
     const order = playlist.tracks.map((entry) => entry.track.spotifyId)
@@ -144,7 +157,22 @@ export default function PlaylistPanel({ selectedIds, onSelectionUsed }: Props) {
             <button onClick={addSelected} disabled={selectedIds.size === 0} data-testid="playlist-add-selected">
               Dodaj zaznaczone ({selectedIds.size})
             </button>
+            <button
+              onClick={exportToSpotify}
+              disabled={playlist.tracks.length === 0}
+              data-testid="playlist-export"
+            >
+              {playlist.spotifyPlaylistId ? 'Nadpisz na Spotify' : 'Eksportuj na Spotify'}
+            </button>
           </div>
+          {exported && exported.playlistId === playlist.id && (
+            <p className="report" data-testid="export-report">
+              wyeksportowano <strong>{exported.exportedTracks}</strong> utworów —{' '}
+              <a href={exported.spotifyUrl} target="_blank" rel="noreferrer">
+                otwórz na Spotify
+              </a>
+            </p>
+          )}
           <ol className="set-list" data-testid="set-list">
             {playlist.tracks.map((entry, index) => (
               <li

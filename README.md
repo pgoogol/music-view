@@ -56,5 +56,20 @@ i panel wzbogacania z podglądem postępu joba; start:
 (próba generalna — [docs/RAPORT_POKRYCIA_M19.md](docs/RAPORT_POKRYCIA_M19.md)):
 komplet pól D5 = 100%, BPM domknięty kaskadą D6 + LLM, koszt ≈ $1.85/biblioteka;
 raport pokrycia: `scripts/coverage_report.sql`, przebieg na realnej bibliotece:
-[docs/M19_WALIDACJA.md](docs/M19_WALIDACJA.md). **Etap 1 zamknięty** — dalej
-Etap 2 (Spotify OAuth + playlisty) wg [docs/PLAN.md](docs/PLAN.md).
+[docs/M19_WALIDACJA.md](docs/M19_WALIDACJA.md). **Etap 1 zamknięty.**
+
+**Etap 2 zamknięty** — integracja ze Spotify i planowanie setów.
+**M2.1 (import playlist)**: `POST /api/ingest/playlist` przyjmuje link, URI
+`spotify:playlist:…` albo samo id; utwory idą do katalogu z kompletem metadanych
+i do biblioteki (dedup po `spotify_id`), playlista odtwarzana lokalnie razem
+z kolejnością — ponowny import ją aktualizuje, nie duplikuje. **M2.2 (konto
+Spotify)**: OAuth Authorization Code + PKCE (D4/D20) — `GET /api/auth/spotify/login`
+→ ekran zgody → `/callback`; tokeny wyłącznie w bazie (nigdy w odpowiedziach API
+ani w logach), odświeżane leniwie; `POST /api/ingest/my-playlists` wciąga wszystkie
+własne playlisty (tryb C). **M2.3 (sety)**: CRUD `/api/playlists*`, skład
+i kolejność utworów (drag&drop we froncie), slot wieczoru liczony z bpm + energy +
+genre_family (D9/D21) z override'em DJ-a. **M2.4 (eksport)**:
+`POST /api/playlists/{id}/export-to-spotify` — pierwszy eksport zakłada prywatną
+playlistę na koncie, kolejne nadpisują jej zawartość (batch po 100 URI).
+Przebieg na realnym koncie: [docs/M2_RUNBOOK.md](docs/M2_RUNBOOK.md);
+wdrożenie (opcjonalne M2.5): [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).

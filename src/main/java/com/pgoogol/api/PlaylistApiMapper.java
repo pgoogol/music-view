@@ -2,6 +2,7 @@ package com.pgoogol.api;
 
 import com.pgoogol.playlist.PlannedTrack;
 import com.pgoogol.playlist.Playlist;
+import com.pgoogol.playlist.PlaylistExport;
 import com.pgoogol.playlist.PlaylistPlan;
 import com.pgoogol.playlist.PlaylistSummary;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,12 @@ public class PlaylistApiMapper {
 
     public PlaylistApiMapper(CatalogApiMapper catalogApiMapper) {
         this.catalogApiMapper = catalogApiMapper;
+    }
+
+    public PlaylistExportResponse toResponse(PlaylistExport export) {
+
+        return new PlaylistExportResponse(export.playlistId(), export.spotifyPlaylistId(),
+            export.name(), export.exportedTracks(), export.created(), export.spotifyUrl());
     }
 
     public PlaylistSummaryResponse toResponse(PlaylistSummary summary) {

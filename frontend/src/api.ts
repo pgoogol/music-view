@@ -99,6 +99,15 @@ export interface PlaylistResponse {
   tracks: PlaylistTrackResponse[]
 }
 
+export interface PlaylistExportResponse {
+  playlistId: number
+  spotifyPlaylistId: string
+  name: string
+  exportedTracks: number
+  created: boolean
+  spotifyUrl: string
+}
+
 export interface SpotifyAccountResponse {
   connected: boolean
   spotifyUserId: string | null
@@ -244,6 +253,10 @@ export const api = {
 
   reorderPlaylist(id: number, spotifyIds: string[]): Promise<PlaylistResponse> {
     return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds }))
+  },
+
+  exportPlaylist(id: number): Promise<PlaylistExportResponse> {
+    return request(`/api/playlists/${id}/export-to-spotify`, { method: 'POST' })
   },
 
   startEnrichment(scope: string, fields: string[], spotifyIds: string[]): Promise<{ executionId: number }> {

@@ -2,6 +2,7 @@ package com.pgoogol.enrichment.spotify;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -22,8 +23,10 @@ public class SpotifyPlaylistClient {
 
     static final int PAGE_SIZE = 100;
     static final int MY_PLAYLISTS_PAGE_SIZE = 50;
+    static final int URIS_BATCH_SIZE = 100;
 
     private static final String TRACK_TYPE = "track";
+    private static final String TRACK_URI_PREFIX = "spotify:track:";
 
     private final RestClient apiClient;
     private final SpotifyAppTokenProvider tokenProvider;
@@ -102,6 +105,54 @@ public class SpotifyPlaylistClient {
         return List.copyOf(items);
     }
 
+    /** Zakłada playlistę na koncie właściciela (M2.4); domyślnie prywatną. */
+    public String createPlaylist(String userId, String name, String description) {
+
+        Objects.requireNonNull(userId, "userId");
+        Objects.requireNonNull(name, "name");
+        PlaylistResponse response = executor.call("konto " + userId, () -> apiClient.post()
+            .uri("/v1/users/{userId}/playlists", userId)
+            .headers(headers -> headers.setBearerAuth(accountService.userAccessToken()))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(new CreatePlaylistRequest(name, false, description))
+            .retrieve()
+            .body(PlaylistResponse.class));
+        return response.id();
+    }
+
+    /**
+     * Ustawia zawartość playlisty na dokładnie podane utwory, w tej kolejności.
+     * Pierwsza partia idzie przez PUT (zastępuje całość), kolejne przez POST —
+     * bo endpoint przyjmuje najwyżej 100 URI naraz.
+     */
+    public void replaceTracks(String playlistId, List<String> spotifyIds) {
+
+        Objects.requireNonNull(playlistId, "playlistId");
+        Objects.requireNonNull(spotifyIds, "spotifyIds");
+        List<String> uris = spotifyIds.stream().map(TRACK_URI_PREFIX::concat).toList();
+        List<List<String>> batches = IntStream
+            .iterate(0, offset -> offset < uris.size(), offset -> offset + URIS_BATCH_SIZE)
+            .mapToObj(offset -> uris.subList(offset, Math.min(offset + URIS_BATCH_SIZE, uris.size())))
+            .toList();
+        sendUris(playlistId, batches.isEmpty() ? List.of() : batches.getFirst(), true);
+        batches.stream().skip(1).forEach(batch -> sendUris(playlistId, batch, false));
+    }
+
+    private void sendUris(String playlistId, List<String> uris, boolean replace) {
+
+        executor.call("playlista " + playlistId, () -> {
+            RestClient.RequestBodySpec request = replace
+                ? apiClient.put().uri("/v1/playlists/{id}/tracks", playlistId)
+                : apiClient.post().uri("/v1/playlists/{id}/tracks", playlistId);
+            return request
+                .headers(headers -> headers.setBearerAuth(accountService.userAccessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new UrisRequest(uris))
+                .retrieve()
+                .toBodilessEntity();
+        });
+    }
+
     private PlaylistItemsResponse fetchItemsPage(String playlistId, int offset) {
 
         return executor.call("playlista " + playlistId, () -> apiClient.get()
@@ -177,6 +228,16 @@ public class SpotifyPlaylistClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record ItemNode(SpotifyTrackNode track) {
+
+    }
+
+    private record CreatePlaylistRequest(String name,
+                                         @JsonProperty("public") boolean publicPlaylist,
+                                         String description) {
+
+    }
+
+    private record UrisRequest(List<String> uris) {
 
     }
 }

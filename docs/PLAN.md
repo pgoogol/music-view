@@ -83,6 +83,7 @@ erDiagram
 |---|---|---|
 | Ingestion | `POST /api/ingest/file` (CSV), `GET /api/ingest/jobs/{id}` | 1 |
 | Ingestion | `POST /api/ingest/playlist` (URL), `POST /api/ingest/my-playlists` (OAuth) | 2 |
+| Playlists | `POST/DELETE /api/playlists/{id}/tracks*`, `PUT /api/playlists/{id}/tracks` (kolejność) | 2 |
 | Enrichment | `POST /api/enrich` (scope+fields), `GET /api/enrich/jobs[/{id}]`, `POST /api/enrich/jobs/{id}/restart`, `GET /api/enrich/missing-count` | 1 |
 | Catalog | `GET /api/catalog/tracks/{spotifyId}`, `GET /api/catalog/tracks` (search+filtry) | 1 |
 | Library | `GET/POST /api/library/tracks`, `PATCH/DELETE /api/library/tracks/{spotifyId}` | 1 |
@@ -225,18 +226,25 @@ widok z BPM/opisami; build frontu w CI.
 
 ---
 
-# ETAP 2 — Integracja Spotify + playlisty (etap końcowy)
+# ETAP 2 — Integracja Spotify + playlisty (etap końcowy) ✅
 
-| Kamień | Zakres | Zależy od |
-|---|---|---|
-| **M2.1** Ingestion B/D | Import playlisty po URL (własnej/publicznej): `playlist_tracks` + paginacja, dedup, raport | M1.2, M1.3 |
-| **M2.2** OAuth PKCE + tryb C | Połączenie konta właściciela, import wszystkich własnych playlist, odświeżanie tokenów | M2.1 |
-| **M2.3** Playlisty + planowanie setów | CRUD playlist, kolejność utworów (drag&drop we froncie), `dj_slot` liczony z bpm+energy+genre_family (D9) z override | M1.7, M1.8 |
-| **M2.4** Eksport na Spotify | Utworzenie playlisty na koncie + dodanie utworów (batch po 100 URI) | M2.2, M2.3 |
-| **M2.5** (opcjonalnie) Deployment | Neon + Railway/Fly.io + Vercel; dla narzędzia osobistego lokalny docker-compose też wystarcza | Etap 1 |
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M2.1** Ingestion B/D | Import playlisty po URL (własnej/publicznej): `playlist_tracks` + paginacja, dedup, raport | M1.2, M1.3 | ✅ |
+| **M2.2** OAuth PKCE + tryb C | Połączenie konta właściciela, import wszystkich własnych playlist, odświeżanie tokenów | M2.1 | ✅ |
+| **M2.3** Playlisty + planowanie setów | CRUD playlist, kolejność utworów (drag&drop we froncie), `dj_slot` liczony z bpm+energy+genre_family (D9) z override | M1.7, M1.8 | ✅ |
+| **M2.4** Eksport na Spotify | Utworzenie playlisty na koncie + dodanie utworów (batch po 100 URI) | M2.2, M2.3 | ✅ |
+| **M2.5** (opcjonalnie) Deployment | Neon + Railway/Fly.io + Vercel; dla narzędzia osobistego lokalny docker-compose też wystarcza | Etap 1 | 📄 [DEPLOYMENT.md](DEPLOYMENT.md) |
 
 **DoD Etapu 2:** planowanie setu od importu playlisty do eksportu gotowego setu na Spotify
-bez wychodzenia z aplikacji.
+bez wychodzenia z aplikacji — **spełnione**; przebieg krok po kroku:
+[M2_RUNBOOK.md](M2_RUNBOOK.md). Rozstrzygnięcia etapu: D20 (konto Spotify w bazie,
+tokeny server-side) i D21 (enum `DjSlot`, kaskada slotów, kontrakt kolejności setu).
+
+M2.5 celowo zostaje na poziomie dokumentacji: dla narzędzia jednego DJ-a lokalny
+`docker compose` wystarcza, a publiczny hosting aplikacji bez auth (D2/D14) wymagałby
+najpierw postawienia przed nią bramki na hasło — decyzja właściciela, nie kamień do
+odhaczenia.
 
 ---
 
