@@ -57,9 +57,13 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
           and (cast(:energy as text) is null or lower(t.energy) = lower(cast(:energy as text)))
         """;
 
-    /** Energia jest tekstem (D11), więc sortujemy ją po rosnącej sile, nie alfabetycznie. */
+    /**
+     * Energia jest tekstem (D11), więc sortujemy ją po rosnącej sile, nie alfabetycznie.
+     * Spacje na brzegach są istotne: stała wchodzi w środek text blocku, a ten ucina
+     * białe znaki na końcach linii — bez nich powstałoby „thencase".
+     */
     String ENERGY_RANK =
-        "case lower(t.energy) when 'low' then 1 when 'medium' then 2 when 'high' then 3 end";
+        " case lower(t.energy) when 'low' then 1 when 'medium' then 2 when 'high' then 3 end ";
 
     /**
      * Sortowanie z białej listy {@link CatalogSort} (M3.1). Każda kolumna dostaje
