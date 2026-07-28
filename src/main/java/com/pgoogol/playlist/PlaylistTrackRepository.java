@@ -19,6 +19,8 @@ public interface PlaylistTrackRepository extends JpaRepository<PlaylistTrack, Lo
 
     Optional<PlaylistTrack> findByPlaylistIdAndTrackSpotifyId(Long playlistId, String spotifyId);
 
+    long countByPlaylistId(Long playlistId);
+
     /**
      * Czyszczenie playlisty przed odtworzeniem kolejności; DML omija kontekst
      * persystencji, dlatego {@code flushAutomatically} gwarantuje kolejność

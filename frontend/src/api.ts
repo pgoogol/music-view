@@ -76,6 +76,29 @@ export interface EnrichJobResponse {
   exitDescription: string | null
 }
 
+export interface PlaylistSummaryResponse {
+  id: number
+  name: string
+  spotifyPlaylistId: string | null
+  createdAt: string
+  trackCount: number
+}
+
+export interface PlaylistTrackResponse {
+  position: number
+  djSlot: string | null
+  djSlotOverride: string | null
+  track: TrackResponse
+}
+
+export interface PlaylistResponse {
+  id: number
+  name: string
+  spotifyPlaylistId: string | null
+  createdAt: string
+  tracks: PlaylistTrackResponse[]
+}
+
 export interface SpotifyAccountResponse {
   connected: boolean
   spotifyUserId: string | null
@@ -187,6 +210,40 @@ export const api = {
 
   spotifyAccount(): Promise<SpotifyAccountResponse> {
     return request('/api/auth/spotify/status')
+  },
+
+  listPlaylists(): Promise<PlaylistSummaryResponse[]> {
+    return request('/api/playlists')
+  },
+
+  getPlaylist(id: number): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}`)
+  },
+
+  createPlaylist(name: string): Promise<PlaylistSummaryResponse> {
+    return request('/api/playlists', jsonInit('POST', { name }))
+  },
+
+  renamePlaylist(id: number, name: string): Promise<PlaylistSummaryResponse> {
+    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name }))
+  },
+
+  deletePlaylist(id: number): Promise<void> {
+    return request(`/api/playlists/${id}`, { method: 'DELETE' })
+  },
+
+  addPlaylistTrack(id: number, spotifyId: string): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('POST', { spotifyId }))
+  },
+
+  removePlaylistTrack(id: number, spotifyId: string): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks/${encodeURIComponent(spotifyId)}`, {
+      method: 'DELETE',
+    })
+  },
+
+  reorderPlaylist(id: number, spotifyIds: string[]): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds }))
   },
 
   startEnrichment(scope: string, fields: string[], spotifyIds: string[]): Promise<{ executionId: number }> {

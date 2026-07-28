@@ -118,3 +118,29 @@ tbody tr:hover { background: #23252e; }
 
 .field { display: block; margin: 10px 0; color: var(--muted); }
 .field input, .field textarea, .field select { display: block; width: 100%; margin-top: 4px; color: var(--text); }
+
+.playlist-list { list-style: none; margin: 8px 0; padding: 0; }
+.playlist-list li { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; }
+.playlist-list li.selected { color: var(--accent); }
+
+.set-list { margin: 8px 0; padding-left: 28px; }
+.set-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  cursor: grab;
+}
+.set-list li:hover { background: #23252e; }
+.set-title { flex: 1; }
+.handle { color: var(--muted); cursor: grab; }
+button.danger-link { color: var(--danger); }
+
+.slot { min-width: 92px; font-weight: 600; }
+.slot-WARMUP { color: #6fbf73; }
+.slot-MIDDLE { color: #7aa7d8; }
+.slot-PEAK { color: var(--accent); }
+.slot-CLOSING { color: #c98fd6; }
+.slot-BREAK { color: var(--muted); }
+.slot-NONE { color: var(--muted); font-weight: 400; }

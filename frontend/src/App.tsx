@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import ImportPanel from './components/ImportPanel'
 import EnrichPanel from './components/EnrichPanel'
 import SpotifyPanel from './components/SpotifyPanel'
+import PlaylistPanel from './components/PlaylistPanel'
 import LibraryTable from './components/LibraryTable'
 import TrackDetails from './components/TrackDetails'
 
@@ -31,6 +32,11 @@ export default function App() {
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         onOpenDetails={setDetailsId}
+      />
+
+      <PlaylistPanel
+        selectedIds={selectedIds}
+        onSelectionUsed={() => setSelectedIds(new Set())}
       />
 
       {detailsId && (

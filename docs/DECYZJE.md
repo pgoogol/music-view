@@ -229,3 +229,25 @@ M2.2 realizuje D4 (Authorization Code + PKCE). Rozstrzygnięcia:
 - **Zakresy uprawnień:** `playlist-read-private`, `playlist-read-collaborative`
   (import trybu C) oraz `playlist-modify-private`, `playlist-modify-public`
   (eksport M2.4) — nadawane raz, przy łączeniu konta.
+
+## D21. Sloty wieczoru i kontrakt kolejności setu (M2.3)
+
+Doprecyzowanie D9 przy implementacji planowania setów:
+
+- **`DjSlot` = enum `WARMUP | MIDDLE | PEAK | CLOSING | BREAK`** (rozgrzewka,
+  środek, szczyt, zamknięcie, przerwa). Nie trafia do bazy jako kolumna katalogu —
+  liczy go `DjSlotCalculator` przy odczycie playlisty (D9).
+- **Kaskada wyliczania** (pierwszy pasujący warunek): bpm < 75 → `BREAK`;
+  energia „low" albo bpm < 95 → `WARMUP`; energia „high" → `PEAK` przy bpm ≥ 120
+  (dla gatunków parkietowych — latin/disco/disco_polo/electronic — już od 110),
+  w przeciwnym razie `CLOSING`; reszta → `MIDDLE`. Brak bpm **i** energii = brak
+  slotu; brak jednego z nich kaskadzie nie przeszkadza. Progi są punktem wyjścia —
+  ostatnie słowo ma i tak override DJ-a.
+- **`library_entry.dj_slot_override` przyjmuje wyłącznie nazwy `DjSlot`**
+  (bez rozróżniania wielkości liter, zapis kanoniczny UPPER). To zawężenie
+  kontraktu `PATCH /api/library/tracks/{id}` z M1.7, gdzie pole było swobodnym
+  tekstem; pusty łańcuch nadal czyści wartość.
+- **`PUT /api/playlists/{id}/tracks` wymaga permutacji** obecnego składu —
+  pominięcie utworu w nowej kolejności to błąd (`PLAYLIST_ORDER_MISMATCH`),
+  a nie ciche usunięcie go z setu. Usuwanie ma własny endpoint i przenumerowuje
+  pozostałe pozycje, żeby zostały zwarte (0..n-1).
