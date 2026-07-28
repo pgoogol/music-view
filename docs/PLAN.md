@@ -253,7 +253,7 @@ odhaczenia.
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
 | **M3.1** Rozbudowa UI | Zakładki (Biblioteka / Sety / Import / Wzbogacanie), stan widoku w adresie, sortowanie serwerowe katalogu, statystyki i ostrzeżenia setu, historia jobów, testy frontu w CI | M1.8, M2.3 | ✅ |
-| **M3.2** Motyw „szkicownik" i przegląd playlist | Rysunkowy motyw UI, filtry biblioteczne w wyszukiwarce (`inLibrary`/`ratingMin`/`tag`), widok Playlisty z wejściem do środka (szukanie, krzywa tempa, zwijane sekcje), import własnych playlist z podsumowaniem w modalu, import z pliku znika z UI | M3.1 | ✅ |
+| **M3.2** Motyw „konsola" i przegląd playlist | Retro-futurystyczny motyw UI, filtry biblioteczne w wyszukiwarce (`inLibrary`/`ratingMin`/`tag`), widok Playlisty z wejściem do środka (szukanie, krzywa tempa, zwijane sekcje), import własnych playlist z podsumowaniem w modalu, import z pliku znika z UI | M3.1 | ✅ |
 
 **M3.1 w skrócie** (rozstrzygnięcia: [D22](DECYZJE.md)):
 
@@ -278,10 +278,11 @@ z aplikacji i odtwarzalny z adresu.
 
 **M3.2 w skrócie** (rozstrzygnięcia: [D23](DECYZJE.md)):
 
-- **Motyw „szkicownik":** ramki rysowane od ręki (nierówne promienie + drugi
-  obrys), pismo odręczne w nagłówkach i formantach, kratkowane tło, falowane
-  podkreślenia, krzywa tempa z drżeniem ręki. Dane w tabeli zostają w foncie
-  systemowym — 2500 utworów ma być czytelne.
+- **Motyw „konsola" (retro-futuryzm):** bursztynowy CRT i cyjan na granatowej
+  czerni, moduły ze ściętym narożnikiem, pigułkowe formanty, chromowany napis
+  marki, linie kineskopu, krzywa tempa z poświatą luminoforu. Wersaliki i font
+  o stałej szerokości tylko w nagłówkach i liczbach — tytuły w tabeli zostają
+  w foncie systemowym, bo 2500 utworów ma być czytelne.
 - **Wyszukiwarka filtruje też po bibliotece:** `inLibrary` (tylko w bibliotece /
   tylko spoza), `ratingMin`, `tag` w `GET /api/catalog/tracks`; słownik tagów
   z `GET /api/library/tags` podpowiada wartości. Filtry siedzą w adresie

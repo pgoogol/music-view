@@ -1,6 +1,7 @@
-// Krzywa BPM (M3.1, kreska odręczna w M3.2) — jedna seria, więc bez legendy;
-// linia w kolorze akcentu, punkty bez BPM zaznaczone pustym znacznikiem na dole
-// skali. Etykiety tylko na skrajnych wartościach; szczegóły pod kursorem (title).
+// Krzywa BPM (M3.1, odczyt z przyrządu w M3.2) — jedna seria, więc bez legendy;
+// ostra kreska w kolorze akcentu na własnej poświacie, punkty bez BPM zaznaczone
+// pustym znacznikiem na dole skali. Etykiety tylko na skrajnych wartościach;
+// szczegóły pod kursorem (title).
 
 import { DASH } from '../format'
 
@@ -19,18 +20,6 @@ interface Props {
 const WIDTH = 640
 const HEIGHT = 130
 const PADDING = { top: 14, right: 12, bottom: 20, left: 34 }
-
-/**
- * Drżenie ręki: deterministyczne (ten sam wykres rysuje się zawsze tak samo),
- * amplituda ~1 px — dość, żeby kreska przestała być linijkowa, za mało, żeby
- * zmienić odczyt wartości. Druga kreska („duch") z innym ziarnem daje wrażenie
- * poprawiania linii ołówkiem.
- */
-function jitter(index: number, seed: number): number {
-
-  const value = Math.sin((index + 1) * 12.9898 + seed * 78.233) * 43758.5453
-  return (value - Math.floor(value) - 0.5) * 3.4
-}
 
 export default function BpmCurve({ points, caption }: Props) {
 
@@ -55,15 +44,10 @@ export default function BpmCurve({ points, caption }: Props) {
     PADDING.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth)
   const y = (bpm: number) => PADDING.top + plotHeight - ((bpm - min) / span) * plotHeight
 
-  const stroke = (seedX: number, seedY: number) =>
-    points
-      .map((point, index) =>
-        point.bpm === null
-          ? null
-          : `${(x(index) + jitter(index, seedX)).toFixed(1)},${(y(point.bpm) + jitter(index, seedY)).toFixed(1)}`,
-      )
-      .filter((coordinate): coordinate is string => coordinate !== null)
-      .join(' ')
+  const line = points
+    .map((point, index) => (point.bpm === null ? null : `${x(index)},${y(point.bpm)}`))
+    .filter((coordinate): coordinate is string => coordinate !== null)
+    .join(' ')
 
   return (
     <figure className="chart" aria-label={`Krzywa tempa, od ${min} do ${max} BPM`}>
@@ -81,8 +65,9 @@ export default function BpmCurve({ points, caption }: Props) {
         <text className="chart-tick" x={2} y={PADDING.top + plotHeight}>
           {min}
         </text>
-        <polyline className="chart-line-ghost" points={stroke(3, 4)} />
-        <polyline className="chart-line" points={stroke(1, 2)} />
+        {/* ta sama kreska dwa razy: najpierw rozmyta poświata, potem ostry odczyt */}
+        <polyline className="chart-line-glow" points={line} />
+        <polyline className="chart-line" points={line} />
         {points.map((point, index) => (
           <g key={point.position}>
             <circle

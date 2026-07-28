@@ -1,4 +1,4 @@
-// Powłoka aplikacji (M3.1, motyw „szkicownik" M3.2): pięć zakładek zamiast jednej
+// Powłoka aplikacji (M3.1, motyw „konsola" M3.2): pięć zakładek zamiast jednej
 // długiej strony, wspólne zaznaczenie utworów przechodzące między widokami
 // i jeden host toastów.
 
@@ -22,17 +22,16 @@ export default function App() {
 }
 
 /**
- * Chropowatość kreski wykresów — feTurbulence rozjeżdża linię o ułamek piksela,
- * więc krzywa tempa wygląda jak narysowana ołówkiem, a nie wyliczona.
- * Filtr musi żyć w dokumencie raz, dlatego siedzi w powłoce, nie w wykresie.
+ * Poświata kineskopu pod krzywą tempa — rozmyta kopia kreski udaje jarzenie
+ * luminoforu. Filtr musi żyć w dokumencie raz, dlatego siedzi w powłoce,
+ * nie w wykresie.
  */
-function SketchDefs() {
+function CrtDefs() {
 
   return (
-    <svg className="sketch-defs" aria-hidden="true" focusable="false">
-      <filter id="sketch-rough">
-        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise" />
-        <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G" />
+    <svg className="crt-defs" aria-hidden="true" focusable="false">
+      <filter id="crt-glow" x="-20%" y="-40%" width="140%" height="180%">
+        <feGaussianBlur stdDeviation="4" />
       </filter>
     </svg>
   )
@@ -50,12 +49,12 @@ function AppShell() {
 
   return (
     <div className="app">
-      <SketchDefs />
+      <CrtDefs />
 
       <header className="app-header">
         <div className="brand">
           <h1>music-view</h1>
-          <span className="subtitle">szkicownik DJ-a — Sabor Latino</span>
+          <span className="subtitle">konsola DJ-a — Sabor Latino</span>
         </div>
         <nav className="tabs" aria-label="widoki">
           {ROUTES.map((name) => (

@@ -289,22 +289,30 @@ Viewer z M1.8 był jedną przewijaną stroną z panelami; przy realnej bibliotec
   `mvn verify`. Logika bez UI (statystyki setu, ostrzeżenia, układanie, parsowanie
   adresu, formatery) siedzi w czystych modułach i jest testowana bez renderowania.
 
-## D23. Motyw „szkicownik", filtry biblioteczne i przegląd playlist (M3.2)
+## D23. Motyw „konsola" (retro-futuryzm), filtry biblioteczne i przegląd playlist (M3.2)
 
 UI z M3.1 był poprawny, ale bezosobowy; do tego wyszukiwarka nie umiała odpowiedzieć
 na najczęstsze pytanie DJ-a („co z tego mam już u siebie?"), a zaimportowane playlisty
 dawało się obejrzeć tylko przez planer setów. Rozstrzygnięcia:
 
-- **Motyw rysowany od ręki, nadal jeden i ciemny.** Charakteru nie robią kolory,
-  tylko geometria: nierówne promienie ramek (`border-radius` z parą wartości),
-  drugi obrys pod spodem (`::after`), kratkowane tło z gradientów, przechylone
-  zakładki i kafle, falowane podkreślenia nagłówków (SVG inline, bez zasobów
-  z sieci) oraz krzywa tempa z deterministycznym „drżeniem ręki" i filtrem
-  `feTurbulence`. **Pismo odręczne tylko w nagłówkach, przyciskach i etykietach** —
-  dane w tabeli zostają w foncie systemowym, bo biblioteka ma 2500 wierszy.
-  Font bierzemy ze stosu systemowego (Segoe Print / Bradley Hand / Chalkboard SE
-  / Comic Neue → `cursive`); żadnego webfontu, bo narzędzie ma działać offline.
-  Przechyły i przesunięcia znikają przy `prefers-reduced-motion`.
+- **Motyw retro-futurystyczny („konsola"), nadal jeden i ciemny.** Pulpit statku
+  z lat 70.: bursztynowy CRT i cyjanowe podświetlenia na granatowej czerni,
+  moduły ze ściętym narożnikiem (`border-radius` z parą wartości) i wewnętrznym
+  włosem świetlnym, pigułkowe formanty, chromowany napis marki (gradient przycięty
+  do liter), linie kineskopu jako nakładka `body::after` (`pointer-events: none`),
+  krzywa tempa rysowana dwa razy — rozmyta poświata pod ostrym odczytem
+  (`feGaussianBlur`). Cała dekoracja z gradientów i SVG inline, **żadnych zasobów
+  z sieci ani webfontów** — narzędzie ma działać offline.
+- **Podział ról kolorów:** bursztyn = akcja (to, co klikalne), cyjan = stan
+  i pomiar (nagłówki, wartości, wykresy). Fazy wieczoru zostają porządkową rampą
+  jednego odcienia z etykietą przy każdym kolorze (D22).
+- **Wersaliki i font o stałej szerokości tylko w „przyrządach"** — nagłówkach,
+  zakładkach, przyciskach, etykietach filtrów i liczbach (BPM, czasy, liczniki).
+  Tytuły i wykonawcy w tabeli zostają w foncie systemowym i normalnej wielkości
+  liter, bo biblioteka ma 2500 wierszy i to ona jest treścią, nie ozdobą.
+  Font wyświetlaczowy ze stosu systemowego (Bahnschrift / DIN Alternate /
+  Eurostile / Futura → `sans-serif`). Przesunięcia znikają przy
+  `prefers-reduced-motion`; poświaty zostają, bo nie są ruchem.
 - **Wyszukiwarka katalogu filtruje po bibliotece, ale nie zwraca jej danych.**
   `GET /api/catalog/tracks` dostaje `inLibrary`, `ratingMin` i `tag`; SQL dokłada
   `left join library_entry` (kolumna `spotify_id` jest UNIQUE, więc złączenie nie
