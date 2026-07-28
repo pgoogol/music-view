@@ -76,6 +76,15 @@ export interface EnrichJobResponse {
   exitDescription: string | null
 }
 
+export interface SpotifyAccountResponse {
+  connected: boolean
+  spotifyUserId: string | null
+  displayName: string | null
+  scopes: string | null
+  expiresAt: string | null
+  connectedAt: string | null
+}
+
 export interface MissingCountResponse {
   metadata: number
   audio: number
@@ -170,6 +179,14 @@ export const api = {
 
   ingestPlaylist(url: string): Promise<IngestPlaylistResponse> {
     return request('/api/ingest/playlist', jsonInit('POST', { url }))
+  },
+
+  ingestMyPlaylists(): Promise<IngestPlaylistResponse[]> {
+    return request('/api/ingest/my-playlists', { method: 'POST' })
+  },
+
+  spotifyAccount(): Promise<SpotifyAccountResponse> {
+    return request('/api/auth/spotify/status')
   },
 
   startEnrichment(scope: string, fields: string[], spotifyIds: string[]): Promise<{ executionId: number }> {

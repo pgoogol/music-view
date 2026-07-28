@@ -2,8 +2,8 @@ package com.pgoogol.api;
 
 import com.pgoogol.common.ValidationException;
 import com.pgoogol.ingestion.FileIngestionService;
+import com.pgoogol.ingestion.MyPlaylistsIngestionService;
 import com.pgoogol.ingestion.PlaylistIngestionService;
-import com.pgoogol.library.LibrarySource;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/ingest")
@@ -25,14 +26,17 @@ public class IngestController {
 
     private final FileIngestionService fileIngestionService;
     private final PlaylistIngestionService playlistIngestionService;
+    private final MyPlaylistsIngestionService myPlaylistsIngestionService;
     private final IngestApiMapper mapper;
 
     public IngestController(FileIngestionService fileIngestionService,
                             PlaylistIngestionService playlistIngestionService,
+                            MyPlaylistsIngestionService myPlaylistsIngestionService,
                             IngestApiMapper mapper) {
 
         this.fileIngestionService = fileIngestionService;
         this.playlistIngestionService = playlistIngestionService;
+        this.myPlaylistsIngestionService = myPlaylistsIngestionService;
         this.mapper = mapper;
     }
 
@@ -57,7 +61,17 @@ public class IngestController {
             + "aktualizuje nazwę i kolejność, nie duplikuje wpisów.")
     public IngestPlaylistResponse ingestPlaylist(@Valid @RequestBody IngestPlaylistRequest request) {
 
-        return mapper.toResponse(
-            playlistIngestionService.ingest(request.url(), LibrarySource.FOREIGN_PLAYLIST));
+        return mapper.toResponse(playlistIngestionService.ingest(request.url()));
+    }
+
+    @PostMapping("/my-playlists")
+    @Operation(summary = "Import wszystkich własnych playlist połączonego konta (tryb C)",
+        description = "Wymaga połączonego konta Spotify (GET /api/auth/spotify/login). "
+            + "Playlisty obserwowane, ale cudze, są pomijane — importuj je po linku.")
+    public List<IngestPlaylistResponse> ingestMyPlaylists() {
+
+        return myPlaylistsIngestionService.ingestMyPlaylists().stream()
+            .map(mapper::toResponse)
+            .toList();
     }
 }

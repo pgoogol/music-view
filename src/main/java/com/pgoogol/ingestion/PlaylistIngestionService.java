@@ -2,6 +2,7 @@ package com.pgoogol.ingestion;
 
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
+import com.pgoogol.enrichment.spotify.SpotifyAccountService;
 import com.pgoogol.enrichment.spotify.SpotifyPlaylist;
 import com.pgoogol.enrichment.spotify.SpotifyPlaylistClient;
 import com.pgoogol.enrichment.spotify.SpotifyPlaylistItem;
@@ -41,6 +42,7 @@ public class PlaylistIngestionService {
 
     private final SpotifyPlaylistUrlParser urlParser;
     private final SpotifyPlaylistClient playlistClient;
+    private final SpotifyAccountService accountService;
     private final TrackCatalogRepository trackCatalogRepository;
     private final LibraryEntryRepository libraryEntryRepository;
     private final PlaylistRepository playlistRepository;
@@ -48,6 +50,7 @@ public class PlaylistIngestionService {
 
     public PlaylistIngestionService(SpotifyPlaylistUrlParser urlParser,
                                     SpotifyPlaylistClient playlistClient,
+                                    SpotifyAccountService accountService,
                                     TrackCatalogRepository trackCatalogRepository,
                                     LibraryEntryRepository libraryEntryRepository,
                                     PlaylistRepository playlistRepository,
@@ -55,19 +58,32 @@ public class PlaylistIngestionService {
 
         this.urlParser = urlParser;
         this.playlistClient = playlistClient;
+        this.accountService = accountService;
         this.trackCatalogRepository = trackCatalogRepository;
         this.libraryEntryRepository = libraryEntryRepository;
         this.playlistRepository = playlistRepository;
         this.playlistTrackRepository = playlistTrackRepository;
     }
 
+    /**
+     * Import playlisty spod linku. Playlista połączonego konta (D4) trafia do
+     * biblioteki jako własna (tryb B), cudza jako obca (tryb D) — bez połączonego
+     * konta każda jest obca.
+     */
     @Transactional
-    public PlaylistIngestReport ingest(String urlOrId, LibrarySource source) {
+    public PlaylistIngestReport ingest(String urlOrId) {
 
-        Objects.requireNonNull(source, "source");
         String playlistId = urlParser.parsePlaylistId(urlOrId);
         SpotifyPlaylist spotifyPlaylist = playlistClient.getPlaylist(playlistId);
-        return ingest(spotifyPlaylist, source);
+        return ingest(spotifyPlaylist, sourceOf(spotifyPlaylist));
+    }
+
+    private LibrarySource sourceOf(SpotifyPlaylist spotifyPlaylist) {
+
+        return accountService.connectedUserId()
+            .filter(ownerId -> Objects.equals(ownerId, spotifyPlaylist.ownerId()))
+            .map(ownerId -> LibrarySource.PLAYLIST)
+            .orElse(LibrarySource.FOREIGN_PLAYLIST);
     }
 
     /** Import playlisty o znanym już nagłówku — używane przy imporcie hurtem (tryb C). */

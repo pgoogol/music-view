@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import ImportPanel from './components/ImportPanel'
 import EnrichPanel from './components/EnrichPanel'
+import SpotifyPanel from './components/SpotifyPanel'
 import LibraryTable from './components/LibraryTable'
 import TrackDetails from './components/TrackDetails'
 
@@ -22,6 +23,7 @@ export default function App() {
       <div className="panels">
         <ImportPanel onImported={refresh} />
         <EnrichPanel selectedIds={selectedIds} onJobFinished={refresh} />
+        <SpotifyPanel onImported={refresh} />
       </div>
 
       <LibraryTable

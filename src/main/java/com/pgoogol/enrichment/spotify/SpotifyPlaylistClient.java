@@ -21,22 +21,62 @@ import java.util.stream.IntStream;
 public class SpotifyPlaylistClient {
 
     static final int PAGE_SIZE = 100;
+    static final int MY_PLAYLISTS_PAGE_SIZE = 50;
 
     private static final String TRACK_TYPE = "track";
 
     private final RestClient apiClient;
     private final SpotifyAppTokenProvider tokenProvider;
+    private final SpotifyAccountService accountService;
     private final SpotifyTrackMapper trackMapper;
     private final SpotifyApiExecutor executor;
 
     public SpotifyPlaylistClient(RestClient.Builder restClientBuilder, SpotifyProperties properties,
                                  SpotifyAppTokenProvider tokenProvider,
+                                 SpotifyAccountService accountService,
                                  SpotifyTrackMapper trackMapper, SpotifyApiExecutor executor) {
 
         this.apiClient = restClientBuilder.clone().baseUrl(properties.baseUrl()).build();
         this.tokenProvider = tokenProvider;
+        this.accountService = accountService;
         this.trackMapper = trackMapper;
         this.executor = executor;
+    }
+
+    /**
+     * Playlisty widoczne dla właściciela (tryb C) — także obserwowane cudze,
+     * dlatego filtr po właścicielu należy do ingestion. Wymaga połączonego
+     * konta (D4): prywatne playlisty nie są widoczne na tokenie aplikacyjnym.
+     */
+    public List<SpotifyPlaylist> getMyPlaylists() {
+
+        MyPlaylistsResponse firstPage = fetchMyPlaylistsPage(0);
+        int total = Objects.requireNonNullElse(firstPage.total(), firstPage.items().size());
+        List<SpotifyPlaylist> playlists = new ArrayList<>(toPlaylists(firstPage));
+        IntStream.iterate(MY_PLAYLISTS_PAGE_SIZE, offset -> offset < total,
+                offset -> offset + MY_PLAYLISTS_PAGE_SIZE)
+            .forEach(offset -> playlists.addAll(toPlaylists(fetchMyPlaylistsPage(offset))));
+        return List.copyOf(playlists);
+    }
+
+    private MyPlaylistsResponse fetchMyPlaylistsPage(int offset) {
+
+        return executor.call("playlisty właściciela", () -> apiClient.get()
+            .uri(uriBuilder -> uriBuilder.path("/v1/me/playlists")
+                .queryParam("limit", MY_PLAYLISTS_PAGE_SIZE)
+                .queryParam("offset", offset)
+                .build())
+            .headers(headers -> headers.setBearerAuth(accountService.userAccessToken()))
+            .retrieve()
+            .body(MyPlaylistsResponse.class));
+    }
+
+    private List<SpotifyPlaylist> toPlaylists(MyPlaylistsResponse page) {
+
+        return Objects.requireNonNullElse(page.items(), List.<PlaylistResponse>of()).stream()
+            .filter(Objects::nonNull)
+            .map(this::toPlaylist)
+            .toList();
     }
 
     public SpotifyPlaylist getPlaylist(String playlistId) {
@@ -122,6 +162,11 @@ public class SpotifyPlaylistClient {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record TracksNode(Integer total) {
+
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record MyPlaylistsResponse(List<PlaylistResponse> items, Integer total) {
 
     }
 

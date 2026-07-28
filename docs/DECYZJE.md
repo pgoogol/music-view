@@ -205,3 +205,27 @@ jakość pokrycia realnych źródeł (Deezer/dump AB) na prawdziwej bibliotece.
 (analiza previewu) odblokowuje dopiero realny przebieg M1.9, jeśli:
 BPM z faktów (AB+Deezer) < 70% biblioteki **lub** komplet pól D5 < 95%.
 Wynik realnego przebiegu dopisać tutaj i do raportu (przebieg B).
+
+## D20. Konto Spotify właściciela w bazie (tabela techniczna poza ERD)
+
+M2.2 realizuje D4 (Authorization Code + PKCE). Rozstrzygnięcia:
+
+- **Tabela `spotify_account`** (migracja V4) — jeden wiersz o stałym `id = 1`:
+  narzędzie jest jednoosobowe (D2), więc ponowne połączenie nadpisuje ten sam
+  rekord zamiast mnożyć konta. To nie jest zmiana zamrożonego modelu domenowego
+  (ERD z PLAN.md), tylko infrastruktura klienta — jak cache MusicBrainz z D18.
+- **Tokeny wyłącznie server-side:** `access_token`/`refresh_token` żyją w bazie,
+  nie trafiają do odpowiedzi API (`/api/auth/spotify/status` zwraca sam stan)
+  ani do logów. Odświeżanie jest leniwe — przy pierwszym użyciu po wygaśnięciu
+  (margines 60 s).
+- **Rozpoczęte logowanie (`state` + `code_verifier`) trzymamy w pamięci procesu,**
+  nie w bazie: jest ważne 10 minut i dotyczy jednej sesji przeglądarki. Po
+  restarcie aplikacji w trakcie logowania wystarczy powtórzyć `/login`.
+- **Kod Spotify (klient, OAuth, konto) mieszka w `enrichment.spotify`** — bez
+  nowego modułu najwyższego poziomu; lista modułów z CLAUDE.md zostaje bez zmian.
+- **`library_entry.source` rozstrzygane po właścicielu playlisty:** playlista
+  połączonego konta → `PLAYLIST` (tryb B/C), cudza → `FOREIGN_PLAYLIST` (tryb D).
+  Bez połączonego konta każda importowana playlista jest obca.
+- **Zakresy uprawnień:** `playlist-read-private`, `playlist-read-collaborative`
+  (import trybu C) oraz `playlist-modify-private`, `playlist-modify-public`
+  (eksport M2.4) — nadawane raz, przy łączeniu konta.

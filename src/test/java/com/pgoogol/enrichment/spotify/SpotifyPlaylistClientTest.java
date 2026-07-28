@@ -5,6 +5,9 @@ import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import com.pgoogol.WireMockRestClients;
 import com.pgoogol.common.NotFoundException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,8 +24,10 @@ import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
 
 @WireMockTest
+@ExtendWith(MockitoExtension.class)
 class SpotifyPlaylistClientTest {
 
     private static final String PLAYLIST_ID = "37i9dQZF1DX10zKzsJ2jva";
@@ -82,6 +87,9 @@ class SpotifyPlaylistClientTest {
           ]
         }
         """;
+
+    @Mock
+    private SpotifyAccountService accountService;
 
     @Test
     void getPlaylist_whenPlaylistExists_mapsHeaderWithOwner(WireMockRuntimeInfo wireMock) {
@@ -166,6 +174,40 @@ class SpotifyPlaylistClientTest {
         verify(getRequestedFor(urlPathEqualTo(tracksPath)).withQueryParam("limit", equalTo("100")));
     }
 
+    @Test
+    void getMyPlaylists_whenAccountConnected_usesUserTokenAndPagesThroughAll(
+            WireMockRuntimeInfo wireMock) {
+
+        // given — 60 playlist = 2 strony po 50; prywatne widać tylko na tokenie właściciela
+        given(accountService.userAccessToken()).willReturn("user-token");
+        stubFor(get(urlPathEqualTo("/v1/me/playlists"))
+            .willReturn(okJson(myPlaylistsPage(0, 50, 60))));
+        stubFor(get(urlPathEqualTo("/v1/me/playlists")).withQueryParam("offset", equalTo("50"))
+            .willReturn(okJson(myPlaylistsPage(50, 10, 60))));
+
+        // when
+        List<SpotifyPlaylist> playlists = playlistClient(wireMock).getMyPlaylists();
+
+        // then
+        assertThat(playlists).hasSize(60);
+        assertThat(playlists.getFirst()).isEqualTo(
+            new SpotifyPlaylist("pl-000", "Playlista 0", "dj-pgoogol", "DJ pgoogol", 7));
+        verify(2, getRequestedFor(urlPathEqualTo("/v1/me/playlists"))
+            .withHeader("Authorization", equalTo("Bearer user-token")));
+    }
+
+    private String myPlaylistsPage(int offset, int size, int total) {
+
+        String items = IntStream.range(offset, offset + size)
+            .mapToObj(index -> """
+                {"id": "pl-%03d", "name": "Playlista %d",
+                 "owner": {"id": "dj-pgoogol", "display_name": "DJ pgoogol"},
+                 "tracks": {"total": 7}}"""
+                .formatted(index, index))
+            .collect(Collectors.joining(",\n"));
+        return "{\"total\": %d, \"items\": [%s]}".formatted(total, items);
+    }
+
     private String itemsPage(int offset, int size, int total) {
 
         String items = IntStream.range(offset, offset + size)
@@ -182,6 +224,6 @@ class SpotifyPlaylistClientTest {
         SpotifyProperties properties = SpotifyTestProperties.pointingAt(wireMock);
         return new SpotifyPlaylistClient(WireMockRestClients.builder(), properties,
             new SpotifyAppTokenProvider(WireMockRestClients.builder(), properties),
-            new SpotifyTrackMapper(), new SpotifyApiExecutor(properties));
+            accountService, new SpotifyTrackMapper(), new SpotifyApiExecutor(properties));
     }
 }

@@ -61,6 +61,16 @@ button.link {
 }
 button.close { position: absolute; top: 8px; right: 12px; background: none; color: var(--muted); font-size: 20px; }
 
+.button-link {
+  display: inline-block;
+  background: var(--accent);
+  color: #1a1508;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
 input, select, textarea {
   background: #14151a;
   color: var(--text);
