@@ -1,15 +1,21 @@
+// Konto Spotify (M2.2) — w M3.1 panel pokazuje pełny stan połączenia
+// (kto, do kiedy ważny token, jakie zakresy) i rozpisuje import własnych playlist.
+
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError, type IngestPlaylistResponse, type SpotifyAccountResponse } from '../api'
+import { api, type IngestPlaylistResponse, type SpotifyAccountResponse } from '../api'
+import { useToast } from './Toasts'
+import { formatDateTime } from '../format'
 
 interface Props {
   onImported: () => void
 }
 
 export default function SpotifyPanel({ onImported }: Props) {
+
+  const { notify, reportError } = useToast()
   const [account, setAccount] = useState<SpotifyAccountResponse | null>(null)
   const [reports, setReports] = useState<IngestPlaylistResponse[] | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(() => {
     api.spotifyAccount().then(setAccount).catch(() => setAccount(null))
@@ -19,27 +25,37 @@ export default function SpotifyPanel({ onImported }: Props) {
 
   const importMine = async () => {
     setBusy(true)
-    setError(null)
     try {
-      setReports(await api.ingestMyPlaylists())
+      const imported = await api.ingestMyPlaylists()
+      setReports(imported)
+      const tracks = imported.reduce((sum, report) => sum + report.imported, 0)
+      notify(`Zaimportowano ${imported.length} playlist, ${tracks} nowych utworów`)
       onImported()
-    } catch (ex) {
-      setError(ex instanceof ApiError ? `${ex.errorCode}: ${ex.message}` : String(ex))
+    } catch (error) {
+      reportError(error, 'Import własnych playlist nie powiódł się')
     } finally {
       setBusy(false)
     }
   }
-
-  const importedTracks = (reports ?? []).reduce((sum, report) => sum + report.imported, 0)
 
   return (
     <section className="panel" aria-label="Konto Spotify">
       <h2>Konto Spotify</h2>
 
       {account?.connected ? (
-        <p className="report" data-testid="spotify-status">
-          połączone jako <strong>{account.displayName ?? account.spotifyUserId}</strong>
-        </p>
+        <div className="report" data-testid="spotify-status">
+          <p>
+            połączone jako <strong>{account.displayName ?? account.spotifyUserId}</strong>
+          </p>
+          <dl className="track-facts">
+            <dt>Token ważny do</dt>
+            <dd>{formatDateTime(account.expiresAt)}</dd>
+            <dt>Połączono</dt>
+            <dd>{formatDateTime(account.connectedAt)}</dd>
+            <dt>Zakresy</dt>
+            <dd className="muted">{account.scopes ?? '—'}</dd>
+          </dl>
+        </div>
       ) : (
         <p className="muted" data-testid="spotify-status">
           konto niepołączone — potrzebne do importu własnych playlist i eksportu setów
@@ -51,11 +67,7 @@ export default function SpotifyPanel({ onImported }: Props) {
         <a className="button-link" href="/api/auth/spotify/login" data-testid="spotify-connect">
           {account?.connected ? 'Połącz ponownie' : 'Połącz konto'}
         </a>
-        <button
-          onClick={importMine}
-          disabled={busy || !account?.connected}
-          data-testid="import-my-playlists"
-        >
+        <button onClick={importMine} disabled={busy || !account?.connected} data-testid="import-my-playlists">
           {busy ? 'Importuję…' : 'Importuj moje playlisty'}
         </button>
         <button className="link" onClick={refresh}>
@@ -64,12 +76,18 @@ export default function SpotifyPanel({ onImported }: Props) {
       </div>
 
       {reports && (
-        <p className="report" data-testid="my-playlists-report">
-          playlisty: <strong>{reports.length}</strong>, nowe utwory w bibliotece:{' '}
-          <strong>{importedTracks}</strong>
-        </p>
+        <ul className="report" data-testid="my-playlists-report">
+          {reports.map((report) => (
+            <li key={report.spotifyPlaylistId}>
+              „{report.name}" — {report.tracks} utworów, nowych: <strong>{report.imported}</strong>
+              {report.skipped.length > 0 && (
+                <span className="muted"> , pominięte: {report.skipped.length}</span>
+              )}
+            </li>
+          ))}
+          {reports.length === 0 && <li className="muted">Konto nie ma playlist do zaimportowania.</li>}
+        </ul>
       )}
-      {error && <p className="error">{error}</p>}
     </section>
   )
 }

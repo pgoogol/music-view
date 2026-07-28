@@ -251,3 +251,40 @@ Doprecyzowanie D9 przy implementacji planowania setów:
   pominięcie utworu w nowej kolejności to błąd (`PLAYLIST_ORDER_MISMATCH`),
   a nie ciche usunięcie go z setu. Usuwanie ma własny endpoint i przenumerowuje
   pozostałe pozycje, żeby zostały zwarte (0..n-1).
+
+## D22. Architektura frontu po rozbudowie UI (M3.1)
+
+Viewer z M1.8 był jedną przewijaną stroną z panelami; przy realnej bibliotece
+(2500 utworów) i planowaniu setów przestało to wystarczać. Rozstrzygnięcia:
+
+- **Cztery widoki zamiast jednej strony** — Biblioteka / Sety / Import /
+  Wzbogacanie, przełączane zakładkami. Zaznaczenie utworów jest wspólne dla
+  wszystkich widoków (pasek zaznaczenia), bo przepływ „znajdź w bibliotece →
+  dorzuć do setu → wzbogać" przechodzi przez trzy z nich.
+- **Stan widoku w hashu adresu, bez biblioteki routera** — `#/library?q=…&sort=BPM`.
+  Filtry, sortowanie, strona, otwarty set i otwarty utwór przeżywają odświeżenie
+  strony i dają się wkleić w zakładki przeglądarki. Aplikacja jest serwowana
+  statycznie i ma cztery ekrany, więc router (i jego zależności) byłby kosztem
+  bez zysku.
+- **Bez frameworka CSS** — własne zmienne i klasy w `styles.css`. Jeden motyw
+  (ciemny), jeden użytkownik; Tailwind/biblioteka komponentów dokładałaby build
+  i słownictwo bez realnej korzyści.
+- **Sortowanie liczy baza, nie przeglądarka.** Front sortował dotąd tylko
+  widoczną stronę wyników, co przy paginacji wprowadzało w błąd. `GET /api/catalog/tracks`
+  dostaje `sort` (enum `CatalogSort` — biała lista kolumn, żaden fragment SQL-a
+  nie przychodzi z zewnątrz) i `direction`; braki (`NULL`) lądują zawsze na końcu,
+  a energia sortuje się siłą (low → medium → high), nie alfabetycznie.
+  Wartość spoza enuma to `400 INVALID_PARAMETER`, nie 500.
+- **Kolory faz wieczoru to rampa porządkowa jednego odcienia** (rozgrzewka →
+  zamknięcie), a nie paleta „kolor na fazę": fazy są uporządkowane, więc czyta się
+  je jak skalę. Etykieta tekstowa towarzyszy każdemu kolorowi (kolor nigdy nie
+  niesie znaczenia sam), a nazwy slotów zostają w kolorze tekstu — na kropce
+  kolorystycznej, nie na literach, żeby utrzymać kontrast na ciemnym tle.
+- **Ostrzeżenia o secie liczy front** (skok tempa > 15 BPM między sąsiadami,
+  utwór bez BPM, cofnięcie fazy wieczoru) — to podpowiedzi do ręcznego układania,
+  nie reguły domenowe; backend pozostaje przy wyliczaniu slotu (D9/D21).
+  Auto-układanie („Ułóż wg faz wieczoru") wysyła zwykłą permutację przez istniejące
+  `PUT /api/playlists/{id}/tracks`.
+- **Testy frontu: Vitest + Testing Library (jsdom)**, uruchamiane w CI obok
+  `mvn verify`. Logika bez UI (statystyki setu, ostrzeżenia, układanie, parsowanie
+  adresu, formatery) siedzi w czystych modułach i jest testowana bez renderowania.

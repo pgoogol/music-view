@@ -110,6 +110,72 @@ class CatalogApiIntegrationTest {
             .andExpect(jsonPath("$.totalElements").value(3));
     }
 
+    @Test
+    void searchTracks_whenSortedByBpmDescending_ordersAcrossWholeResult() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("sort", "BPM")
+                .param("direction", "DESC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[1].spotifyId").value("sp-carnaval"))
+            .andExpect(jsonPath("$.content[2].spotifyId").value("sp-bohemian"));
+    }
+
+    @Test
+    void searchTracks_whenSortedByTitleAscending_ordersAlphabetically() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("sort", "TITLE")
+                .param("direction", "ASC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].title").value("Bohemian Rhapsody"))
+            .andExpect(jsonPath("$.content[1].title").value("La Vida Es Un Carnaval"))
+            .andExpect(jsonPath("$.content[2].title").value("Vivir Mi Vida"));
+    }
+
+    @Test
+    void searchTracks_whenSortedByFieldWithoutValue_keepsMissingDataLast() throws Exception {
+
+        trackCatalogRepository.save(new TrackCatalog("sp-szkielet", "Szkielet", "Nieznany"));
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("sort", "BPM")
+                .param("direction", "ASC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(4))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bohemian"))
+            .andExpect(jsonPath("$.content[3].spotifyId").value("sp-szkielet"));
+    }
+
+    @Test
+    void searchTracks_whenSortedByEnergy_ordersLowMediumHigh() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("sort", "ENERGY")
+                .param("direction", "ASC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bohemian"))
+            .andExpect(jsonPath("$.content[1].energy").value("high"))
+            .andExpect(jsonPath("$.content[2].energy").value("high"));
+    }
+
+    @Test
+    void searchTracks_whenSortIsNotOnWhitelist_returns400WithErrorCode() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("sort", "DROP TABLE"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+    }
+
+    @Test
+    void searchTracks_whenNoSortRequested_keepsRelevanceOrderFromM17() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("search", "carnaval"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+    }
+
     private TrackCatalog latinTrack(String spotifyId, String title, String artist, int bpm) {
 
         TrackCatalog track = new TrackCatalog(spotifyId, title, artist);

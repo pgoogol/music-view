@@ -28,9 +28,12 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
-    public Page<TrackCatalog> search(CatalogSearchCriteria criteria, Pageable pageable) {
+    public Page<TrackCatalog> search(CatalogSearchCriteria criteria,
+                                     CatalogSortOrder sortOrder,
+                                     Pageable pageable) {
 
         Objects.requireNonNull(criteria, "criteria");
+        Objects.requireNonNull(sortOrder, "sortOrder");
         String search = Optional.ofNullable(criteria.search())
             .map(String::strip)
             .filter(value -> !value.isEmpty())
@@ -42,6 +45,8 @@ public class CatalogService {
             criteria.bpmMax(),
             Optional.ofNullable(criteria.tempoClass()).map(Enum::name).orElse(null),
             criteria.energy(),
+            sortOrder.field().name(),
+            sortOrder.direction().name(),
             pageable);
     }
 }

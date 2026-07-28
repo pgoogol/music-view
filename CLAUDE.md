@@ -17,6 +17,9 @@ i commitach wskazują decyzje z DECYZJE.md.
 | Same testy | `./mvnw test` |
 | Uruchomienie z lokalną bazą | `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` |
 | Zatrzymanie bazy | `docker compose down` (z `-v` czyści dane) |
+| Front — tryb dev | `cd frontend && npm install && npm run dev` (proxy `/api` na :8080) |
+| Front — testy | `cd frontend && npm test` (Vitest + Testing Library) |
+| Front — build | `cd frontend && npm run build` (typecheck + vite build) |
 
 CI (GitHub Actions) uruchamia `./mvnw verify` na każdy push na `master` i każdy PR.
 

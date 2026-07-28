@@ -11,6 +11,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.stream.Collectors;
@@ -42,6 +43,16 @@ public class GlobalExceptionHandler {
             .collect(Collectors.joining("; "));
         log.warn("Request body validation failed: {}", details);
         return ErrorResponse.of("VALIDATION_FAILED", details);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleParameterTypeMismatch(MethodArgumentTypeMismatchException ex) {
+
+        // np. sort=BPMM albo genreFamily=SALSA — wartość spoza enuma to błąd klienta, nie serwera
+        log.warn("Invalid request parameter '{}': {}", ex.getName(), ex.getValue());
+        return ErrorResponse.of("INVALID_PARAMETER",
+            "Niepoprawna wartość parametru '%s': %s".formatted(ex.getName(), ex.getValue()));
     }
 
     @ExceptionHandler(ConflictException.class)

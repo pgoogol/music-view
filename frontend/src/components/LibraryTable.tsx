@@ -1,186 +1,145 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api, type PageResponse, type SearchParams, type TrackResponse } from '../api'
+// Tabela katalogu (M1.8, rozbudowa M3.1): okładki, czas trwania, znacznik braków
+// i sortowanie serwerowe — komponent jest prezentacyjny, stan trzyma widok.
 
-const GENRES = ['LATIN', 'ROCK', 'POP', 'DISCO', 'DISCO_POLO', 'ELECTRONIC', 'HIP_HOP', 'OTHER']
-const TEMPO_CLASSES = ['SLOW', 'MEDIUM', 'FAST', 'VERY_FAST']
-const ENERGIES = ['low', 'medium', 'high']
-const PAGE_SIZE = 20
+import type { CatalogSort, SortDirection, TrackResponse } from '../api'
+import { DASH, energyLabel, formatDuration, isEnriched, tempoLabel } from '../format'
 
-type SortKey = 'title' | 'artist' | 'year' | 'bpm' | 'genreFamily' | 'energy'
+interface Column {
+  key: string
+  label: string
+  sort?: CatalogSort
+}
+
+const COLUMNS: Column[] = [
+  { key: 'title', label: 'Tytuł', sort: 'TITLE' },
+  { key: 'artist', label: 'Wykonawca', sort: 'ARTIST' },
+  { key: 'year', label: 'Rok', sort: 'YEAR' },
+  { key: 'duration', label: 'Czas', sort: 'DURATION' },
+  { key: 'bpm', label: 'BPM', sort: 'BPM' },
+  { key: 'tempo', label: 'Tempo' },
+  { key: 'genre', label: 'Gatunek' },
+  { key: 'style', label: 'Styl' },
+  { key: 'energy', label: 'Energia', sort: 'ENERGY' },
+]
 
 interface Props {
-  refreshKey: number
+  tracks: readonly TrackResponse[]
+  loading: boolean
   selectedIds: ReadonlySet<string>
-  onSelectionChange: (ids: ReadonlySet<string>) => void
+  sort: CatalogSort
+  direction: SortDirection
+  onSort: (sort: CatalogSort) => void
+  onToggleTrack: (spotifyId: string) => void
+  onTogglePage: () => void
   onOpenDetails: (spotifyId: string) => void
+  emptyMessage: string
 }
 
 export default function LibraryTable({
-  refreshKey,
+  tracks,
+  loading,
   selectedIds,
-  onSelectionChange,
+  sort,
+  direction,
+  onSort,
+  onToggleTrack,
+  onTogglePage,
   onOpenDetails,
+  emptyMessage,
 }: Props) {
-  const [search, setSearch] = useState('')
-  const [genreFamily, setGenreFamily] = useState('')
-  const [bpmMin, setBpmMin] = useState('')
-  const [bpmMax, setBpmMax] = useState('')
-  const [tempoClass, setTempoClass] = useState('')
-  const [energy, setEnergy] = useState('')
-  const [page, setPage] = useState(0)
-  const [result, setResult] = useState<PageResponse<TrackResponse> | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [sort, setSort] = useState<{ key: SortKey; asc: boolean } | null>(null)
 
-  useEffect(() => {
-    const params: SearchParams = {
-      search: search || undefined,
-      genreFamily: genreFamily || undefined,
-      bpmMin: bpmMin ? Number(bpmMin) : undefined,
-      bpmMax: bpmMax ? Number(bpmMax) : undefined,
-      tempoClass: tempoClass || undefined,
-      energy: energy || undefined,
-      page,
-      size: PAGE_SIZE,
-    }
-    // debounce wyszukiwarki; filtry i paginacja łapią się na ten sam timer
-    const timer = window.setTimeout(() => {
-      api.searchTracks(params).then(setResult).catch((ex) => setError(String(ex)))
-    }, 250)
-    return () => window.clearTimeout(timer)
-  }, [search, genreFamily, bpmMin, bpmMax, tempoClass, energy, page, refreshKey])
+  const pageSelected = tracks.length > 0 && tracks.every((track) => selectedIds.has(track.spotifyId))
 
-  const rows = useMemo(() => {
-    const content = result?.content ?? []
-    if (!sort) return content
-    const direction = sort.asc ? 1 : -1
-    return [...content].sort((a, b) => {
-      const left = a[sort.key]
-      const right = b[sort.key]
-      if (left === null || left === undefined) return 1
-      if (right === null || right === undefined) return -1
-      if (typeof left === 'number' && typeof right === 'number') {
-        return (left - right) * direction
-      }
-      return String(left).localeCompare(String(right), 'pl') * direction
-    })
-  }, [result, sort])
-
-  const toggleSort = (key: SortKey) =>
-    setSort((current) =>
-      current?.key === key ? { key, asc: !current.asc } : { key, asc: true },
-    )
-
-  const toggleRow = (spotifyId: string) => {
-    const next = new Set(selectedIds)
-    if (next.has(spotifyId)) next.delete(spotifyId)
-    else next.add(spotifyId)
-    onSelectionChange(next)
+  const sortMark = (column: Column) => {
+    if (!column.sort || column.sort !== sort) return ''
+    return direction === 'ASC' ? ' ▲' : ' ▼'
   }
-
-  const togglePage = () => {
-    const pageIds = rows.map((row) => row.spotifyId)
-    const allSelected = pageIds.every((id) => selectedIds.has(id))
-    const next = new Set(selectedIds)
-    pageIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)))
-    onSelectionChange(next)
-  }
-
-  const sortMark = (key: SortKey) => (sort?.key === key ? (sort.asc ? ' ▲' : ' ▼') : '')
 
   return (
-    <section className="panel table-panel" aria-label="Biblioteka">
-      <div className="filters">
-        <input
-          type="search"
-          placeholder="Szukaj: tytuł / wykonawca…"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value)
-            setPage(0)
-          }}
-          data-testid="search-input"
-        />
-        <select value={genreFamily} onChange={(e) => { setGenreFamily(e.target.value); setPage(0) }}>
-          <option value="">gatunek: wszystkie</option>
-          {GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
-        </select>
-        <input type="number" placeholder="BPM od" value={bpmMin}
-               onChange={(e) => { setBpmMin(e.target.value); setPage(0) }} />
-        <input type="number" placeholder="BPM do" value={bpmMax}
-               onChange={(e) => { setBpmMax(e.target.value); setPage(0) }} />
-        <select value={tempoClass} onChange={(e) => { setTempoClass(e.target.value); setPage(0) }}>
-          <option value="">tempo: wszystkie</option>
-          {TEMPO_CLASSES.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select value={energy} onChange={(e) => { setEnergy(e.target.value); setPage(0) }}>
-          <option value="">energia: wszystkie</option>
-          {ENERGIES.map((level) => <option key={level} value={level}>{level}</option>)}
-        </select>
-      </div>
-
-      {error && <p className="error">{error}</p>}
-
+    <div className={loading ? 'table-wrap loading' : 'table-wrap'}>
       <table data-testid="library-table">
         <thead>
           <tr>
-            <th><input type="checkbox" onChange={togglePage} aria-label="zaznacz stronę" /></th>
-            <th onClick={() => toggleSort('title')}>Tytuł{sortMark('title')}</th>
-            <th onClick={() => toggleSort('artist')}>Wykonawca{sortMark('artist')}</th>
-            <th onClick={() => toggleSort('year')}>Rok{sortMark('year')}</th>
-            <th onClick={() => toggleSort('bpm')}>BPM{sortMark('bpm')}</th>
-            <th>Tempo</th>
-            <th onClick={() => toggleSort('genreFamily')}>Gatunek{sortMark('genreFamily')}</th>
-            <th>Styl</th>
-            <th onClick={() => toggleSort('energy')}>Energia{sortMark('energy')}</th>
+            <th className="col-check">
+              <input
+                type="checkbox"
+                checked={pageSelected}
+                onChange={onTogglePage}
+                aria-label="zaznacz stronę"
+              />
+            </th>
+            <th className="col-cover" aria-label="okładka" />
+            {COLUMNS.map((column) => (
+              <th
+                key={column.key}
+                className={column.sort ? 'sortable' : undefined}
+                aria-sort={
+                  column.sort === sort ? (direction === 'ASC' ? 'ascending' : 'descending') : undefined
+                }
+                onClick={column.sort ? () => onSort(column.sort!) : undefined}
+              >
+                {column.label}
+                {sortMark(column)}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((track) => (
-            <tr key={track.spotifyId}>
-              <td>
+          {tracks.map((track) => (
+            <tr key={track.spotifyId} className={selectedIds.has(track.spotifyId) ? 'selected' : undefined}>
+              <td className="col-check">
                 <input
                   type="checkbox"
                   checked={selectedIds.has(track.spotifyId)}
-                  onChange={() => toggleRow(track.spotifyId)}
+                  onChange={() => onToggleTrack(track.spotifyId)}
                   aria-label={`zaznacz ${track.title ?? track.spotifyId}`}
                 />
               </td>
+              <td className="col-cover">
+                {track.albumImageUrl ? (
+                  <img src={track.albumImageUrl} alt="" loading="lazy" className="cover" />
+                ) : (
+                  <span className="cover cover-empty" aria-hidden="true" />
+                )}
+              </td>
               <td>
                 <button className="link" onClick={() => onOpenDetails(track.spotifyId)}>
-                  {track.title ?? '—'}
+                  {track.title ?? track.spotifyId}
                 </button>
+                {!isEnriched(track) && (
+                  <span className="badge badge-warn" title="brak BPM lub gatunku">
+                    do wzbogacenia
+                  </span>
+                )}
               </td>
-              <td>{track.artist ?? '—'}</td>
-              <td>{track.year ?? '—'}</td>
-              <td>{track.bpm ?? '—'}</td>
-              <td>{track.tempoClass ?? '—'}</td>
-              <td>{track.genreFamily ?? '—'}</td>
-              <td>{track.style ?? '—'}</td>
-              <td>{track.energy ?? '—'}</td>
+              <td>{track.artist ?? DASH}</td>
+              <td>{track.year ?? DASH}</td>
+              <td>{formatDuration(track.durationMs)}</td>
+              <td title={track.bpmSource ? `źródło: ${track.bpmSource}` : undefined}>
+                {track.bpm ?? DASH}
+              </td>
+              <td>{tempoLabel(track.tempoClass)}</td>
+              <td>{track.genreFamily ?? DASH}</td>
+              <td>{track.style ?? DASH}</td>
+              <td>{energyLabel(track.energy)}</td>
             </tr>
           ))}
-          {rows.length === 0 && (
+          {tracks.length === 0 && !loading && (
             <tr>
-              <td colSpan={9} className="muted">
-                Brak utworów — zaimportuj CSV powyżej.
+              <td colSpan={COLUMNS.length + 2} className="muted empty-row">
+                {emptyMessage}
+              </td>
+            </tr>
+          )}
+          {tracks.length === 0 && loading && (
+            <tr>
+              <td colSpan={COLUMNS.length + 2} className="muted empty-row">
+                Ładowanie…
               </td>
             </tr>
           )}
         </tbody>
       </table>
-
-      {result && result.totalPages > 1 && (
-        <div className="pager">
-          <button disabled={page === 0} onClick={() => setPage(page - 1)}>‹ poprzednia</button>
-          <span>
-            strona {result.page + 1} / {result.totalPages} ({result.totalElements} utworów)
-          </span>
-          <button disabled={page + 1 >= result.totalPages} onClick={() => setPage(page + 1)}>
-            następna ›
-          </button>
-        </div>
-      )}
-    </section>
+    </div>
   )
 }

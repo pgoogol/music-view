@@ -21,8 +21,13 @@ Deezer (BPM), dowolny model LLM (analiza AI — provider konfigurowalny, do wybo
 
 ```bash
 docker compose up -d     # Postgres 16 (profil local łączy się z tą bazą)
-./mvnw verify            # build + testy
+./mvnw verify            # build + testy backendu
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+
+cd frontend
+npm install
+npm run dev              # http://localhost:5173, proxy /api na :8080
+npm test                 # testy frontu (Vitest + Testing Library)
 ```
 
 Sekrety: skopiuj `.env.example` do `.env` i uzupełnij (plik `.env` nie trafia do repo — D14).
@@ -73,3 +78,14 @@ genre_family (D9/D21) z override'em DJ-a. **M2.4 (eksport)**:
 playlistę na koncie, kolejne nadpisują jej zawartość (batch po 100 URI).
 Przebieg na realnym koncie: [docs/M2_RUNBOOK.md](docs/M2_RUNBOOK.md);
 wdrożenie (opcjonalne M2.5): [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
+**M3.1 (rozbudowa UI)** — front rozbity na cztery widoki (Biblioteka / Sety /
+Import / Wzbogacanie) ze stanem zapisanym w adresie (`#/library?q=…&sort=BPM`),
+więc odświeżenie strony wraca do tych samych filtrów. Biblioteka: okładki, czas
+utworu, znacznik „do wzbogacenia", sortowanie liczone przez bazę (`sort`
++ `direction` w `GET /api/catalog/tracks`, biała lista kolumn — D22). Sety:
+statystyki (czas, zakres i średnia BPM), rozkład faz wieczoru, krzywa tempa,
+ostrzeżenia o skokach BPM i cofnięciu fazy, układanie wg faz D9 jednym
+kliknięciem, kolejność strzałkami albo przeciąganiem. Wzbogacanie: pokrycie pól
+D11 i historia jobów z restartem. Testy frontu: `cd frontend && npm test`
+(Vitest + Testing Library, uruchamiane też w CI).
