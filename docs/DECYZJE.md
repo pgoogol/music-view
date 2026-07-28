@@ -288,3 +288,42 @@ Viewer z M1.8 był jedną przewijaną stroną z panelami; przy realnej bibliotec
 - **Testy frontu: Vitest + Testing Library (jsdom)**, uruchamiane w CI obok
   `mvn verify`. Logika bez UI (statystyki setu, ostrzeżenia, układanie, parsowanie
   adresu, formatery) siedzi w czystych modułach i jest testowana bez renderowania.
+
+## D23. Motyw „szkicownik", filtry biblioteczne i przegląd playlist (M3.2)
+
+UI z M3.1 był poprawny, ale bezosobowy; do tego wyszukiwarka nie umiała odpowiedzieć
+na najczęstsze pytanie DJ-a („co z tego mam już u siebie?"), a zaimportowane playlisty
+dawało się obejrzeć tylko przez planer setów. Rozstrzygnięcia:
+
+- **Motyw rysowany od ręki, nadal jeden i ciemny.** Charakteru nie robią kolory,
+  tylko geometria: nierówne promienie ramek (`border-radius` z parą wartości),
+  drugi obrys pod spodem (`::after`), kratkowane tło z gradientów, przechylone
+  zakładki i kafle, falowane podkreślenia nagłówków (SVG inline, bez zasobów
+  z sieci) oraz krzywa tempa z deterministycznym „drżeniem ręki" i filtrem
+  `feTurbulence`. **Pismo odręczne tylko w nagłówkach, przyciskach i etykietach** —
+  dane w tabeli zostają w foncie systemowym, bo biblioteka ma 2500 wierszy.
+  Font bierzemy ze stosu systemowego (Segoe Print / Bradley Hand / Chalkboard SE
+  / Comic Neue → `cursive`); żadnego webfontu, bo narzędzie ma działać offline.
+  Przechyły i przesunięcia znikają przy `prefers-reduced-motion`.
+- **Wyszukiwarka katalogu filtruje po bibliotece, ale nie zwraca jej danych.**
+  `GET /api/catalog/tracks` dostaje `inLibrary`, `ratingMin` i `tag`; SQL dokłada
+  `left join library_entry` (kolumna `spotify_id` jest UNIQUE, więc złączenie nie
+  zwielokrotnia wierszy). Odpowiedzią nadal jest `TrackResponse` — dane prywatne
+  DJ-a (D3) zostają w `/api/library/*` i w szufladzie utworu. Z tego samego powodu
+  **nie ma sortowania po ocenie**: kolumny z oceną nie ma w tabeli, więc porządek
+  byłby niewidoczny.
+- **Słownik tagów jako osobny endpoint** (`GET /api/library/tags`, `unnest`
+  po `custom_tags`) — filtr tagu podpowiada wartości zamiast wymagać pamięci.
+- **Playlisty dostają własny widok do czytania, planer zostaje do pisania.**
+  Zakładka Playlisty pokazuje wszystko, co jest w tabeli `playlist` (import
+  ze Spotify i sety z planera): kafle z szukaniem po nazwie, a w środku szukanie
+  po utworach, krzywa tempa i **zwijane sekcje faz wieczoru** — playlista na 200
+  pozycji nie mieści się na ekranie inaczej. Zmiana kolejności, eksport i usuwanie
+  zostają w zakładce Sety; z podglądu prowadzi tam jeden przycisk.
+- **Import własnych playlist raportuje w modalu, nie w toaście.** Operacja trwa
+  (playlista po playliście, limity Spotify), a raport per playlista jest tym,
+  po co się ją uruchamia — toast z auto-znikaniem gubił wynik długiej operacji.
+- **Import z pliku CSV zniknął z UI, endpoint został.** Biblioteka jedzie ze
+  Spotify (tryby B/C/D z D6); `POST /api/ingest/file` zostaje jako awaryjne
+  wejście trybu A i jest nadal pokryty testami — usunięcie go z ekranu to decyzja
+  o UI, nie o API.

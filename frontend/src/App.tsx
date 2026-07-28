@@ -1,5 +1,6 @@
-// Powłoka aplikacji (M3.1): cztery zakładki zamiast jednej długiej strony,
-// wspólne zaznaczenie utworów przechodzące między widokami i jeden host toastów.
+// Powłoka aplikacji (M3.1, motyw „szkicownik" M3.2): pięć zakładek zamiast jednej
+// długiej strony, wspólne zaznaczenie utworów przechodzące między widokami
+// i jeden host toastów.
 
 import { useCallback, useState } from 'react'
 import SelectionBar from './components/SelectionBar'
@@ -8,6 +9,7 @@ import { ROUTES, ROUTE_LABELS, useHashRoute } from './hooks/useHashRoute'
 import EnrichView from './views/EnrichView'
 import ImportView from './views/ImportView'
 import LibraryView from './views/LibraryView'
+import PlaylistsView from './views/PlaylistsView'
 import SetsView from './views/SetsView'
 
 export default function App() {
@@ -16,6 +18,23 @@ export default function App() {
     <ToastProvider>
       <AppShell />
     </ToastProvider>
+  )
+}
+
+/**
+ * Chropowatość kreski wykresów — feTurbulence rozjeżdża linię o ułamek piksela,
+ * więc krzywa tempa wygląda jak narysowana ołówkiem, a nie wyliczona.
+ * Filtr musi żyć w dokumencie raz, dlatego siedzi w powłoce, nie w wykresie.
+ */
+function SketchDefs() {
+
+  return (
+    <svg className="sketch-defs" aria-hidden="true" focusable="false">
+      <filter id="sketch-rough">
+        <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="2" seed="7" result="noise" />
+        <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
   )
 }
 
@@ -31,10 +50,12 @@ function AppShell() {
 
   return (
     <div className="app">
+      <SketchDefs />
+
       <header className="app-header">
         <div className="brand">
           <h1>music-view</h1>
-          <span className="subtitle">biblioteka DJ-a — Sabor Latino</span>
+          <span className="subtitle">szkicownik DJ-a — Sabor Latino</span>
         </div>
         <nav className="tabs" aria-label="widoki">
           {ROUTES.map((name) => (
@@ -61,6 +82,7 @@ function AppShell() {
             onChanged={refresh}
           />
         )}
+        {route === 'playlists' && <PlaylistsView refreshKey={refreshKey} />}
         {route === 'sets' && (
           <SetsView selectedIds={selectedIds} onSelectionUsed={clearSelection} />
         )}

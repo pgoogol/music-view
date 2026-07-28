@@ -1,6 +1,6 @@
-// Krzywa BPM setu (M3.1) — jedna seria, więc bez legendy; linia 2px w kolorze
-// akcentu, punkty bez BPM zaznaczone pustym znacznikiem na dole skali.
-// Etykiety tylko na skrajnych wartościach; szczegóły pod kursorem (title).
+// Krzywa BPM (M3.1, kreska odręczna w M3.2) — jedna seria, więc bez legendy;
+// linia w kolorze akcentu, punkty bez BPM zaznaczone pustym znacznikiem na dole
+// skali. Etykiety tylko na skrajnych wartościach; szczegóły pod kursorem (title).
 
 import { DASH } from '../format'
 
@@ -12,13 +12,27 @@ export interface BpmPoint {
 
 interface Props {
   points: readonly BpmPoint[]
+  /** Podpis pod wykresem — playlisty mówią o „tempie playlisty", sety o secie. */
+  caption?: string
 }
 
 const WIDTH = 640
-const HEIGHT = 120
-const PADDING = { top: 12, right: 12, bottom: 18, left: 32 }
+const HEIGHT = 130
+const PADDING = { top: 14, right: 12, bottom: 20, left: 34 }
 
-export default function BpmCurve({ points }: Props) {
+/**
+ * Drżenie ręki: deterministyczne (ten sam wykres rysuje się zawsze tak samo),
+ * amplituda ~1 px — dość, żeby kreska przestała być linijkowa, za mało, żeby
+ * zmienić odczyt wartości. Druga kreska („duch") z innym ziarnem daje wrażenie
+ * poprawiania linii ołówkiem.
+ */
+function jitter(index: number, seed: number): number {
+
+  const value = Math.sin((index + 1) * 12.9898 + seed * 78.233) * 43758.5453
+  return (value - Math.floor(value) - 0.5) * 3.4
+}
+
+export default function BpmCurve({ points, caption }: Props) {
 
   const known = points.filter((point) => point.bpm !== null)
   if (known.length < 2) {
@@ -41,13 +55,18 @@ export default function BpmCurve({ points }: Props) {
     PADDING.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth)
   const y = (bpm: number) => PADDING.top + plotHeight - ((bpm - min) / span) * plotHeight
 
-  const line = points
-    .map((point, index) => (point.bpm === null ? null : `${x(index)},${y(point.bpm)}`))
-    .filter((coordinate): coordinate is string => coordinate !== null)
-    .join(' ')
+  const stroke = (seedX: number, seedY: number) =>
+    points
+      .map((point, index) =>
+        point.bpm === null
+          ? null
+          : `${(x(index) + jitter(index, seedX)).toFixed(1)},${(y(point.bpm) + jitter(index, seedY)).toFixed(1)}`,
+      )
+      .filter((coordinate): coordinate is string => coordinate !== null)
+      .join(' ')
 
   return (
-    <figure className="chart" aria-label={`Krzywa tempa setu, od ${min} do ${max} BPM`}>
+    <figure className="chart" aria-label={`Krzywa tempa, od ${min} do ${max} BPM`}>
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" data-testid="bpm-curve">
         <line
           className="chart-axis"
@@ -56,13 +75,14 @@ export default function BpmCurve({ points }: Props) {
           y1={PADDING.top + plotHeight}
           y2={PADDING.top + plotHeight}
         />
-        <text className="chart-tick" x={4} y={PADDING.top + 4}>
+        <text className="chart-tick" x={2} y={PADDING.top + 4}>
           {max}
         </text>
-        <text className="chart-tick" x={4} y={PADDING.top + plotHeight}>
+        <text className="chart-tick" x={2} y={PADDING.top + plotHeight}>
           {min}
         </text>
-        <polyline className="chart-line" points={line} />
+        <polyline className="chart-line-ghost" points={stroke(3, 4)} />
+        <polyline className="chart-line" points={stroke(1, 2)} />
         {points.map((point, index) => (
           <g key={point.position}>
             <circle
@@ -81,7 +101,7 @@ export default function BpmCurve({ points }: Props) {
         ))}
       </svg>
       <figcaption className="muted">
-        tempo kolejnych pozycji setu ({min}–{max} BPM)
+        {caption ?? 'tempo kolejnych pozycji setu'} ({min}–{max} BPM)
       </figcaption>
     </figure>
   )

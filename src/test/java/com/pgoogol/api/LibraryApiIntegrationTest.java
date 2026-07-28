@@ -142,6 +142,32 @@ class LibraryApiIntegrationTest {
     }
 
     @Test
+    void listTags_whenEntriesHaveCustomTags_returnsSortedDictionaryWithoutDuplicates() throws Exception {
+
+        mockMvc.perform(post("/api/library/tracks")
+                .contentType(MediaType.APPLICATION_JSON).content(ADD_VIVIR_JSON))
+            .andExpect(status().isCreated());
+        mockMvc.perform(patch("/api/library/tracks/sp-vivir")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"customTags\": [\"wesele\", \"opener\", \"wesele\"]}"))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/library/tags"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(2))
+            .andExpect(jsonPath("$[0]").value("opener"))
+            .andExpect(jsonPath("$[1]").value("wesele"));
+    }
+
+    @Test
+    void listTags_whenLibraryHasNoTags_returnsEmptyList() throws Exception {
+
+        mockMvc.perform(get("/api/library/tags"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
     void updateTrack_whenRatingOutOfRange_returns400() throws Exception {
 
         mockMvc.perform(post("/api/library/tracks")

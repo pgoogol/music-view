@@ -1,8 +1,9 @@
-// Widok biblioteki (M3.1): filtry i sortowanie zapisane w adresie, tabela
-// z okładkami, szczegóły utworu w szufladzie. Odświeżenie strony wraca do
-// tego samego zestawu filtrów — front trzyma stan wyłącznie w hashu.
+// Widok biblioteki (M3.1, filtry biblioteczne w M3.2): filtry i sortowanie
+// zapisane w adresie, tabela z okładkami, szczegóły utworu w szufladzie.
+// Odświeżenie strony wraca do tego samego zestawu filtrów — front trzyma stan
+// wyłącznie w hashu.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type CatalogSort, type PageResponse, type SortDirection, type TrackResponse } from '../api'
 import LibraryTable from '../components/LibraryTable'
 import TrackDetails from '../components/TrackDetails'
@@ -14,8 +15,46 @@ const GENRES = ['LATIN', 'ROCK', 'POP', 'DISCO', 'DISCO_POLO', 'ELECTRONIC', 'HI
 const TEMPO_CLASSES = Object.keys(TEMPO_LABELS)
 const ENERGIES = Object.keys(ENERGY_LABELS)
 const PAGE_SIZES = [20, 50, 100]
+const RATINGS = [1, 2, 3, 4, 5]
 const DEFAULT_PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
+
+/** `lib` w adresie: yes = tylko z biblioteki, no = tylko spoza; brak = bez filtra. */
+function parseInLibrary(value: string): boolean | undefined {
+  if (value === 'yes') return true
+  if (value === 'no') return false
+  return undefined
+}
+
+/**
+ * Pole tekstowe filtra: adres jest źródłem prawdy, ale wpisywanie trafia tam
+ * dopiero po chwili bezczynności — inaczej każda litera to nowe zapytanie
+ * i nowy wpis w historii przeglądarki.
+ */
+function useDebouncedParam(value: string, push: (next: string) => void) {
+
+  const [draft, setDraft] = useState(value)
+  const lastPushed = useRef(value)
+
+  // zmiana z zewnątrz (wyczyszczenie filtrów, wklejony link) dogania pole
+  useEffect(() => {
+    if (value !== lastPushed.current) {
+      lastPushed.current = value
+      setDraft(value)
+    }
+  }, [value])
+
+  useEffect(() => {
+    if (draft === value) return
+    const timer = window.setTimeout(() => {
+      lastPushed.current = draft
+      push(draft)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [draft, value, push])
+
+  return [draft, setDraft] as const
+}
 
 interface Props {
   refreshKey: number
@@ -40,33 +79,43 @@ export default function LibraryView({
   const bpmMax = params.get('bpmMax') ?? ''
   const tempoClass = params.get('tempo') ?? ''
   const energy = params.get('energy') ?? ''
+  const inLibrary = params.get('lib') ?? ''
+  const ratingMin = params.get('rating') ?? ''
+  const tag = params.get('tag') ?? ''
   const sort = (params.get('sort') ?? 'RELEVANCE') as CatalogSort
   const direction = (params.get('dir') ?? 'ASC') as SortDirection
   const page = Number(params.get('page') ?? '0')
   const size = Number(params.get('size') ?? String(DEFAULT_PAGE_SIZE))
   const detailsId = params.get('track')
 
-  const [searchDraft, setSearchDraft] = useState(search)
   const [result, setResult] = useState<PageResponse<TrackResponse> | null>(null)
+  const [knownTags, setKnownTags] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const lastPushedSearch = useRef(search)
 
-  // adres jest źródłem prawdy; pole tekstowe dogania go tylko przy zmianie z zewnątrz
+  const pushSearch = useCallback(
+    (next: string) => setParams({ q: next, page: undefined }),
+    [setParams],
+  )
+  const pushTag = useCallback(
+    (next: string) => setParams({ tag: next, page: undefined }),
+    [setParams],
+  )
+  const [searchDraft, setSearchDraft] = useDebouncedParam(search, pushSearch)
+  const [tagDraft, setTagDraft] = useDebouncedParam(tag, pushTag)
+
+  // słownik tagów zmienia się rzadko (edycja utworu) — starczy odświeżanie z widokiem
   useEffect(() => {
-    if (search !== lastPushedSearch.current) {
-      lastPushedSearch.current = search
-      setSearchDraft(search)
+    let current = true
+    api
+      .listTags()
+      .then((tags) => {
+        if (current) setKnownTags(tags)
+      })
+      .catch(() => setKnownTags([]))
+    return () => {
+      current = false
     }
-  }, [search])
-
-  useEffect(() => {
-    if (searchDraft === search) return
-    const timer = window.setTimeout(() => {
-      lastPushedSearch.current = searchDraft
-      setParams({ q: searchDraft, page: undefined })
-    }, SEARCH_DEBOUNCE_MS)
-    return () => window.clearTimeout(timer)
-  }, [searchDraft, search, setParams])
+  }, [refreshKey])
 
   useEffect(() => {
     let current = true
@@ -79,6 +128,9 @@ export default function LibraryView({
         bpmMax: bpmMax ? Number(bpmMax) : undefined,
         tempoClass: tempoClass || undefined,
         energy: energy || undefined,
+        inLibrary: parseInLibrary(inLibrary),
+        ratingMin: ratingMin ? Number(ratingMin) : undefined,
+        tag: tag || undefined,
         sort,
         direction,
         page,
@@ -103,6 +155,9 @@ export default function LibraryView({
     bpmMax,
     tempoClass,
     energy,
+    inLibrary,
+    ratingMin,
+    tag,
     sort,
     direction,
     page,
@@ -113,8 +168,11 @@ export default function LibraryView({
 
   const tracks = result?.content ?? []
   const filtersActive = useMemo(
-    () => [search, genreFamily, bpmMin, bpmMax, tempoClass, energy].some((value) => value !== ''),
-    [search, genreFamily, bpmMin, bpmMax, tempoClass, energy],
+    () =>
+      [search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag].some(
+        (value) => value !== '',
+      ),
+    [search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag],
   )
 
   const toggleTrack = (spotifyId: string) => {
@@ -140,9 +198,8 @@ export default function LibraryView({
       page: undefined,
     })
 
-  const clearFilters = () => {
-    setSearchDraft('')
-    lastPushedSearch.current = ''
+  // pola tekstowe doganiają puste parametry same (useDebouncedParam)
+  const clearFilters = () =>
     setParams({
       q: undefined,
       genre: undefined,
@@ -150,9 +207,11 @@ export default function LibraryView({
       bpmMax: undefined,
       tempo: undefined,
       energy: undefined,
+      lib: undefined,
+      rating: undefined,
+      tag: undefined,
       page: undefined,
     })
-  }
 
   return (
     <section className="panel table-panel" aria-label="Biblioteka">
@@ -214,6 +273,56 @@ export default function LibraryView({
             </option>
           ))}
         </select>
+
+        {/* filtry po danych prywatnych DJ-a (D3) — wyszukiwarka chodzi po katalogu,
+            ale potrafi zawęzić go do tego, co jest (albo nie jest) w bibliotece */}
+        <div className="filters-library" data-testid="library-filters">
+          <label className="filter-group">
+            <span>biblioteka</span>
+            <select
+              value={inLibrary}
+              onChange={(event) => setParams({ lib: event.target.value, page: undefined })}
+              aria-label="biblioteka"
+            >
+              <option value="">cały katalog</option>
+              <option value="yes">tylko w bibliotece</option>
+              <option value="no">tylko spoza biblioteki</option>
+            </select>
+          </label>
+          <label className="filter-group">
+            <span>ocena</span>
+            <select
+              value={ratingMin}
+              onChange={(event) => setParams({ rating: event.target.value, page: undefined })}
+              aria-label="ocena co najmniej"
+            >
+              <option value="">dowolna</option>
+              {RATINGS.map((value) => (
+                <option key={value} value={value}>
+                  {'★'.repeat(value)} i wyżej
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="filter-group">
+            <span>tag DJ-a</span>
+            <input
+              type="text"
+              list="dj-tags"
+              placeholder="np. wesele"
+              value={tagDraft}
+              onChange={(event) => setTagDraft(event.target.value)}
+              aria-label="tag DJ-a"
+              data-testid="tag-input"
+            />
+            <datalist id="dj-tags">
+              {knownTags.map((value) => (
+                <option key={value} value={value} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+
         {filtersActive && (
           <button className="link" onClick={clearFilters} data-testid="clear-filters">
             wyczyść filtry

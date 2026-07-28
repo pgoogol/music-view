@@ -47,6 +47,12 @@ public class LibraryService {
         return requireEntry(spotifyId);
     }
 
+    /** Custom tagi użyte w bibliotece — podpowiedzi filtra wyszukiwarki (M3.2). */
+    @Transactional(readOnly = true)
+    public List<String> listTags() {
+        return libraryEntryRepository.findDistinctTags();
+    }
+
     /** Ręczne dodanie utworu — jak import z pliku (source=FILE); szkielet katalogu gdy brak. */
     @Transactional
     public LibraryEntry add(String spotifyId, String title, String artist, String album) {

@@ -1,7 +1,14 @@
 // Object Mother dla testów frontu (docs/rules/testing.md) — minimalne obiekty
 // zgodne z DTO backendu, z nadpisywaniem tylko istotnych pól w teście.
 
-import type { PageResponse, PlaylistTrackResponse, TrackResponse } from '../api'
+import type {
+  IngestPlaylistResponse,
+  PageResponse,
+  PlaylistResponse,
+  PlaylistSummaryResponse,
+  PlaylistTrackResponse,
+  TrackResponse,
+} from '../api'
 
 export function aTrack(overrides: Partial<TrackResponse> = {}): TrackResponse {
 
@@ -41,6 +48,51 @@ export function aPlaylistTrack(
 ): PlaylistTrackResponse {
 
   return { position, djSlot, djSlotOverride: null, track: aTrack(track) }
+}
+
+export function aPlaylistSummary(
+  overrides: Partial<PlaylistSummaryResponse> = {},
+): PlaylistSummaryResponse {
+
+  return {
+    id: 1,
+    name: 'Sabor Latino — piątek',
+    spotifyPlaylistId: null,
+    createdAt: '2026-07-01T18:00:00Z',
+    trackCount: 2,
+    ...overrides,
+  }
+}
+
+export function aPlaylist(
+  tracks: PlaylistTrackResponse[],
+  overrides: Partial<PlaylistResponse> = {},
+): PlaylistResponse {
+
+  return {
+    id: 1,
+    name: 'Sabor Latino — piątek',
+    spotifyPlaylistId: null,
+    createdAt: '2026-07-01T18:00:00Z',
+    tracks,
+    ...overrides,
+  }
+}
+
+export function anIngestReport(
+  overrides: Partial<IngestPlaylistResponse> = {},
+): IngestPlaylistResponse {
+
+  return {
+    playlistId: 1,
+    spotifyPlaylistId: 'sp-playlist-1',
+    name: 'Wesela 2026',
+    tracks: 30,
+    imported: 12,
+    alreadyExisted: 18,
+    skipped: [],
+    ...overrides,
+  }
 }
 
 export function aPage<T>(content: T[], overrides: Partial<PageResponse<T>> = {}): PageResponse<T> {

@@ -89,3 +89,14 @@ ostrzeżenia o skokach BPM i cofnięciu fazy, układanie wg faz D9 jednym
 kliknięciem, kolejność strzałkami albo przeciąganiem. Wzbogacanie: pokrycie pól
 D11 i historia jobów z restartem. Testy frontu: `cd frontend && npm test`
 (Vitest + Testing Library, uruchamiane też w CI).
+
+**M3.2 (motyw „szkicownik" i przegląd playlist)** — UI rysowany od ręki
+(nierówne ramki, pismo odręczne w nagłówkach, kratkowane tło, krzywa tempa
+z drżeniem ręki; dane w tabeli zostają w foncie systemowym — D23).
+Wyszukiwarka katalogu filtruje też po bibliotece DJ-a: `inLibrary`,
+`ratingMin`, `tag` w `GET /api/catalog/tracks` (+ słownik tagów
+`GET /api/library/tags`), a filtry zapisują się w adresie. Nowa zakładka
+**Playlisty**: kafle wszystkich playlist z szukaniem po nazwie, a w środku
+szukanie po utworach, krzywa tempa i zwijane sekcje faz wieczoru. Import
+własnych playlist kończy się modalem z raportem per playlista; import z pliku
+CSV zniknął z UI (endpoint `POST /api/ingest/file` został w API).

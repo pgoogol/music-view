@@ -1,8 +1,11 @@
-// Konto Spotify (M2.2) — w M3.1 panel pokazuje pełny stan połączenia
-// (kto, do kiedy ważny token, jakie zakresy) i rozpisuje import własnych playlist.
+// Konto Spotify (M2.2) — panel pokazuje pełny stan połączenia (kto, do kiedy
+// ważny token, jakie zakresy) i importuje własne playlisty konta (tryb C).
+// W M3.2 import kończy się modalem z raportem: leci długo (playlista po
+// playliście), więc podsumowanie nie może zniknąć razem z toastem.
 
 import { useCallback, useEffect, useState } from 'react'
 import { api, type IngestPlaylistResponse, type SpotifyAccountResponse } from '../api'
+import Modal from './Modal'
 import { useToast } from './Toasts'
 import { formatDateTime } from '../format'
 
@@ -28,8 +31,6 @@ export default function SpotifyPanel({ onImported }: Props) {
     try {
       const imported = await api.ingestMyPlaylists()
       setReports(imported)
-      const tracks = imported.reduce((sum, report) => sum + report.imported, 0)
-      notify(`Zaimportowano ${imported.length} playlist, ${tracks} nowych utworów`)
       onImported()
     } catch (error) {
       reportError(error, 'Import własnych playlist nie powiódł się')
@@ -38,9 +39,20 @@ export default function SpotifyPanel({ onImported }: Props) {
     }
   }
 
+  const closeReport = () => {
+    const imported = reports
+    setReports(null)
+    if (imported && imported.length > 0) {
+      notify(`Zaimportowano ${imported.length} playlist`)
+    }
+  }
+
+  const totalTracks = (reports ?? []).reduce((sum, report) => sum + report.imported, 0)
+  const totalSkipped = (reports ?? []).reduce((sum, report) => sum + report.skipped.length, 0)
+
   return (
     <section className="panel" aria-label="Konto Spotify">
-      <h2>Konto Spotify</h2>
+      <h2>Moje playlisty ze Spotify</h2>
 
       {account?.connected ? (
         <div className="report" data-testid="spotify-status">
@@ -75,18 +87,41 @@ export default function SpotifyPanel({ onImported }: Props) {
         </button>
       </div>
 
+      {busy && (
+        <p className="muted" data-testid="import-progress">
+          Zaciągam playlisty konta — przy większej bibliotece potrwa to chwilę.
+        </p>
+      )}
+
       {reports && (
-        <ul className="report" data-testid="my-playlists-report">
-          {reports.map((report) => (
-            <li key={report.spotifyPlaylistId}>
-              „{report.name}" — {report.tracks} utworów, nowych: <strong>{report.imported}</strong>
-              {report.skipped.length > 0 && (
-                <span className="muted"> , pominięte: {report.skipped.length}</span>
-              )}
-            </li>
-          ))}
-          {reports.length === 0 && <li className="muted">Konto nie ma playlist do zaimportowania.</li>}
-        </ul>
+        <Modal title="Import playlist zakończony" onClose={closeReport} testId="my-playlists-modal">
+          {reports.length === 0 ? (
+            <p className="muted">Konto nie ma playlist do zaimportowania.</p>
+          ) : (
+            <>
+              <p>
+                Playlist: <strong>{reports.length}</strong>, nowych utworów w bibliotece:{' '}
+                <strong>{totalTracks}</strong>
+                {totalSkipped > 0 && (
+                  <>
+                    , pominiętych pozycji: <strong>{totalSkipped}</strong>
+                  </>
+                )}
+              </p>
+              <ul className="modal-list" data-testid="my-playlists-report">
+                {reports.map((report) => (
+                  <li key={report.spotifyPlaylistId}>
+                    „{report.name}" — {report.tracks} utworów, nowych:{' '}
+                    <strong>{report.imported}</strong>
+                    {report.skipped.length > 0 && (
+                      <span className="muted">, pominięte: {report.skipped.length}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </Modal>
       )}
     </section>
   )

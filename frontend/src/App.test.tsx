@@ -34,6 +34,18 @@ describe('App', () => {
     await waitFor(() => expect(window.location.hash).toBe('#/sets'))
   })
 
+  it('ma zakładkę playlist i wchodzi w nią z paska widoków', async () => {
+
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByRole('region', { name: 'Biblioteka' })
+
+    await user.click(screen.getByTestId('tab-playlists'))
+
+    expect(await screen.findByRole('region', { name: 'Playlisty' })).toBeInTheDocument()
+    await waitFor(() => expect(window.location.hash).toBe('#/playlists'))
+  })
+
   it('otwiera widok wskazany w adresie po odświeżeniu strony', async () => {
 
     window.location.hash = '#/import'

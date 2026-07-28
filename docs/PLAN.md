@@ -253,6 +253,7 @@ odhaczenia.
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
 | **M3.1** Rozbudowa UI | Zakładki (Biblioteka / Sety / Import / Wzbogacanie), stan widoku w adresie, sortowanie serwerowe katalogu, statystyki i ostrzeżenia setu, historia jobów, testy frontu w CI | M1.8, M2.3 | ✅ |
+| **M3.2** Motyw „szkicownik" i przegląd playlist | Rysunkowy motyw UI, filtry biblioteczne w wyszukiwarce (`inLibrary`/`ratingMin`/`tag`), widok Playlisty z wejściem do środka (szukanie, krzywa tempa, zwijane sekcje), import własnych playlist z podsumowaniem w modalu, import z pliku znika z UI | M3.1 | ✅ |
 
 **M3.1 w skrócie** (rozstrzygnięcia: [D22](DECYZJE.md)):
 
@@ -274,6 +275,29 @@ odhaczenia.
 **DoD:** `./mvnw verify` i `npm test && npm run build` zielone; pełny przepływ
 (import → przegląd → wzbogacenie → set → eksport) klikalny bez wychodzenia
 z aplikacji i odtwarzalny z adresu.
+
+**M3.2 w skrócie** (rozstrzygnięcia: [D23](DECYZJE.md)):
+
+- **Motyw „szkicownik":** ramki rysowane od ręki (nierówne promienie + drugi
+  obrys), pismo odręczne w nagłówkach i formantach, kratkowane tło, falowane
+  podkreślenia, krzywa tempa z drżeniem ręki. Dane w tabeli zostają w foncie
+  systemowym — 2500 utworów ma być czytelne.
+- **Wyszukiwarka filtruje też po bibliotece:** `inLibrary` (tylko w bibliotece /
+  tylko spoza), `ratingMin`, `tag` w `GET /api/catalog/tracks`; słownik tagów
+  z `GET /api/library/tags` podpowiada wartości. Filtry siedzą w adresie
+  (`lib`, `rating`, `tag`) jak reszta stanu widoku.
+- **Nowa zakładka Playlisty:** kafle wszystkich playlist (import ze Spotify +
+  sety z planera) z szukaniem po nazwie, a po wejściu do środka: szukanie po
+  utworach, krzywa tempa i zwijane sekcje faz wieczoru; z podglądu jedno
+  kliknięcie prowadzi do planera setów.
+- **Import własnych playlist kończy się modalem** z raportem per playlista —
+  operacja trwa (playlista po playliście), więc podsumowania nie wolno powierzać
+  znikającemu toastowi.
+- **Import z pliku CSV zniknął z UI** (endpoint `/api/ingest/file` został w API).
+
+**DoD:** `./mvnw verify` i `npm test && npm run build` zielone; import własnych
+playlist, przegląd playlisty i filtrowanie biblioteki klikalne bez wychodzenia
+z aplikacji.
 
 ---
 

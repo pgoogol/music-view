@@ -42,7 +42,9 @@ public class CatalogController {
     @GetMapping("/tracks")
     @Operation(summary = "Wyszukiwarka katalogu",
         description = "Pełnotekstowo (tsvector) + fuzzy (pg_trgm) po tytule/wykonawcy; "
-            + "filtry: genreFamily, bpmMin/bpmMax, tempoClass, energy; "
+            + "filtry katalogu: genreFamily, bpmMin/bpmMax, tempoClass, energy; "
+            + "filtry biblioteki DJ-a (D3): inLibrary (true = tylko z biblioteki, "
+            + "false = tylko spoza), ratingMin, tag; "
             + "sortowanie: sort (RELEVANCE domyślnie, TITLE, ARTIST, YEAR, BPM, POPULARITY, "
             + "DURATION, ENERGY) + direction (ASC/DESC), braki zawsze na końcu; "
             + "paginacja (max 100).")
@@ -53,13 +55,16 @@ public class CatalogController {
             @RequestParam(required = false) Integer bpmMax,
             @RequestParam(required = false) TempoClass tempoClass,
             @RequestParam(required = false) String energy,
+            @RequestParam(required = false) Boolean inLibrary,
+            @RequestParam(required = false) Integer ratingMin,
+            @RequestParam(required = false) String tag,
             @RequestParam(required = false) CatalogSort sort,
             @RequestParam(required = false) Sort.Direction direction,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size) {
 
-        CatalogSearchCriteria criteria =
-            new CatalogSearchCriteria(search, genreFamily, bpmMin, bpmMax, tempoClass, energy);
+        CatalogSearchCriteria criteria = new CatalogSearchCriteria(
+            search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag);
         PageRequest pageRequest = PageRequest.of(Math.max(0, page), cappedSize(size));
         return PageResponse.of(
             catalogService.search(criteria, CatalogSortOrder.of(sort, direction), pageRequest),
