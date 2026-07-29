@@ -2,6 +2,7 @@ package com.pgoogol.playlist;
 
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TrackCatalog;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.util.Locale;
@@ -45,7 +46,8 @@ public class DjSlotCalculator {
         return calculate(track.getBpm(), track.getEnergy(), track.getGenreFamily());
     }
 
-    public Optional<DjSlot> calculate(Integer bpm, String energy, GenreFamily genreFamily) {
+    public Optional<DjSlot> calculate(@Nullable Integer bpm, @Nullable String energy,
+                                      @Nullable GenreFamily genreFamily) {
 
         String level = normalized(energy);
         if (Objects.isNull(bpm) && Objects.isNull(level)) {
@@ -63,13 +65,17 @@ public class DjSlotCalculator {
         return Optional.of(DjSlot.MIDDLE);
     }
 
-    private boolean isPeak(Integer bpm, GenreFamily genreFamily) {
+    private boolean isPeak(@Nullable Integer bpm, @Nullable GenreFamily genreFamily) {
 
         if (Objects.isNull(bpm)) {
             return true;
         }
+        // Set.of(…).contains(null) rzuca NPE, a utwór z metryk (D24) ma energię
+        // i BPM zanim AI ustali gatunek — brak gatunku to zwykły przypadek, nie błąd.
         return bpm >= PEAK_MIN_BPM
-            || (DANCE_FLOOR_GENRES.contains(genreFamily) && bpm >= DANCE_FLOOR_PEAK_MIN_BPM);
+            || (Objects.nonNull(genreFamily)
+                && DANCE_FLOOR_GENRES.contains(genreFamily)
+                && bpm >= DANCE_FLOOR_PEAK_MIN_BPM);
     }
 
     private String normalized(String energy) {

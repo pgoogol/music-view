@@ -372,6 +372,11 @@ pobieranie ich tą drogą omija wyłączenie i łamie ToS obu stron. Do czasu in
   (poniżej 0,40 → low, poniżej 0,70 → medium, wyżej → high), a surowa liczba zostaje w `manual_metrics`
   do podglądu. Job wzbogacania nie nadpisuje energii z pliku wynikiem AI; reszta analizy
   (styl, `genre_family`, o czym utwór, opis) pozostaje w rękach LLM-a.
+- **Gatunek z pliku wypełnia lukę, ale jej nie zajmuje.** Kolumny `Genres`/`Parent Genres`
+  są mapowane na `genre_family` (D8) i zapisywane **tylko wtedy, gdy utwór jeszcze go nie ma** —
+  bez rodziny gatunkowej nie policzymy slotu wieczoru (D9) ani korekty half-time, a na
+  wzbogacenie AI można czekać długo. Właścicielem pola zostaje LLM: przy najbliższym
+  wzbogacaniu nadpisze wartość z pliku. Gdy nic nie pasuje do enuma, pole zostaje puste.
 - **Plik jest źródłem prawdy dla `manual_metrics`** — ponowny import nadpisuje rekord
   w całości (brak kolumny = kasowanie wartości), ale projekcja na katalog nadpisuje
   tylko pola niepuste, żeby BPM z innego źródła nie znikał bez powodu.

@@ -254,7 +254,7 @@ odhaczenia.
 |---|---|---|---|
 | **M3.1** Rozbudowa UI | Zakładki (Biblioteka / Sety / Import / Wzbogacanie), stan widoku w adresie, sortowanie serwerowe katalogu, statystyki i ostrzeżenia setu, historia jobów, testy frontu w CI | M1.8, M2.3 | ✅ |
 | **M3.2** Motyw „konsola" i przegląd playlist | Retro-futurystyczny motyw UI, filtry biblioteczne w wyszukiwarce (`inLibrary`/`ratingMin`/`tag`), widok Playlisty z wejściem do środka (szukanie, krzywa tempa, zwijane sekcje), import własnych playlist z podsumowaniem w modalu, import z pliku znika z UI | M3.1 | ✅ |
-| **M3.3** Metryki z pliku CSV | Tabela `manual_metrics` (V5), parser i import `POST /api/ingest/metrics` (dopasowanie po `spotify_id`, awaryjnie po ISRC), `BpmSource.MANUAL` na czele kaskady D6, zmierzona energia zamiast estymaty LLM, panel w zakładce Import i podgląd w szufladzie utworu | M1.4, M1.6, M3.2 | ✅ |
+| **M3.3** Metryki z pliku CSV | Tabela `manual_metrics` (V5), parser i import `POST /api/ingest/metrics` (dopasowanie po `spotify_id`, awaryjnie po ISRC), `BpmSource.MANUAL` na czele kaskady D6, zmierzona energia zamiast estymaty LLM, `genre_family` z kolumn z gatunkami (tylko gdy pusty), panel w zakładce Import i podgląd w szufladzie utworu | M1.4, M1.6, M3.2 | ✅ |
 
 **M3.3 w skrócie** (rozstrzygnięcia: [D24](DECYZJE.md), format pliku:
 [METRYKI_CSV.md](METRYKI_CSV.md)): po wyłączeniu `audio-features` przez Spotify
@@ -262,6 +262,9 @@ odhaczenia.
 które są już w katalogu, a jego wartości są surowo zapisywane w `manual_metrics`
 i rzutowane na katalog (BPM z korektą half-time, tonacja, danceability, energia).
 Wzbogacanie AI zostaje bez zmian; job nie nadpisuje zmierzonej energii estymatą.
+Z kolumn z gatunkami wypełniamy `genre_family`, gdy utwór jeszcze go nie ma — bez niej
+nie ma slotu wieczoru ani korekty half-time (przy okazji naprawiony NPE w `DjSlotCalculator`
+dla utworu bez gatunku).
 
 **M3.1 w skrócie** (rozstrzygnięcia: [D22](DECYZJE.md)):
 
