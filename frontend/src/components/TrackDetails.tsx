@@ -3,7 +3,7 @@
 // tagów i slot z listy wartości enuma DjSlot zamiast wolnego tekstu.
 
 import { useEffect, useState } from 'react'
-import { api, type LibraryEntryResponse } from '../api'
+import { api, type LibraryEntryResponse, type TrackMetricsResponse } from '../api'
 import StarRating from './StarRating'
 import TagChips from './TagChips'
 import { useToast } from './Toasts'
@@ -15,6 +15,7 @@ import {
   energyLabel,
   formatDateTime,
   formatDuration,
+  formatScore,
   spotifyTrackUrl,
   tempoLabel,
 } from '../format'
@@ -29,6 +30,7 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
 
   const { notify, reportError } = useToast()
   const [entry, setEntry] = useState<LibraryEntryResponse | null>(null)
+  const [metrics, setMetrics] = useState<TrackMetricsResponse | null>(null)
   const [djNotes, setDjNotes] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [rating, setRating] = useState(0)
@@ -57,6 +59,20 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
       current = false
     }
   }, [spotifyId, reportError])
+
+  // Metryki są dodatkiem (D24) — ich brak albo błąd nie może zepsuć szuflady.
+  useEffect(() => {
+    let current = true
+    api
+      .getTrackMetrics(spotifyId)
+      .then((loaded) => {
+        if (current) setMetrics(loaded ?? null)
+      })
+      .catch(() => setMetrics(null))
+    return () => {
+      current = false
+    }
+  }, [spotifyId])
 
   const save = async () => {
     setSaving(true)
@@ -164,6 +180,35 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
                   : 'jeszcze nie'}
               </dd>
             </dl>
+
+            {metrics && (
+              <>
+                <h3>Metryki z pliku</h3>
+                <dl className="track-facts" data-testid="track-metrics">
+                  <dt>Camelot</dt>
+                  <dd>{metrics.camelot ?? DASH}</dd>
+                  <dt>BPM w pliku</dt>
+                  <dd>{metrics.bpm ?? DASH}</dd>
+                  <dt>Energia</dt>
+                  <dd>{formatScore(metrics.energy)}</dd>
+                  <dt>Taneczność</dt>
+                  <dd>{formatScore(metrics.danceability)}</dd>
+                  <dt>Pozytywność</dt>
+                  <dd>{formatScore(metrics.valence)}</dd>
+                  <dt>Akustyczność</dt>
+                  <dd>{formatScore(metrics.acousticness)}</dd>
+                  <dt>Głośność</dt>
+                  <dd>{metrics.loudnessDb === null ? DASH : `${metrics.loudnessDb} dB`}</dd>
+                  <dt>Metrum</dt>
+                  <dd>{metrics.timeSignature ?? DASH}</dd>
+                  <dt>Wgrano</dt>
+                  <dd>
+                    {formatDateTime(metrics.importedAt)}
+                    {metrics.source ? ` (${metrics.source})` : ''}
+                  </dd>
+                </dl>
+              </>
+            )}
 
             <h3>Dane DJ-a</h3>
             <label className="field">

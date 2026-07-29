@@ -13,13 +13,9 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * Parser CSV z eksportu Exportify / pliku własnego (M1.2). Wymagane kolumny:
@@ -36,13 +32,19 @@ public class CsvTrackParser {
         .setTrim(true)
         .build();
 
-    private static final Pattern TRACK_ID = Pattern.compile(
-        "^(?:spotify:track:|https?://open\\.spotify\\.com/track/)?([0-9A-Za-z]{22})(?:\\?\\S*)?$");
-
     private static final List<String> URI_COLUMNS = List.of("track uri", "spotify uri", "uri");
     private static final List<String> TITLE_COLUMNS = List.of("track name", "track", "title");
     private static final List<String> ARTIST_COLUMNS = List.of("artist name(s)", "artist name", "artist");
     private static final List<String> ALBUM_COLUMNS = List.of("album name", "album");
+
+    private final SpotifyTrackIdParser trackIdParser;
+    private final CsvHeaderResolver headerResolver;
+
+    public CsvTrackParser(SpotifyTrackIdParser trackIdParser, CsvHeaderResolver headerResolver) {
+
+        this.trackIdParser = trackIdParser;
+        this.headerResolver = headerResolver;
+    }
 
     public CsvParseResult parse(InputStream input) {
 
@@ -50,11 +52,11 @@ public class CsvTrackParser {
         try (CSVParser csvParser = CSVParser.parse(
                 new InputStreamReader(input, StandardCharsets.UTF_8), CSV_FORMAT)) {
 
-            Map<String, Integer> headers = normalizedHeaders(csvParser);
-            int uriColumn = requiredColumn(headers, URI_COLUMNS, "Spotify URI");
-            int titleColumn = requiredColumn(headers, TITLE_COLUMNS, "tytuł utworu");
-            int artistColumn = requiredColumn(headers, ARTIST_COLUMNS, "wykonawca");
-            Optional<Integer> albumColumn = findColumn(headers, ALBUM_COLUMNS);
+            Map<String, Integer> headers = headerResolver.normalize(csvParser);
+            int uriColumn = headerResolver.require(headers, URI_COLUMNS, "Spotify URI");
+            int titleColumn = headerResolver.require(headers, TITLE_COLUMNS, "tytuł utworu");
+            int artistColumn = headerResolver.require(headers, ARTIST_COLUMNS, "wykonawca");
+            Optional<Integer> albumColumn = headerResolver.find(headers, ALBUM_COLUMNS);
 
             List<ParsedTrack> tracks = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
@@ -75,7 +77,7 @@ public class CsvTrackParser {
             errors.add(new RowError(line, "niekompletny wiersz — za mało kolumn"));
             return;
         }
-        Optional<String> spotifyId = extractTrackId(row.get(uriColumn));
+        Optional<String> spotifyId = trackIdParser.parse(row.get(uriColumn));
         if (spotifyId.isEmpty()) {
             errors.add(new RowError(line,
                 "nieprawidłowe Spotify URI: '%s'".formatted(row.get(uriColumn))));
@@ -97,42 +99,6 @@ public class CsvTrackParser {
             .filter(value -> !isBlank(value))
             .orElse(null);
         tracks.add(new ParsedTrack(spotifyId.get(), title, artist, album));
-    }
-
-    private Optional<String> extractTrackId(String rawUri) {
-
-        if (isBlank(rawUri)) {
-            return Optional.empty();
-        }
-        Matcher matcher = TRACK_ID.matcher(rawUri.trim());
-        return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
-    }
-
-    private Map<String, Integer> normalizedHeaders(CSVParser csvParser) {
-
-        Map<String, Integer> headerMap = csvParser.getHeaderMap();
-        if (Objects.isNull(headerMap) || headerMap.isEmpty()) {
-            throw new ValidationException("CSV_EMPTY", "Plik CSV nie zawiera nagłówka");
-        }
-        return headerMap.entrySet().stream().collect(Collectors.toMap(
-            entry -> entry.getKey().replace("\ufeff", "").trim().toLowerCase(Locale.ROOT),
-            Map.Entry::getValue,
-            (first, second) -> first));
-    }
-
-    private int requiredColumn(Map<String, Integer> headers, List<String> candidates, String description) {
-
-        return findColumn(headers, candidates).orElseThrow(() -> new ValidationException(
-            "CSV_MISSING_COLUMNS",
-            "Plik CSV nie zawiera wymaganej kolumny: %s".formatted(description)));
-    }
-
-    private Optional<Integer> findColumn(Map<String, Integer> headers, List<String> candidates) {
-
-        return candidates.stream()
-            .map(headers::get)
-            .filter(Objects::nonNull)
-            .findFirst();
     }
 
     private boolean isBlank(String value) {

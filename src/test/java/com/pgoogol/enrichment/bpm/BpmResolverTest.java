@@ -4,6 +4,8 @@ import com.pgoogol.catalog.AudioFeatures;
 import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogFixtures;
 import com.pgoogol.enrichment.deezer.DeezerClient;
@@ -29,13 +31,36 @@ class BpmResolverTest {
     private AudioFeaturesRepository audioFeaturesRepository;
 
     @Mock
+    private ManualMetricsRepository manualMetricsRepository;
+
+    @Mock
     private DeezerClient deezerClient;
 
     private BpmResolver resolver;
 
     @BeforeEach
     void setUp() {
-        resolver = new BpmResolver(audioFeaturesRepository, deezerClient, new HalfTimeCorrector());
+        resolver = new BpmResolver(manualMetricsRepository, audioFeaturesRepository,
+            deezerClient, new HalfTimeCorrector());
+    }
+
+    @Test
+    void resolve_whenManualMetricsPresent_winOverRemainingSources() {
+
+        // given — plik wgrany ręcznie (D24) jest pierwszy w kaskadzie
+        TrackCatalog track = TrackCatalogFixtures.enrichedTrack("sp-9");
+        track.setGenreFamily(GenreFamily.POP);
+        ManualMetrics metrics = new ManualMetrics(track);
+        metrics.setBpm(new BigDecimal("128.4"));
+        given(manualMetricsRepository.findById("sp-9")).willReturn(Optional.of(metrics));
+
+        // when
+        Optional<BpmResolution> resolution = resolver.resolve(track);
+
+        // then
+        assertThat(resolution).contains(new BpmResolution(128, BpmSource.MANUAL));
+        then(audioFeaturesRepository).shouldHaveNoInteractions();
+        then(deezerClient).shouldHaveNoInteractions();
     }
 
     @Test

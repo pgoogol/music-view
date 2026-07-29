@@ -14,6 +14,13 @@ const connectedAccount = {
   connectedAt: '2026-07-01T10:00:00Z',
 }
 
+const metricsReport = {
+  applied: 2,
+  matchedByIsrc: 1,
+  skipped: [{ line: 3, reason: 'brak takiego utworu w katalogu' }],
+  failed: [],
+}
+
 const reports = [
   anIngestReport({ spotifyPlaylistId: 'sp-1', name: 'Wesela 2026', tracks: 30, imported: 12 }),
   anIngestReport({
@@ -26,11 +33,12 @@ const reports = [
 ]
 
 beforeEach(() => {
-  globalThis.fetch = vi.fn().mockImplementation((url: string) =>
-    Promise.resolve(
-      jsonResponse(String(url).includes('/api/auth/spotify/status') ? connectedAccount : reports),
-    ),
-  ) as unknown as typeof fetch
+  globalThis.fetch = vi.fn().mockImplementation((url: string) => {
+    const address = String(url)
+    if (address.includes('/api/auth/spotify/status')) return Promise.resolve(jsonResponse(connectedAccount))
+    if (address.includes('/api/ingest/metrics')) return Promise.resolve(jsonResponse(metricsReport))
+    return Promise.resolve(jsonResponse(reports))
+  }) as unknown as typeof fetch
 })
 
 describe('ImportView', () => {
@@ -71,5 +79,34 @@ describe('ImportView', () => {
     await user.click(screen.getByTestId('modal-close'))
 
     expect(screen.queryByTestId('my-playlists-modal')).not.toBeInTheDocument()
+  })
+
+  it('wgranie CSV z metrykami pokazuje raport i odświeża widok', async () => {
+
+    const user = userEvent.setup()
+    const onImported = vi.fn()
+    renderWithToasts(<ImportView onImported={onImported} />)
+    await screen.findByTestId('spotify-status')
+
+    const file = new File(['Spotify Track Id,BPM\nsp-1,96\n'], 'metryki.csv', { type: 'text/csv' })
+    await user.upload(screen.getByTestId('metrics-input'), file)
+    await user.click(screen.getByTestId('metrics-upload'))
+
+    const report = await screen.findByTestId('metrics-report')
+    expect(within(report).getByText(/uzupełnione utwory/)).toBeInTheDocument()
+    expect(within(report).getByText(/wiersz 3/)).toBeInTheDocument()
+    expect(onImported).toHaveBeenCalled()
+  })
+
+  it('wgranie bez wybranego pliku kończy się komunikatem, nie żądaniem', async () => {
+
+    const user = userEvent.setup()
+    renderWithToasts(<ImportView onImported={vi.fn()} />)
+    await screen.findByTestId('spotify-status')
+
+    await user.click(screen.getByTestId('metrics-upload'))
+
+    expect(await screen.findByText(/Wybierz plik CSV z metrykami/)).toBeInTheDocument()
+    expect(screen.queryByTestId('metrics-report')).not.toBeInTheDocument()
   })
 })

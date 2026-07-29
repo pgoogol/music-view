@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 class CsvTrackParserTest {
 
-    private final CsvTrackParser parser = new CsvTrackParser();
+    private final CsvTrackParser parser = new CsvTrackParser(new SpotifyTrackIdParser(), new CsvHeaderResolver());
 
     @Test
     void parse_whenExportifyStyleCsvGiven_returnsParsedTracks() {

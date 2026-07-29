@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +38,18 @@ public class CatalogController {
     @Operation(summary = "Pełny rekord utworu z katalogu")
     public TrackResponse getTrack(@PathVariable String spotifyId) {
         return mapper.toResponse(catalogService.getTrack(spotifyId));
+    }
+
+    @GetMapping("/tracks/{spotifyId}/metrics")
+    @Operation(summary = "Metryki utworu wgrane ręcznie z CSV (D24)",
+        description = "Surowe wartości z pliku: cechy w skali 0..1, BPM bez korekty half-time. "
+            + "204, gdy utwór nie dostał jeszcze metryk.")
+    public ResponseEntity<TrackMetricsResponse> getTrackMetrics(@PathVariable String spotifyId) {
+
+        return catalogService.findMetrics(spotifyId)
+            .map(mapper::toResponse)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/tracks")

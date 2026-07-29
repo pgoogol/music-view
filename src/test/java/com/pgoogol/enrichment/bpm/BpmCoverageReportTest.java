@@ -3,6 +3,7 @@ package com.pgoogol.enrichment.bpm;
 import com.pgoogol.catalog.AudioFeatures;
 import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.enrichment.deezer.DeezerClient;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +36,17 @@ class BpmCoverageReportTest {
     private AudioFeaturesRepository audioFeaturesRepository;
 
     @Mock
+    private ManualMetricsRepository manualMetricsRepository;
+
+    @Mock
     private DeezerClient deezerClient;
 
     private BpmResolver resolver;
 
     @BeforeEach
     void setUp() {
-        resolver = new BpmResolver(audioFeaturesRepository, deezerClient, new HalfTimeCorrector());
+        resolver = new BpmResolver(manualMetricsRepository, audioFeaturesRepository,
+            deezerClient, new HalfTimeCorrector());
     }
 
     @Test
@@ -63,7 +68,7 @@ class BpmCoverageReportTest {
 
         // then
         assertThat(report).isEqualTo(new BpmCoverageReport(
-            WITH_ACOUSTICBRAINZ, WITH_DEEZER, WITHOUT_BPM));
+            0, WITH_ACOUSTICBRAINZ, WITH_DEEZER, WITHOUT_BPM));
         assertThat(report.total()).isEqualTo(sample.size());
     }
 

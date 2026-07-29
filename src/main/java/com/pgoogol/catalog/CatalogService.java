@@ -13,9 +13,21 @@ import java.util.Optional;
 public class CatalogService {
 
     private final TrackCatalogRepository trackCatalogRepository;
+    private final ManualMetricsRepository manualMetricsRepository;
 
-    public CatalogService(TrackCatalogRepository trackCatalogRepository) {
+    public CatalogService(TrackCatalogRepository trackCatalogRepository,
+                          ManualMetricsRepository manualMetricsRepository) {
+
         this.trackCatalogRepository = trackCatalogRepository;
+        this.manualMetricsRepository = manualMetricsRepository;
+    }
+
+    /** Metryki wgrane ręcznie (D24) — pusto, gdy utworu nie ma albo nie dostał metryk. */
+    @Transactional(readOnly = true)
+    public Optional<ManualMetrics> findMetrics(String spotifyId) {
+
+        Objects.requireNonNull(spotifyId, "spotifyId");
+        return manualMetricsRepository.findById(spotifyId);
     }
 
     @Transactional(readOnly = true)

@@ -3,6 +3,7 @@ import {
   DASH,
   energyLabel,
   formatDuration,
+  formatScore,
   formatTotalDuration,
   isEnriched,
   slotLabel,
@@ -52,6 +53,15 @@ describe('isEnriched', () => {
     expect(isEnriched({ genreFamily: 'LATIN', bpm: 92 })).toBe(true)
     expect(isEnriched({ genreFamily: null, bpm: 92 })).toBe(false)
     expect(isEnriched({ genreFamily: 'LATIN', bpm: null })).toBe(false)
+  })
+})
+
+describe('formatScore', () => {
+
+  it('cechę 0..1 pokazuje w skali 0-100, brak danych jako myślnik', () => {
+    expect(formatScore(0.89)).toBe('89')
+    expect(formatScore(0)).toBe('0')
+    expect(formatScore(null)).toBe('—')
   })
 })
 

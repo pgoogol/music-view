@@ -1,5 +1,6 @@
 package com.pgoogol.api;
 
+import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.TrackCatalog;
 import org.springframework.stereotype.Component;
 
@@ -7,6 +8,26 @@ import java.util.Objects;
 
 @Component
 public class CatalogApiMapper {
+
+    public TrackMetricsResponse toResponse(ManualMetrics metrics) {
+
+        return new TrackMetricsResponse(
+            metrics.getSpotifyId(),
+            metrics.getBpm(),
+            metrics.getMusicalKey(),
+            metrics.getCamelot(),
+            metrics.getDanceability(),
+            metrics.getEnergy(),
+            metrics.getValence(),
+            metrics.getAcousticness(),
+            metrics.getInstrumentalness(),
+            metrics.getSpeechiness(),
+            metrics.getLiveness(),
+            metrics.getLoudnessDb(),
+            metrics.getTimeSignature(),
+            metrics.getSource(),
+            metrics.getImportedAt());
+    }
 
     public TrackResponse toResponse(TrackCatalog track) {
 

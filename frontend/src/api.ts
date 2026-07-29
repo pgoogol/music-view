@@ -53,6 +53,32 @@ export interface IngestFileResponse {
   failed: { line: number; reason: string }[]
 }
 
+/** Metryki wgrane ręcznie z CSV (D24) — surowe wartości z pliku, skala 0..1. */
+export interface TrackMetricsResponse {
+  spotifyId: string
+  bpm: number | null
+  musicalKey: string | null
+  camelot: string | null
+  danceability: number | null
+  energy: number | null
+  valence: number | null
+  acousticness: number | null
+  instrumentalness: number | null
+  speechiness: number | null
+  liveness: number | null
+  loudnessDb: number | null
+  timeSignature: number | null
+  source: string | null
+  importedAt: string | null
+}
+
+export interface IngestMetricsResponse {
+  applied: number
+  matchedByIsrc: number
+  skipped: { line: number; reason: string }[]
+  failed: { line: number; reason: string }[]
+}
+
 export interface IngestPlaylistResponse {
   playlistId: number
   spotifyPlaylistId: string
@@ -234,6 +260,17 @@ export const api = {
     const form = new FormData()
     form.append('file', file)
     return request('/api/ingest/file', { method: 'POST', body: form })
+  },
+
+  ingestMetrics(file: File): Promise<IngestMetricsResponse> {
+    const form = new FormData()
+    form.append('file', file)
+    return request('/api/ingest/metrics', { method: 'POST', body: form })
+  },
+
+  /** 204 z backendu (utwór bez metryk) wraca jako undefined — patrz `request`. */
+  getTrackMetrics(spotifyId: string): Promise<TrackMetricsResponse | undefined> {
+    return request(`/api/catalog/tracks/${encodeURIComponent(spotifyId)}/metrics`)
   },
 
   ingestPlaylist(url: string): Promise<IngestPlaylistResponse> {
