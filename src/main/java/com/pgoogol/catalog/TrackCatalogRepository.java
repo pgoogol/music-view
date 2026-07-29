@@ -46,6 +46,14 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
     Set<String> findExistingIds(@Param("spotifyIds") Collection<String> spotifyIds);
 
     /**
+     * Dopasowanie po ISRC dla importu metryk (D24) — ISRC identyfikuje nagranie,
+     * więc jeden kod może wskazać kilka wydań w katalogu. Wielkość liter bywa
+     * różna w eksportach, stąd porównanie po {@code upper}.
+     */
+    @Query("select t from TrackCatalog t where upper(t.isrc) in :isrcs")
+    List<TrackCatalog> findByIsrcInIgnoreCase(@Param("isrcs") Collection<String> isrcs);
+
+    /**
      * Katalog z dołączoną biblioteką DJ-a (M3.2). {@code library_entry.spotify_id}
      * jest UNIQUE (V1), więc lewe złączenie nie zwielokrotnia wierszy katalogu —
      * utwór spoza biblioteki dostaje po prostu NULL-e w kolumnach {@code l}.

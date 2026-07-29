@@ -68,6 +68,11 @@ export function formatTotalDuration(durationMs: number): string {
   return hours > 0 ? `${hours} h ${minutes} min` : `${minutes} min`
 }
 
+/** Cecha audio 0..1 z metryk (D24) na skalę 0-100, w jakiej podaje ją eksport. */
+export function formatScore(value: number | null | undefined): string {
+  return value === null || value === undefined ? DASH : String(Math.round(value * 100))
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('pl') : DASH
 }

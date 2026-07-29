@@ -3,6 +3,8 @@ package com.pgoogol.enrichment.bpm;
 import com.pgoogol.catalog.AudioFeatures;
 import com.pgoogol.catalog.AudioFeaturesRepository;
 import com.pgoogol.catalog.BpmSource;
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.enrichment.deezer.DeezerClient;
 import org.springframework.stereotype.Component;
@@ -16,7 +18,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Kaskada BPM (D6): {@code audio_features} (AcousticBrainz) → Deezer
+ * Kaskada BPM (D6, rozszerzona w D24): metryki wgrane ręcznie →
+ * {@code audio_features} (AcousticBrainz) → Deezer
  * (ISRC, potem artist+title) → brak (pole zostaje dla AI, M1.5/M1.6).
  * Sanity-check half-time (§16.1) stosowany do każdego źródła: latin + BPM &lt; 100
  * → podwojenie, o ile wynik pozostaje wiarygodny taneczne. Resolver nie zapisuje
@@ -25,13 +28,16 @@ import java.util.stream.Collectors;
 @Component
 public class BpmResolver {
 
+    private final ManualMetricsRepository manualMetricsRepository;
     private final AudioFeaturesRepository audioFeaturesRepository;
     private final DeezerClient deezerClient;
     private final HalfTimeCorrector halfTimeCorrector;
 
-    public BpmResolver(AudioFeaturesRepository audioFeaturesRepository, DeezerClient deezerClient,
+    public BpmResolver(ManualMetricsRepository manualMetricsRepository,
+                       AudioFeaturesRepository audioFeaturesRepository, DeezerClient deezerClient,
                        HalfTimeCorrector halfTimeCorrector) {
 
+        this.manualMetricsRepository = manualMetricsRepository;
         this.audioFeaturesRepository = audioFeaturesRepository;
         this.deezerClient = deezerClient;
         this.halfTimeCorrector = halfTimeCorrector;
@@ -40,7 +46,8 @@ public class BpmResolver {
     public Optional<BpmResolution> resolve(TrackCatalog track) {
 
         Objects.requireNonNull(track, "track");
-        return fromAcousticBrainz(track)
+        return fromManual(track)
+            .or(() -> fromAcousticBrainz(track))
             .or(() -> fromDeezer(track))
             .map(resolution -> withHalfTimeCorrection(track, resolution));
     }
@@ -55,9 +62,17 @@ public class BpmResolver {
             .collect(Collectors.groupingBy(BpmResolution::source, Collectors.counting()));
         long resolved = counts.values().stream().mapToLong(Long::longValue).sum();
         return new BpmCoverageReport(
+            counts.getOrDefault(BpmSource.MANUAL, 0L).intValue(),
             counts.getOrDefault(BpmSource.ACOUSTICBRAINZ, 0L).intValue(),
             counts.getOrDefault(BpmSource.DEEZER, 0L).intValue(),
             tracks.size() - (int) resolved);
+    }
+
+    private Optional<BpmResolution> fromManual(TrackCatalog track) {
+
+        return manualMetricsRepository.findById(track.getSpotifyId())
+            .map(ManualMetrics::getBpm)
+            .map(bpm -> new BpmResolution(round(bpm), BpmSource.MANUAL));
     }
 
     private Optional<BpmResolution> fromAcousticBrainz(TrackCatalog track) {

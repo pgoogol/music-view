@@ -68,6 +68,8 @@ Tylko pola, których DJ realnie używa:
 (TarsosDSP/librosa) — interfejs `AudioAnalyzer` zostaje w projekcie jako stub na przyszłość.
 
 **Kaskada BPM:** `acousticbrainz → deezer → llm`, wynik audytowany w polu `bpm_source`.
+*(Aktualizacja D24: na czele kaskady stoją metryki wgrane ręcznie —
+`manual → acousticbrainz → deezer → llm`.)*
 Sanity-check half-time (§16.1) stosowany do każdego źródła (genre_family=latin i BPM<100 →
 rozważ podwojenie).
 
@@ -335,3 +337,49 @@ dawało się obejrzeć tylko przez planer setów. Rozstrzygnięcia:
   Spotify (tryby B/C/D z D6); `POST /api/ingest/file` zostaje jako awaryjne
   wejście trybu A i jest nadal pokryty testami — usunięcie go z ekranu to decyzja
   o UI, nie o API.
+
+## D24. Metryki utworów wgrywane ręcznie z CSV (M3.3)
+
+Spotify wyłączył `audio-features` i `audio-analysis` 27.11.2024 dla wszystkich aplikacji
+bez wcześniejszego rozszerzenia limitu, więc grupa AUDIO (D11) stoi na dwóch niepełnych
+źródłach: dump AcousticBrainz zamrożony w 2022 i Deezer z dziurami w polu `bpm`.
+Rozważane obejście przez serwisy typu chosic.com odrzucone: nie mają API (zostałoby
+skrobanie HTML za Cloudflare), a dane, które pokazują, to te same audio-features Spotify —
+pobieranie ich tą drogą omija wyłączenie i łamie ToS obu stron. Do czasu innego źródła
+(otwarte pozostaje odblokowanie `AudioAnalyzer` — D19) **metryki wgrywamy ręcznie plikiem CSV**.
+
+- **Osobna tabela `manual_metrics`** (Flyway V5, klucz `spotify_id`, 0..1 rekord na utwór),
+  a nie kolumny w `track_catalog` — plik jest surowym źródłem, katalog jego projekcją.
+  Dzięki temu ponowny import odtwarza pola katalogu bez zgadywania, co skąd przyszło,
+  i mieści się w regule „schemat po M1.1 zmienia się tylko migracją" bez ruszania D5.
+- **Zakres pliku to wyłącznie cechy audio**: bpm, tonacja, Camelot, danceability, energy,
+  valence, acousticness, instrumentalness, speechiness, liveness, głośność, metrum.
+  Metadane (tytuł, album, popularność, explicit) nadal bierze Spotify, a gatunki i warstwa
+  opisowa zostają przy LLM-ie — **wzbogacanie AI działa bez zmian**.
+- **Dopasowanie po `spotify_id`, awaryjnie po ISRC** (wersaliki po obu stronach). ISRC
+  identyfikuje nagranie, więc jeden wiersz może uzupełnić kilka jego wydań w katalogu.
+  Utwór spoza katalogu **nie jest zakładany** — trafia do raportu jako pominięty;
+  biblioteka jedzie ze Spotify (D6, tryby B/C/D), plik tylko dokłada metryki.
+- **Skala 0..1 w bazie.** Eksporty podają cechy raz jako ułamek, raz w procentach —
+  wartość powyżej 1 traktujemy jako procent. Tonacja normalizowana do zapisu
+  AcousticBrainz („G minor", „C major"), bo `musical_key` ma znaczyć zawsze to samo.
+- **`BpmSource.MANUAL` na czele kaskady** D6: `manual → acousticbrainz → deezer → llm`.
+  Korekta half-time (§16.1) obowiązuje tak samo jak dla pozostałych źródeł, więc salsa
+  z pliku (96) ląduje w katalogu jako realne 192 — po ustaleniu `genre_family` przez AI
+  korekta jest powtarzana (idempotentna).
+- **Zmierzona energia bije estymatę LLM-a.** `track_catalog.energy` zostaje tekstem
+  (D11: `low/medium/high`), bo tak filtruje i sortuje front; wartość z pliku progujemy
+  (poniżej 0,40 → low, poniżej 0,70 → medium, wyżej → high), a surowa liczba zostaje w `manual_metrics`
+  do podglądu. Job wzbogacania nie nadpisuje energii z pliku wynikiem AI; reszta analizy
+  (styl, `genre_family`, o czym utwór, opis) pozostaje w rękach LLM-a.
+- **Plik jest źródłem prawdy dla `manual_metrics`** — ponowny import nadpisuje rekord
+  w całości (brak kolumny = kasowanie wartości), ale projekcja na katalog nadpisuje
+  tylko pola niepuste, żeby BPM z innego źródła nie znikał bez powodu.
+- **Wejście: `POST /api/ingest/metrics`** (multipart) + panel „Metryki utworów (CSV)"
+  w zakładce Import; podgląd surowych wartości w szufladzie utworu przez
+  `GET /api/catalog/tracks/{spotifyId}/metrics` (204, gdy utwór nie ma metryk).
+  Format pliku i kolumny: [METRYKI_CSV.md](METRYKI_CSV.md).
+
+**Tymczasowość jest świadoma:** to obejście, nie docelowe źródło. Gdy wróci sensowne API
+albo zapadnie decyzja o `AudioAnalyzer` (D19), `manual_metrics` zostaje jako jedno ze źródeł
+kaskady — zmienia się tylko to, kto je wypełnia.

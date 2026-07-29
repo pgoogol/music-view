@@ -2,6 +2,7 @@ package com.pgoogol.api;
 
 import com.pgoogol.common.ValidationException;
 import com.pgoogol.ingestion.FileIngestionService;
+import com.pgoogol.ingestion.MetricsIngestionService;
 import com.pgoogol.ingestion.MyPlaylistsIngestionService;
 import com.pgoogol.ingestion.PlaylistIngestionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,16 +28,19 @@ public class IngestController {
     private final FileIngestionService fileIngestionService;
     private final PlaylistIngestionService playlistIngestionService;
     private final MyPlaylistsIngestionService myPlaylistsIngestionService;
+    private final MetricsIngestionService metricsIngestionService;
     private final IngestApiMapper mapper;
 
     public IngestController(FileIngestionService fileIngestionService,
                             PlaylistIngestionService playlistIngestionService,
                             MyPlaylistsIngestionService myPlaylistsIngestionService,
+                            MetricsIngestionService metricsIngestionService,
                             IngestApiMapper mapper) {
 
         this.fileIngestionService = fileIngestionService;
         this.playlistIngestionService = playlistIngestionService;
         this.myPlaylistsIngestionService = myPlaylistsIngestionService;
+        this.metricsIngestionService = metricsIngestionService;
         this.mapper = mapper;
     }
 
@@ -49,6 +53,25 @@ public class IngestController {
         }
         try (InputStream input = file.getInputStream()) {
             return mapper.toResponse(fileIngestionService.ingestFile(input));
+        } catch (IOException ex) {
+            throw new ValidationException("FILE_UNREADABLE", "Nie udało się odczytać przesłanego pliku");
+        }
+    }
+
+    @PostMapping(value = "/metrics", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Import metryk utworów z CSV (D24)",
+        description = "Uzupełnia BPM, tonację, Camelot i cechy audio dla utworów, "
+            + "które są już w katalogu — dopasowanie po Spotify Track Id, "
+            + "a gdy go brak, po ISRC. Utwory spoza katalogu trafiają do raportu "
+            + "jako pominięte; ponowny import nadpisuje metryki.")
+    public IngestMetricsResponse ingestMetrics(@RequestParam("file") MultipartFile file) {
+
+        if (file.isEmpty()) {
+            throw new ValidationException("FILE_EMPTY", "Przesłany plik jest pusty");
+        }
+        try (InputStream input = file.getInputStream()) {
+            return mapper.toResponse(
+                metricsIngestionService.ingest(input, file.getOriginalFilename()));
         } catch (IOException ex) {
             throw new ValidationException("FILE_UNREADABLE", "Nie udało się odczytać przesłanego pliku");
         }

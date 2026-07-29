@@ -7,7 +7,8 @@ DJ-a; pozwala przeszukiwać bibliotekę i planować sety/playlisty z eksportem n
 
 **Stack:** Spring Boot 3.x (Java 21, pakiet `com.pgoogol`) + Spring Batch + PostgreSQL +
 React (Vite). Źródła danych: Spotify, MusicBrainz (MBID), AcousticBrainz (dump),
-Deezer (BPM), dowolny model LLM (analiza AI — provider konfigurowalny, do wyboru).
+Deezer (BPM), plik CSV z metrykami wgrywany ręcznie (D24), dowolny model LLM
+(analiza AI — provider konfigurowalny, do wyboru).
 
 ## Dokumentacja
 
@@ -101,3 +102,13 @@ Wyszukiwarka katalogu filtruje też po bibliotece DJ-a: `inLibrary`,
 szukanie po utworach, krzywa tempa i zwijane sekcje faz wieczoru. Import
 własnych playlist kończy się modalem z raportem per playlista; import z pliku
 CSV zniknął z UI (endpoint `POST /api/ingest/file` został w API).
+
+**M3.3 (metryki z pliku CSV)** — Spotify wyłączył `audio-features` (27.11.2024),
+więc cechy audio można tymczasowo wgrać ręcznie: `POST /api/ingest/metrics`
+(multipart CSV) albo panel „Metryki utworów (CSV)" w zakładce Import. Wiersze
+dopasowywane po `Spotify Track Id`, awaryjnie po ISRC; utwory spoza katalogu
+trafiają do raportu, nie do biblioteki. Wartości lądują surowo w `manual_metrics`
+i są rzutowane na katalog: BPM (z korektą half-time, `bpm_source=MANUAL`), tonacja,
+Camelot, danceability i energia — zmierzona energia ma pierwszeństwo przed estymatą
+LLM-a, reszta wzbogacania AI działa bez zmian. Format pliku i lista kolumn:
+[docs/METRYKI_CSV.md](docs/METRYKI_CSV.md).
