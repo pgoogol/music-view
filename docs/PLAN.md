@@ -302,6 +302,31 @@ z aplikacji.
 
 ---
 
+# ETAP 4 — Wzbogacanie v2 (przeprojektowane)
+
+**Cel:** katalog, w którym o każdym polu wiadomo, skąd pochodzi i na ile jest
+pewne — zamiast kaskady, w której ostatni zapis wygrywa, a 24% BPM to zgadywanka
+modelu. Projekt: [WZBOGACANIE_V2.md](WZBOGACANIE_V2.md), rozstrzygnięcia:
+[D24](DECYZJE.md).
+
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M4.1** Obserwacje i rozstrzyganie *(blokuje resztę)* | migracja V5 (`track_observation`, `track_field_resolution`), enumy `Field`/`Tier`/`ProviderId`, `FieldResolver` z wersjonowaną polityką, backfill z obecnych kolumn, przeliczanie bez sieci | M1.6 | 📄 |
+| **M4.2** SPI dostawców + planner | `EnrichmentProvider`, przepisanie Spotify/AB/MB/Deezer/LLM na dostawców, planner par (utwór, pole) z budżetem, job na plannerze; `TrackEnricher` i `BpmResolver` znikają | M4.1 | 📄 |
+| **M4.3** Żniwa z istniejących źródeł | ETL dumpa AB **high-level**, pełne MusicBrainz, pełny Deezer, `genres[]` artysty ze Spotify, **pomiar pokrycia przed/po** | M4.2 | 📄 |
+| **M4.4** Discogs + nowe pola | dostawca Discogs (genre/style), `lyrics_language`, `first_release_year`, `canonical_recording_id`, dedup wersji nagrania | M4.2 | 📄 |
+| **M4.5** Prompt v2 | LLM jako konsolidator: wejście = zebrane fakty, wyjście bez liczb, `confidence` per pole; `bpm_estimate` usunięte z kontraktu | M4.3, M4.4 | 📄 |
+| **M4.6** UI uczciwych braków | „niezmierzone" zamiast pustki, znacznik pochodzenia per pole, pokrycie per pole/źródło, kolejka „spornych", przerwa w krzywej tempa | M4.5 | 📄 |
+
+Kolejność wymuszona: M4.1 blokuje wszystko (jak M1.1 w Etapie 1); M4.3 ∥ M4.4.
+
+**DoD Etapu 4:** dla dowolnego utworu widać pochodzenie każdego pola (zmierzone /
+deklarowane / wywnioskowane); zmiana polityki rozstrzygania przelicza katalog bez
+ruchu sieciowego; żadna liczba w katalogu nie pochodzi z modelu językowego; raport
+pokrycia przed/po zapisany w `docs/`.
+
+---
+
 # Zależności między kamieniami
 
 ```mermaid

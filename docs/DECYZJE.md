@@ -206,6 +206,12 @@ jakość pokrycia realnych źródeł (Deezer/dump AB) na prawdziwej bibliotece.
 BPM z faktów (AB+Deezer) < 70% biblioteki **lub** komplet pól D5 < 95%.
 Wynik realnego przebiegu dopisać tutaj i do raportu (przebieg B).
 
+**Zamknięte przez D24 (Etap 4):** kryterium przestaje obowiązywać — właściciel
+rozstrzygnął, że własnej analizy audio nie implementujemy niezależnie od pokrycia
+(biblioteka istnieje wyłącznie na Spotify, brak plików lokalnych). `AudioAnalyzer`
+zostaje stubem na stałe; jakość nadrabiamy pełniejszym wyciskaniem źródeł, a braki
+pokazujemy wprost zamiast zasypywać estymacją.
+
 ## D20. Konto Spotify właściciela w bazie (tabela techniczna poza ERD)
 
 M2.2 realizuje D4 (Authorization Code + PKCE). Rozstrzygnięcia:
@@ -335,3 +341,55 @@ dawało się obejrzeć tylko przez planer setów. Rozstrzygnięcia:
   Spotify (tryby B/C/D z D6); `POST /api/ingest/file` zostaje jako awaryjne
   wejście trybu A i jest nadal pokryty testami — usunięcie go z ekranu to decyzja
   o UI, nie o API.
+
+## D24. Wzbogacanie v2 — obserwacje zamiast kaskady (Etap 4)
+
+Kaskada z D6 i grupy pól z D11 dowiozły Etap 1, ale mają wadę u podstaw: źródła
+zapisują wprost do katalogu, więc ostatni zapis wygrywa, konflikty giną, a jedyną
+proweniencją w całym modelu jest `bpm_source`. W próbie generalnej M1.9 **24% BPM
+pochodziło z LLM-a** i w bazie nie różni się niczym od wartości zmierzonej — a zły
+BPM po cichu zatruwa krzywą tempa, statystyki setu, `dj_slot` i układanie wg faz.
+Pełne uzasadnienie i projekt: [WZBOGACANIE_V2.md](WZBOGACANIE_V2.md).
+
+- **Trzy warstwy zamiast jednej kaskady.** Źródło zgłasza **obserwację**
+  (`track_observation`, append-only, jedno źródło = jedna opinia o jednym polu);
+  wartość katalogu jest **wyliczana** przez `FieldResolver` wg wersjonowanej
+  polityki (`track_field_resolution`); `track_catalog` zostaje jako materializacja
+  pod wyszukiwanie i sortowanie. Zmiana polityki = przeliczenie z bazy, bez sieci
+  i bez kosztu. Migracja V5; to jawna zmiana zamrożonego schematu M1.1.
+- **Warstwy prawdy:** `MEASURED` (analiza audio — dziś wyłącznie dump AB) >
+  `DECLARED` (Deezer, Spotify, MusicBrainz, Discogs) > `INFERRED` (LLM). Zgoda
+  dwóch źródeł podnosi pewność, rozjazd 2× to wykryty half-time rozstrzygany po
+  gatunku, inny rozjazd → `disputed` i kolejka „spornych" w UI.
+- **Dostawcy przez SPI** (`EnrichmentProvider`: `provides()`, `tier()`, `cost()`,
+  `fetch()`) i **planner par (utwór, pole)** z budżetem, układający wywołania
+  rosnąco po koszcie. `TrackEnricher` i `BpmResolver` znikają; LLM jest ostatni
+  z konstrukcji, nie z kolejności `if`-ów. `POST /api/enrich` zachowuje kontrakt
+  grup pól — planner mapuje je na zbiory pól.
+- **Bez własnej analizy audio i bez plików lokalnych** (rozstrzygnięcie właściciela
+  — biblioteka istnieje tylko na Spotify). D19 zamknięte: `AudioAnalyzer` zostaje
+  stubem na stałe, a jedyną dźwignią jakości jest pełniejsze korzystanie ze źródeł.
+- **Wyciskamy źródła, które już mamy:** cały dump AB **high-level** (`mood_party`,
+  `voice_instrumental`, `average_loudness`, `initial_key` + `key_strength`,
+  nastroje, klasyfikatory gatunku) zamiast trzech pól z lowlevel; pełny MusicBrainz
+  (gatunki, data pierwszego wydania, kraj, **język tekstu**, relacje cover/remix,
+  lista ISRC) zamiast samego MBID; pełny Deezer (`gain`, `rank`, `release_date`)
+  zamiast samego `bpm`; `genres[]` z obiektu artysty Spotify (pole *nie* objęte
+  deprecjacją). **Discogs wraca** (D6 go wyciął) jako jedyne źródło, które nazwie
+  po imieniu „italo disco" czy „salsa dura" — czyli to, co dziś zmyśla model.
+- **LLM z wyroczni na tłumacza.** Wejście: zebrana kupka faktów (tagi MB/Discogs,
+  gatunki artysty, nastroje AB, kraj, rok, język) zamiast samego tytułu. Wyjście:
+  `genre_family` (klasyfikacja z materiałem dowodowym), `style`, `lyrics_theme`,
+  `description_pl`, `confidence` **per pole**. **`bpm_estimate` znika z promptu
+  i z kontraktu**; `energy` ustępuje `average_loudness`/`mood_party`, gdy są.
+  Prompt v2, stary zostaje w repo (`source_version` odróżnia pochodzenie).
+- **Brak pomiaru zostaje brakiem.** `bpm IS NULL` to w UI **„niezmierzone"**, nigdy
+  zero i nigdy zgadywanka; krzywa tempa rysuje przerwę zamiast interpolacji, a każde
+  pole w szufladzie utworu ma znacznik pochodzenia. Świadomy koszt: pokrycie BPM
+  spadnie względem raportowanych 100% — pomiar przed/po jest częścią M4.3.
+
+**Nowe pola** (uzasadnienie każdego w WZBOGACANIE_V2.md §4.1): `lyrics_language`
+(na polskim weselu decyduje, czy sala śpiewa), `first_release_year` (Spotify podaje
+rok reedycji), `voice_instrumental`, `mood_party`, `average_loudness`,
+`recording_key` + `key_strength` (Camelot tylko przy wysokim `key_strength`),
+`canonical_recording_id` (dedup tego samego nagrania pod kilkoma Spotify ID).
