@@ -42,26 +42,27 @@ utwór i **co najmniej jedna** metryka, inaczej import kończy się błędem `CS
 | `Live`, `Liveness` | `liveness` | |
 | `Loud (Db)`, `Loudness` | `loudness_db` | zakres −60…10 dB |
 | `Time Signature` | `time_signature` | 1–16 |
+| `Genres`, `Parent Genres` | `genre_family` | mapowane na enum D8 (`latin`, `rock`, `pop`, `disco`, `disco_polo`, `electronic`, `hip_hop`); zapisywane tylko, gdy utwór nie ma jeszcze gatunku — potem i tak ustala go LLM |
 
 **Skala cech:** wartość powyżej 1 jest traktowana jak procent (`89` → `0.890`), wartość
 0–1 jako ułamek (`0.89` → `0.890`). Przecinek dziesiętny, znak `%` i jednostki są
 tolerowane. Wartość spoza sensownego zakresu (np. BPM `0`) jest traktowana jak brak danych.
 
-Kolumny z metadanymi (`Song`, `Artist`, `Album`, `Popularity`, `Duration`, `Genres`,
-`Label`, `Explicit`, …) są **pomijane** — metadane pochodzą ze Spotify, a gatunki
-i warstwa opisowa z LLM-a (D11).
+Kolumny z metadanymi (`Song`, `Artist`, `Album`, `Popularity`, `Duration`, `Label`,
+`Explicit`, `Added At`, …) są **pomijane** — metadane pochodzą ze Spotify, a warstwa
+opisowa (styl, o czym utwór, opis) z LLM-a (D11).
 
 ## Przykład
 
 ```csv
-#,Song,Artist,BPM,Camelot,Energy,Dance,Valence,Loud (Db),Key,Time Signature,Spotify Track Id,ISRC
-1,La Lámpara,Alain Pérez,96,6A,89,66,88,-6,G minor,4,2c7nzxJYmPtkimDdrhcfJx,ES71G2337397
+#,Song,Artist,BPM,Camelot,Energy,Dance,Valence,Loud (Db),Key,Time Signature,Genres,Spotify Track Id,ISRC
+1,La Lámpara,Alain Pérez,96,6A,89,66,88,-6,G minor,4,"timba, salsa",2c7nzxJYmPtkimDdrhcfJx,ES71G2337397
 ```
 
-Ten wiersz zapisuje w `manual_metrics` surowe `bpm=96.00`, `energy=0.890`,
-`danceability=0.660`, `camelot=6A`, a w `track_catalog` — `bpm=192`
-(salsa: korekta half-time), `tempo_class=VERY_FAST`, `musical_key=G minor`,
-`energy=high`, `bpm_source=MANUAL`.
+W `manual_metrics` ląduje surowy zapis wiersza: `bpm=96.00`, `energy=0.890`,
+`danceability=0.660`, `camelot=6A`. W `track_catalog` — `bpm=192` (salsa: korekta
+half-time), `tempo_class=VERY_FAST`, `musical_key=G minor`, `energy=high`,
+`bpm_source=MANUAL` oraz `genre_family=LATIN`, o ile utwór nie miał jeszcze gatunku.
 
 ## Co widać po imporcie
 

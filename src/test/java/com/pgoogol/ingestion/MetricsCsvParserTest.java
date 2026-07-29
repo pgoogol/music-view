@@ -1,5 +1,7 @@
 package com.pgoogol.ingestion;
 
+import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.GenreFamilyMapper;
 import com.pgoogol.common.ValidationException;
 import org.junit.jupiter.api.Test;
 
@@ -18,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MetricsCsvParserTest {
 
     private final MetricsCsvParser parser = new MetricsCsvParser(
-        new CsvHeaderResolver(), new SpotifyTrackIdParser(), new MetricValueParser());
+        new CsvHeaderResolver(), new SpotifyTrackIdParser(), new MetricValueParser(),
+        new GenreFamilyMapper());
 
     @Test
     void parse_whenSampleFile_readsMetricsAndReportsUnusableRows() {
@@ -57,6 +60,37 @@ class MetricsCsvParserTest {
         assertThat(metrics.valence()).isEqualByComparingTo("0.88");
         assertThat(metrics.loudnessDb()).isEqualByComparingTo("-6");
         assertThat(metrics.timeSignature()).isEqualTo(4);
+    }
+
+    @Test
+    void parse_whenGenreColumnsPresent_derivesGenreFamilyForCatalog() {
+
+        // given
+        InputStream csv = sample();
+
+        // when
+        MetricsParseResult result = parser.parse(csv);
+
+        // then — „timba, salsa" to rodzina LATIN (D8), potrzebna do korekty half-time
+        assertThat(result.rows()).first()
+            .satisfies(row -> assertThat(row.genreFamily()).isEqualTo(GenreFamily.LATIN));
+    }
+
+    @Test
+    void parse_whenNoGenreColumn_leavesGenreFamilyForLlm() {
+
+        // given
+        InputStream csv = csv("""
+            Spotify Track Id,BPM
+            2c7nzxJYmPtkimDdrhcfJx,96
+            """);
+
+        // when
+        MetricsParseResult result = parser.parse(csv);
+
+        // then
+        assertThat(result.rows()).first()
+            .satisfies(row -> assertThat(row.genreFamily()).isNull());
     }
 
     @Test

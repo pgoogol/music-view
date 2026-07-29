@@ -1,5 +1,6 @@
 package com.pgoogol.ingestion;
 
+import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
@@ -84,6 +85,8 @@ public class MetricsIngestionService {
         Map<String, ManualMetrics> working = new LinkedHashMap<>();
         Instant importedAt = Instant.now();
         matched.forEach(row -> row.match().tracks().forEach(track -> {
+            // gatunek przed metrykami — korekta half-time pyta o genre_family
+            applyGenreFamily(track, row.row().genreFamily());
             ManualMetrics metrics = working.computeIfAbsent(track.getSpotifyId(),
                 spotifyId -> existing.getOrDefault(spotifyId, new ManualMetrics(track)));
             overwrite(metrics, row.row().metrics(), source, importedAt);
@@ -91,6 +94,19 @@ public class MetricsIngestionService {
         }));
         manualMetricsRepository.saveAll(working.values());
         return working;
+    }
+
+    /**
+     * Rodzina gatunkowa z pliku tylko wypełnia lukę: bez niej utwór po imporcie nie ma
+     * slotu wieczoru (D9) ani korekty half-time, a na wzbogacenie AI może czekać długo.
+     * Gdy gatunek już jest, plik go nie rusza — właścicielem {@code genre_family}
+     * zostaje LLM (D8/D11), który nadpisze wartość przy najbliższym wzbogacaniu.
+     */
+    private void applyGenreFamily(TrackCatalog track, @Nullable GenreFamily fromFile) {
+
+        if (Objects.isNull(track.getGenreFamily()) && Objects.nonNull(fromFile)) {
+            track.setGenreFamily(fromFile);
+        }
     }
 
     /**

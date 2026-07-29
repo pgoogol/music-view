@@ -115,6 +115,42 @@ class IngestMetricsIntegrationTest {
     }
 
     @Test
+    void ingestMetrics_whenTrackHasNoGenreYet_fillsFamilyFromGenreColumns() throws Exception {
+
+        // when
+        mockMvc.perform(multipart("/api/ingest/metrics").file(sampleCsv()))
+            .andExpect(status().isOk());
+
+        // then — bez gatunku nie ma slotu wieczoru ani korekty half-time (D8/D9)
+        assertThat(trackCatalogRepository.findById(CARNAVAL))
+            .hasValueSatisfying(track -> assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.LATIN));
+    }
+
+    @Test
+    void ingestMetrics_whenTrackAlreadyHasGenre_keepsValueFromEnrichment() throws Exception {
+
+        // given — gatunek z LLM-a (D8/D11) jest właścicielem pola, plik go nie rusza
+        TrackCatalog rockTrack = new TrackCatalog("5aaaaaaaaaaaaaaaaaaaaa", "Cover", "Zespół");
+        rockTrack.setGenreFamily(GenreFamily.ROCK);
+        trackCatalogRepository.save(rockTrack);
+        MockMultipartFile csv = new MockMultipartFile("file", "gatunki.csv", "text/csv", """
+            Spotify Track Id,BPM,Genres
+            5aaaaaaaaaaaaaaaaaaaaa,96,"timba, salsa"
+            """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        // when
+        mockMvc.perform(multipart("/api/ingest/metrics").file(csv))
+            .andExpect(status().isOk());
+
+        // then — gatunek bez zmian, więc i BPM zostaje bez korekty half-time
+        assertThat(trackCatalogRepository.findById("5aaaaaaaaaaaaaaaaaaaaa"))
+            .hasValueSatisfying(track -> {
+                assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.ROCK);
+                assertThat(track.getBpm()).isEqualTo(96);
+            });
+    }
+
+    @Test
     void ingestMetrics_whenSameFileUploadedTwice_updatesInsteadOfDuplicating() throws Exception {
 
         // given

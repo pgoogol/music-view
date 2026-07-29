@@ -1,5 +1,7 @@
 package com.pgoogol.ingestion;
 
+import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.GenreFamilyMapper;
 import com.pgoogol.common.ValidationException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -39,6 +41,9 @@ public class MetricsCsvParser {
     private static final List<String> ID_COLUMNS =
         List.of("spotify track id", "spotify id", "track id", "track uri", "spotify uri", "uri");
     private static final List<String> ISRC_COLUMNS = List.of("isrc");
+    private static final List<String> GENRE_COLUMNS = List.of("genres", "genre");
+    private static final List<String> PARENT_GENRE_COLUMNS =
+        List.of("parent genres", "parent genre");
     private static final List<String> BPM_COLUMNS = List.of("bpm", "tempo");
     private static final List<String> KEY_COLUMNS = List.of("key", "musical key");
     private static final List<String> CAMELOT_COLUMNS = List.of("camelot", "camelot key");
@@ -63,13 +68,15 @@ public class MetricsCsvParser {
     private final CsvHeaderResolver headerResolver;
     private final SpotifyTrackIdParser trackIdParser;
     private final MetricValueParser valueParser;
+    private final GenreFamilyMapper genreFamilyMapper;
 
     public MetricsCsvParser(CsvHeaderResolver headerResolver, SpotifyTrackIdParser trackIdParser,
-                            MetricValueParser valueParser) {
+                            MetricValueParser valueParser, GenreFamilyMapper genreFamilyMapper) {
 
         this.headerResolver = headerResolver;
         this.trackIdParser = trackIdParser;
         this.valueParser = valueParser;
+        this.genreFamilyMapper = genreFamilyMapper;
     }
 
     public MetricsParseResult parse(InputStream input) {
@@ -108,7 +115,16 @@ public class MetricsCsvParser {
             errors.add(new RowError(line, "wiersz bez metryk"));
             return;
         }
-        rows.add(new ParsedMetrics(line, spotifyId.orElse(null), isrc.orElse(null), metrics));
+        rows.add(new ParsedMetrics(line, spotifyId.orElse(null), isrc.orElse(null),
+            readGenreFamily(row, headers).orElse(null), metrics));
+    }
+
+    /** Gatunki ze szczegółowych przed nadrzędnymi — „timba" mówi więcej niż „Latin". */
+    private Optional<GenreFamily> readGenreFamily(CSVRecord row, Map<String, Integer> headers) {
+
+        return genreFamilyMapper.map(List.of(
+            cell(row, headers, GENRE_COLUMNS).orElse(""),
+            cell(row, headers, PARENT_GENRE_COLUMNS).orElse("")));
     }
 
     private TrackMetrics readMetrics(CSVRecord row, Map<String, Integer> headers) {

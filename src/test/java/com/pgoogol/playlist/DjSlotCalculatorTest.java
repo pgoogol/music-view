@@ -61,6 +61,17 @@ class DjSlotCalculatorTest {
     }
 
     @Test
+    void calculate_whenEnergyHighButGenreUnknown_placesTrackWithoutBlowingUp() {
+
+        // given — utwór zaraz po imporcie metryk (D24): BPM i energia są,
+        // gatunek ustali dopiero LLM; wcześniej leciał tu NPE ze zbioru gatunków
+
+        // when + then
+        assertThat(calculator.calculate(112, "high", null)).contains(DjSlot.CLOSING);
+        assertThat(calculator.calculate(130, "high", null)).contains(DjSlot.PEAK);
+    }
+
+    @Test
     void calculate_whenTrackNotEnrichedYet_returnsNoSlot() {
 
         // when
