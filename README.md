@@ -112,3 +112,23 @@ i są rzutowane na katalog: BPM (z korektą half-time, `bpm_source=MANUAL`), ton
 Camelot, danceability i energia — zmierzona energia ma pierwszeństwo przed estymatą
 LLM-a, reszta wzbogacania AI działa bez zmian. Format pliku i lista kolumn:
 [docs/METRYKI_CSV.md](docs/METRYKI_CSV.md).
+
+## Dalsze plany
+
+Rozpisane w [docs/PLAN.md](docs/PLAN.md), rozstrzygnięcia w
+[docs/DECYZJE.md](docs/DECYZJE.md) (D25–D30) — decyzje zapadły przed implementacją,
+więc kamienie da się brać w dowolnej kolejności.
+
+**Etap 4 — Warsztat DJ-a** (podpowiadanie, co z czym zagrać; wszystko na danych,
+które już są w bazie): **M4.1** zgodność harmoniczna (Camelot liczony z `musical_key`,
+filtry harmoniczne, ostrzeżenia tonacji i głośności w secie) plus filtry
+`valence`/`instrumentalness`/`liveness` z `manual_metrics`; **M4.2** generator setu
+na zadany czas — propozycja do ręcznej korekty, nie zapis; **M4.3** zakładka
+„Przegląd" z rozkładami gatunków, BPM, energii i udziałem źródeł BPM.
+
+**Etap 5 — Dojrzałość narzędzia** (kamienie niezależne od Etapu 4): **M5.1**
+przeliczanie estymat po zmianie modelu/promptu (`EnrichmentScope.OUTDATED`) razem
+z szacunkiem kosztu przed startem joba i twardym limitem utworów; **M5.2** blokada
+optymistyczna na danych DJ-a (dwie karty przeglądarki przestają nadpisywać sobie
+notatki); **M5.3** jeden artefakt uruchomieniowy (front w jarze, `Dockerfile`,
+aplikacja w docker-compose) i test E2E pełnego przepływu w Playwright.

@@ -313,6 +313,173 @@ z aplikacji.
 
 ---
 
+# ETAP 4 — Warsztat DJ-a (zaplanowany)
+
+**Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
+zagrać**. Wszystkie trzy kamienie stoją na danych, które już są w bazie — żaden nie
+wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
+
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M4.1** Zgodność harmoniczna i pełne metryki | Camelot liczony z `musical_key`, filtry harmoniczne w wyszukiwarce, filtry `valence`/`instrumentalness`/`liveness`, ostrzeżenia tonacji/głośności/metrum w secie (D25) | M3.3 | 📋 |
+| **M4.2** Generator setu | `POST /api/sets/propose` — propozycja setu na zadany czas z ograniczeniami (fazy D9, skok BPM, harmonia, odstęp między utworami wykonawcy), podgląd przed zapisem (D26) | M4.1 | 📋 |
+| **M4.3** Przegląd biblioteki | Zakładka „Przegląd": rozkłady gatunków / BPM / energii, udział źródeł BPM, pokrycie pól, top wykonawcy, przyrost biblioteki; agregaty liczy baza (D27) | M3.3 | 📋 |
+
+## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
+
+**Cel:** DJ widzi, co pasuje tonacyjnie, i filtruje po cechach, które już leżą w bazie
+i do tej pory służyły wyłącznie do oglądania.
+
+- `CamelotKey` w module `catalog` — bijekcja `musical_key` ↔ 24 pozycje koła
+  (1A–12A moll, 1B–12B dur); parser przyjmuje obie notacje enharmoniczne
+  („D# minor" = „Eb minor"). Camelot jest **wyliczany, nie zapisywany** (D25), tak jak
+  `dj_slot` (D9)
+- `GET /api/catalog/tracks` dostaje `camelot` (dopasowanie dokładne) i `camelotCompatible`
+  (rozszerza do zbioru zgodnych: ten sam klucz, ±1 na kole, względna dur/moll); filtr
+  tłumaczy się na `musical_key in (…)` — bez dodatkowego złączenia i bez zmiany planu zapytania
+- `camelot` w `TrackResponse` i `PlaylistTrackResponse` jako pole wyliczane (jak `djSlot`)
+- Filtry z `manual_metrics` przez `left join` (wzorzec D23): `valenceMin/Max`,
+  `instrumentalMin`, `livenessMax`; UI pokazuje licznik „X z Y utworów ma metryki",
+  bo filtr działa tylko dla utworów z wgranego pliku
+- `setPlanner.ts`: ostrzeżenia `KEY_CLASH` (sąsiedzi niezgodni harmonicznie),
+  `LOUDNESS_JUMP` (> 3 dB) i `ODD_METER` (metrum ≠ 4/4) obok istniejącego `BPM_JUMP`
+- **Bez sortowania po metrykach** — ten sam argument co przy ocenie w D23: kolumny nie ma
+  w tabeli, więc porządek byłby dla DJ-a niewidoczny
+
+**DoD:** zaznaczenie utworu i włączenie „pasujące tonacyjnie" zawęża listę do zgodnych;
+set z celowo zderzonymi tonacjami pokazuje ostrzeżenia; testy jednostkowe koła
+(24 tonacje × zbiór zgodnych, obie notacje enharmoniczne) i testy integracyjne filtrów zielone.
+
+## M4.2 Generator setu *(po M4.1)*
+
+**Cel:** „ułóż mi cztery godziny z tego, co mam" — jako propozycja do poprawienia,
+nie jako fakt dokonany.
+
+- `SetGenerator` w module `playlist`: wejście = docelowy czas, filtry katalogu (te same
+  co w wyszukiwarce), minimalna ocena; wyjście = lista utworów w kolejności + ostrzeżenia
+- Podział czasu na fazy D9 wg krzywej wieczoru (WARMUP 25% / MIDDLE 30% / PEAK 30% /
+  CLOSING 15%), w każdej fazie wybór zachłanny z oknem
+- Ograniczenia **twarde** (zawężają pulę): utwór raz w secie, ten sam wykonawca nie
+  częściej niż raz na 30 minut. **Miękkie** (kary w ocenie kandydata): skok BPM > 15,
+  brak zgodności harmonicznej (M4.1), niska ocena, brak BPM
+- `POST /api/sets/propose` **niczego nie zapisuje** — front pokazuje podgląd, a zapis idzie
+  istniejącą drogą (`POST /api/playlists` + `POST /{id}/tracks`); generator zostaje
+  bezstanowy i nie dubluje CRUD-a z M2.3
+- Powtarzalność: wybór spośród pięciu najlepszych kandydatów z ziarnem z żądania —
+  podany `seed` daje ten sam set, brak `seed` daje inną propozycję za każdym razem (D26)
+
+**DoD:** generator układa 4-godzinny set z realnej biblioteki bez naruszenia ograniczeń
+twardych, a krzywa tempa rośnie do szczytu i opada; testy jednostkowe każdego ograniczenia
+osobno; przy zbyt wąskich filtrach zwraca krótszy set z jawnym powodem, nie błąd.
+
+## M4.3 Przegląd biblioteki *(po M3.3)*
+
+**Cel:** ekran odpowiadający na pytanie „co ja właściwie mam" — pięć obecnych zakładek
+jest operacyjnych, żadna nie pokazuje biblioteki z góry.
+
+- `GET /api/library/overview` — jedno wywołanie, agregaty liczone w bazie
+  (`count(*) filter`, `width_bucket` na BPM); front nie ściąga 2500 wierszy po to,
+  żeby je zliczyć
+- Zawartość: liczby katalog / biblioteka, rozkład `genre_family`, histogram BPM
+  w koszykach po 10, rozkłady `tempo_class` i `energy`, **udział `bpm_source`**
+  (ile biblioteki to fakt, ile estymata LLM — wskaźnik z kryterium D19 podany na bieżąco),
+  pokrycie grup pól D11, top 10 wykonawców, rozkład ocen, przyrost biblioteki po miesiącach
+  z `library_entry.added_at`
+- Nowa zakładka „Przegląd" jako pierwsza w `ROUTES`; wykresy rysowane inline w SVG,
+  jak `BpmCurve` — bez biblioteki wykresów i bez zasobów z sieci (D22/D23)
+- `GET /api/enrich/missing-count` liczy się jednym zapytaniem zamiast trzech (D27)
+
+**DoD:** ekran ładuje się bez zauważalnej zwłoki na bibliotece 2500 utworów; każda liczba
+na ekranie daje się odtworzyć zapytaniem w duchu `scripts/coverage_report.sql`; testy
+repozytorium na Testcontainers dla każdego agregatu.
+
+---
+
+# ETAP 5 — Dojrzałość narzędzia (zaplanowany)
+
+**Cel etapu:** domknięcie rzeczy, które w Etapach 1–3 zostały świadomie odłożone albo
+wyszły dopiero w użyciu. Kamienie są **wzajemnie niezależne** i można je brać
+w dowolnej kolejności — z jednym wyjątkiem: M5.3 warto zostawić na koniec, żeby test E2E
+pokrywał już docelowy zestaw ekranów. Rekomendowana kolejność startowa to M5.1, bo
+jako jedyny chroni portfel.
+
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M5.1** Przeliczanie estymat i koszty | `EnrichmentScope.OUTDATED`, szacunek kosztu przed startem joba, twardy limit utworów, historia jobów jednym zapytaniem (D28) | M1.6 | 📋 |
+| **M5.2** Spójność zapisu współbieżnego | `@Version` na `library_entry` i `playlist`, `409 RESOURCE_MODIFIED`, obsługa konfliktu we froncie (D29) | M1.7 | 📋 |
+| **M5.3** Jeden artefakt + testy E2E | Front pakowany do jara, `Dockerfile`, aplikacja w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | 📋 |
+
+## M5.1 Przeliczanie estymat i bezpiecznik kosztowy *(po M1.6)*
+
+**Cel:** móc odświeżyć estymaty po zmianie modelu lub promptu — i nie zapłacić za to
+przypadkiem.
+
+- `EnrichmentScope.OUTDATED` — utwory, których `model_used` albo `enrich_version` odbiega
+  od bieżącej konfiguracji (`llm.model`, `llm.prompt-version`). Pola audytu istnieją
+  od M1.1 dokładnie po to (D3/D15); brakowało zakresu, który je czyta. Zakres dotyczy
+  **wyłącznie grupy AI** — fakty nie zależą od modelu
+- `GET /api/enrich/estimate?scope=…&fields=…` — ile utworów obejmie zlecenie i ile
+  to będzie kosztowało; stawki przenoszą się ze zmiennych środowiskowych `LlmSmokeTest`
+  do konfiguracji (`llm.cost.input-per-1m`, `llm.cost.output-per-1m`), zużycie tokenów
+  z pomiaru M1.9
+- Twardy limit `llm.max-tracks-per-job` (domyślnie 500) dla **każdego** zakresu —
+  `SELECTED` ma limit 100 od M1.6, `MISSING` nie miał żadnego. Przekroczenie kończy się
+  `400 ENRICH_TOO_MANY_TRACKS` z liczbą utworów i kosztem w komunikacie
+- Front: zakładka Wzbogacanie pokazuje szacunek **przed** startem joba, nie po
+- `EnrichmentService.listJobs` — jedno zapytanie do `BATCH_JOB_EXECUTION`
+  (`order by job_execution_id desc limit n`) zamiast odpytywania wykonań osobno dla
+  każdej instancji i przycinania w pamięci
+
+**DoD:** zmiana `llm.model` w konfiguracji sprawia, że `OUTDATED` obejmuje całą bibliotekę,
+a po przebiegu — zero utworów; zlecenie na 2500 utworów odbija się o limit z czytelnym
+komunikatem; `GET /api/enrich/jobs` wykonuje jedno zapytanie niezależnie od długości historii.
+
+## M5.2 Spójność zapisu współbieżnego *(po M1.7)*
+
+**Cel:** dwie otwarte karty przestają po cichu nadpisywać sobie notatki DJ-a.
+
+- Migracja **V6**: kolumna `version` na `library_entry` i `playlist`; `@Version` w encjach
+- Wersja podbijana na **agregacie**: zmiana składu lub kolejności setu podbija
+  `playlist.version` przez jawny `OPTIMISTIC_FORCE_INCREMENT`, bo `@Version` na encji
+  nadrzędnej nie reaguje na zapisy w `PlaylistTrack` (D29)
+- Kontrakt API: `version` w odpowiedziach, wymagana w `PATCH /api/library/tracks/{id}`,
+  `PATCH /api/playlists/{id}` i `PUT /api/playlists/{id}/tracks`; niezgodność →
+  `409 RESOURCE_MODIFIED`
+- `track_catalog` **bez wersjonowania** — pisze do niego wyłącznie job wzbogacania
+  (jeden pisarz), a konflikt kosztowałby restart chunka
+- Front: `409` kończy się komunikatem „wpis zmienił się w innym miejscu" i przeładowaniem
+  rekordu **z zachowaniem tego, co DJ ma wpisane w polu**
+
+**DoD:** test integracyjny dwóch równoległych PATCH-y — drugi dostaje `409`, dane pierwszego
+zostają nienaruszone; ręcznie: dwie karty przeglądarki nie kasują sobie notatek.
+
+## M5.3 Jeden artefakt uruchomieniowy i testy E2E *(po Etapie 4)*
+
+**Cel:** `docker compose --profile full up -d` i całość działa pod jednym adresem —
+łącznie z dostępem z telefonu w sieci lokalnej; przepływ z DoD Etapu 3 sprawdzany
+automatycznie, nie ręcznie.
+
+- Profil Mavena `-Pfullstack`: `npm ci && npm run build` → `frontend/dist`
+  do `target/classes/static`. Domyślne `./mvnw verify` zostaje bez Node i bez zmiany czasu
+- **Bez fallbacku SPA** — stan widoku siedzi w hashu (`#/library?…`, D22), więc żaden adres
+  poza `/` nie trafia do serwera; decyzja o hashu zamiast routera opłaca się tu drugi raz
+- `Dockerfile` wieloetapowy (node → maven → JRE) i usługa `app` w `docker-compose.yml`
+  pod profilem `full`, żeby `docker compose up -d` nadal wstawiało samą bazę do pracy
+  nad kodem
+- OAuth Spotify łączymy raz z laptopa po loopbacku (`SPOTIFY_REDIRECT_URI` musi zgadzać się
+  z dashboardem znak w znak); telefon w LAN korzysta z konta już połączonego — Spotify
+  nie przyjmie adresu lokalnego po HTTP jako redirect URI (D30)
+- Playwright: pełny przepływ (import → przegląd → wzbogacenie → set → eksport) przeciw
+  **spakowanemu jarowi**, z Postgresem z docker-compose i klientami zewnętrznymi na
+  WireMocku (`WireMockRestClients` istnieje od M1.3); osobny job w CI, żeby podstawowy
+  build nie urósł
+
+**DoD:** `docker compose --profile full up -d` daje działającą aplikację pod jednym adresem
+na czysto sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok
+przepływu przestaje działać.
+
+---
+
 # Zależności między kamieniami
 
 ```mermaid
@@ -329,6 +496,24 @@ flowchart LR
 
 Równolegle da się prowadzić: M1.2 ∥ M1.3 ∥ M1.5 (wspólna zależność tylko od M1.1).
 
+Etapy 3–5 (kamienie zaplanowane zaznaczone przerywaną linią):
+
+```mermaid
+flowchart LR
+    M33[M3.3<br/>metryki CSV] --> M41[M4.1<br/>harmonia] & M43[M4.3<br/>przegląd]
+    M41 --> M42[M4.2<br/>generator setu]
+    M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
+    M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
+    M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
+
+    classDef plan fill:#FFE699,stroke:#B6912E
+    class M41,M42,M43,M51,M52,M53 plan
+```
+
+Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.
+Wyjątkiem jest M5.3: test E2E ma sens dopiero nad docelowym zestawem ekranów,
+więc zostaje na koniec.
+
 # Ryzyka i mitygacje
 
 | Ryzyko | Wpływ | Mitygacja |
@@ -336,7 +521,12 @@ Równolegle da się prowadzić: M1.2 ∥ M1.3 ∥ M1.5 (wspólna zależność ty
 | Pokrycie BPM: Deezer `bpm=0`, dump AB zamrożony 2022 | brak BPM dla części nowych utworów | kaskada 3 źródeł + fallback LLM; raport pokrycia w M1.9; w odwodzie stub `AudioAnalyzer` (analiza previewu) |
 | MusicBrainz 1 req/s | wolne pierwsze wzbogacanie (~2500 utworów ≈ 40+ min samego MB) | cache trwały w bazie; MB potrzebny tylko do MBID; job w tle, restartowalny |
 | Rozmiar dumpa AcousticBrainz | ETL niewygodny lokalnie | filtrowanie strumieniowe po MBID; dump poza repo; krok udokumentowany, jednorazowy |
-| Koszt LLM | przekroczenie budżetu | tani model klasy „mini/haiku", batch po 5, katalog deduplikuje, selektywne pola; pomiar kosztu w M1.5/M1.9 |
+| Koszt LLM | przekroczenie budżetu | tani model klasy „mini/haiku", batch po 5, katalog deduplikuje, selektywne pola; pomiar kosztu w M1.5/M1.9, twardy limit i szacunek przed startem joba w M5.1 (D28) |
+| Dryf schematu po M1.1 | kosztowne migracje | schemat zatwierdzany explicit przed M1.2+; zmiany tylko przez Flyway |
+| Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |
+| Filtry metryk działają tylko dla części biblioteki (M4.1) | pusty wynik wygląda jak awaria | licznik „X z Y utworów ma metryki" przy filtrach; Camelot liczony z `musical_key`, więc obejmuje też utwory z dumpa AB (D25) |
+| Jakość setu z generatora jest subiektywna (M4.2) | „nie tak bym to ułożył" | generator zwraca propozycję do ręcznej korekty, nie zapisuje playlisty; DoD mówi o ograniczeniach i kształcie krzywej, nie o „dobrym secie" (D26) |
+| Test E2E jako źródło fałszywych alarmów (M5.3) | czerwone CI przestaje coś znaczyć | jeden przepływ zamiast siatki przypadków, klienci zewnętrzni na WireMocku — bez zależności od Spotify i klucza LLM (D30) |
 
 **Pomiar kosztu LLM (M1.5):** mechanizm gotowy — `LlmSmokeTest` raportuje tokeny
 i koszt/utwór (`MV_SMOKE=true LLM_API_KEY=… LLM_MODEL=… ./mvnw test -Dtest=LlmSmokeTest`,
@@ -347,5 +537,5 @@ Realny pomiar do wpisania tutaj po pierwszym uruchomieniu z kluczem providera
 (sieć środowiska deweloperskiego blokuje zewnętrzne API). **Próba generalna M1.9
 (2500 utworów, stub providera):** 140 tokenów wej. + 120 wyj. na utwór →
 ≈ $0.00074/utwór, biblioteka ~2500 utworów ≈ **$1.85** (stawki klasy mini/haiku).
-| Dryf schematu po M1.1 | kosztowne migracje | schemat zatwierdzany explicit przed M1.2+; zmiany tylko przez Flyway |
-| Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |
+W M5.1 te same stawki przenoszą się ze zmiennych środowiskowych do konfiguracji
+(`llm.cost.*`), żeby szacunek dało się pokazać w UI przed startem joba (D28).

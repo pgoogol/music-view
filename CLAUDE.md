@@ -4,7 +4,8 @@ Osobiste narzędzie DJ-a do zarządzania biblioteką muzyczną. Spring Boot 3.x
 (Java 21, Maven) + Spring Batch + PostgreSQL 16 + React (Vite, od M1.8).
 
 Dokumentacja nadrzędna: [docs/KONCEPT.md](docs/KONCEPT.md) (specyfikacja),
-[docs/DECYZJE.md](docs/DECYZJE.md) (obowiązujące decyzje D1–D19 — nadpisują koncept),
+[docs/DECYZJE.md](docs/DECYZJE.md) (decyzje D1–D24 obowiązujące, D25–D30 zaplanowane
+pod Etapy 4–5 — nadpisują koncept),
 [docs/PLAN.md](docs/PLAN.md) (etapy i kamienie milowe). Odwołania „Dx" w kodzie
 i commitach wskazują decyzje z DECYZJE.md.
 
