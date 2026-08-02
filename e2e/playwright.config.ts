@@ -78,9 +78,15 @@ export default defineConfig({
       },
     },
     {
-      // druga aplikacja: statyki z `npm run build` podane przez podgląd Vite,
-      // który przekazuje /api na backend — tak samo jak nginx w obrazie frontu
-      command: 'npm run preview -- --port ' + WEB_PORT + ' --strictPort',
+      // Druga aplikacja: statyki z `npm run build` podane przez podgląd Vite,
+      // który przekazuje /api na backend — tak samo jak nginx w obrazie frontu.
+      //
+      // `--host 127.0.0.1` jest istotne: bez niego Vite wiąże się z „localhost",
+      // a na runnerach CI ta nazwa rozwiązuje się najpierw na ::1 — pętla IPv4,
+      // której pilnuje Playwright, zostaje wtedy pusta i health check leci
+      // w timeout. Wiążemy się jawnie z adresem, pod który potem pukamy.
+      command:
+        'npm run preview -- --host 127.0.0.1 --port ' + WEB_PORT + ' --strictPort',
       cwd: '../frontend',
       url: `http://127.0.0.1:${WEB_PORT}/`,
       timeout: 60_000,
