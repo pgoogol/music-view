@@ -882,3 +882,23 @@ tbody tr.selected {
   * { transition: none !important; }
   .playlist-card:hover, button:hover:not(:disabled) { transform: none; }
 }
+
+/* --- generator setu (M4.2) --- */
+
+.proposal { margin-top: var(--space-3); }
+.proposal-tracks {
+  list-style: none;
+  margin: var(--space-3) 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.proposal-tracks li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  border-top: 1px solid var(--line);
+}
+.proposal-tracks li:first-child { border-top: 0; }
+.proposal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

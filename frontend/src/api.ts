@@ -148,6 +148,39 @@ export interface SpotifyAccountResponse {
   connectedAt: string | null
 }
 
+/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
+export interface SetProposalRequest {
+  targetMinutes: number
+  seed?: number
+  search?: string
+  genreFamily?: string
+  bpmMin?: number
+  bpmMax?: number
+  tempoClass?: string
+  energy?: string
+  inLibrary?: boolean
+  ratingMin?: number
+  tag?: string
+  camelot?: string
+  camelotCompatible?: boolean
+}
+
+export interface ProposedTrackResponse {
+  position: number
+  djSlot: string | null
+  track: TrackResponse
+}
+
+export interface SetProposalResponse {
+  trackCount: number
+  totalDurationMs: number
+  targetDurationMs: number
+  /** Ziarno użyte przy losowaniu — podaj je z powrotem, żeby dostać ten sam set. */
+  seed: number
+  notes: string[]
+  tracks: ProposedTrackResponse[]
+}
+
 /** Pokrycie katalogu metrykami z pliku — kontekst filtrów metryk (M4.1). */
 export interface MetricsCoverageResponse {
   withMetrics: number
@@ -253,6 +286,10 @@ export const api = {
       }
     })
     return request(`/api/catalog/tracks?${query}`)
+  },
+
+  proposeSet(body: SetProposalRequest): Promise<SetProposalResponse> {
+    return request('/api/sets/propose', jsonInit('POST', body))
   },
 
   metricsCoverage(): Promise<MetricsCoverageResponse> {

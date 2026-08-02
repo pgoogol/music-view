@@ -47,4 +47,16 @@ public interface LibraryEntryRepository extends JpaRepository<LibraryEntry, Long
         where e.track.spotifyId in :spotifyIds and e.djSlotOverride is not null
         """)
     List<TrackSlotOverride> findSlotOverrides(@Param("spotifyIds") Collection<String> spotifyIds);
+
+    /**
+     * Ocena i override slotu dla całej puli kandydatów generatora setu (M4.2).
+     * Bez tego generator musiałby traktować pięciogwiazdkowy pewniak tak samo
+     * jak utwór, którego DJ nigdy nie ocenił.
+     */
+    @Query("""
+        select new com.pgoogol.library.TrackDjData(e.track.spotifyId, e.rating, e.djSlotOverride)
+        from LibraryEntry e
+        where e.track.spotifyId in :spotifyIds
+        """)
+    List<TrackDjData> findDjData(@Param("spotifyIds") Collection<String> spotifyIds);
 }

@@ -8,6 +8,7 @@ import {
   type PlaylistResponse,
   type PlaylistSummaryResponse,
 } from '../api'
+import SetGeneratorPanel from '../components/SetGeneratorPanel'
 import SetStats from '../components/SetStats'
 import { useToast } from '../components/Toasts'
 import { useHashRoute } from '../hooks/useHashRoute'
@@ -199,6 +200,13 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
           ))}
           {playlists.length === 0 && <li className="muted">Brak setów — utwórz pierwszy.</li>}
         </ul>
+
+        <SetGeneratorPanel
+          onCreated={(playlistId) => {
+            refreshList()
+            setParams({ set: playlistId })
+          }}
+        />
       </section>
 
       <section className="panel" aria-label="Skład setu">
