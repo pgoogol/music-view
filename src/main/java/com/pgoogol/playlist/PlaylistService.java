@@ -1,5 +1,7 @@
 package com.pgoogol.playlist;
 
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
 import com.pgoogol.common.ConflictException;
@@ -9,6 +11,7 @@ import com.pgoogol.library.LibraryEntryRepository;
 import com.pgoogol.library.TrackSlotOverride;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,18 +40,21 @@ public class PlaylistService {
     private final PlaylistTrackRepository playlistTrackRepository;
     private final TrackCatalogRepository trackCatalogRepository;
     private final LibraryEntryRepository libraryEntryRepository;
+    private final ManualMetricsRepository manualMetricsRepository;
     private final DjSlotCalculator djSlotCalculator;
 
     public PlaylistService(PlaylistRepository playlistRepository,
                            PlaylistTrackRepository playlistTrackRepository,
                            TrackCatalogRepository trackCatalogRepository,
                            LibraryEntryRepository libraryEntryRepository,
+                           ManualMetricsRepository manualMetricsRepository,
                            DjSlotCalculator djSlotCalculator) {
 
         this.playlistRepository = playlistRepository;
         this.playlistTrackRepository = playlistTrackRepository;
         this.trackCatalogRepository = trackCatalogRepository;
         this.libraryEntryRepository = libraryEntryRepository;
+        this.manualMetricsRepository = manualMetricsRepository;
         this.djSlotCalculator = djSlotCalculator;
     }
 
@@ -155,19 +162,37 @@ public class PlaylistService {
         List<PlaylistTrack> tracks =
             playlistTrackRepository.findAllWithTrackByPlaylistId(playlist.getId());
         Map<String, String> overrides = slotOverrides(tracks);
+        Map<String, ManualMetrics> metrics = metrics(tracks);
         List<PlannedTrack> planned = tracks.stream()
-            .map(entry -> toPlanned(entry, overrides.get(entry.getTrack().getSpotifyId())))
+            .map(entry -> toPlanned(entry,
+                overrides.get(entry.getTrack().getSpotifyId()),
+                metrics.get(entry.getTrack().getSpotifyId())))
             .toList();
         return new PlaylistPlan(playlist, planned);
     }
 
-    private PlannedTrack toPlanned(PlaylistTrack playlistTrack, String override) {
+    private PlannedTrack toPlanned(PlaylistTrack playlistTrack, String override,
+                                   @Nullable ManualMetrics metrics) {
 
         TrackCatalog track = playlistTrack.getTrack();
         DjSlot slot = DjSlot.parse(override)
             .or(() -> djSlotCalculator.calculate(track))
             .orElse(null);
-        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override);
+        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override,
+            Optional.ofNullable(metrics).map(ManualMetrics::getLoudnessDb).orElse(null),
+            Optional.ofNullable(metrics).map(ManualMetrics::getTimeSignature).orElse(null));
+    }
+
+    /** Metryki z pliku (D24) dla ostrzeżeń planera o głośności i metrum (D25). */
+    private Map<String, ManualMetrics> metrics(List<PlaylistTrack> tracks) {
+
+        Set<String> spotifyIds = tracks.stream()
+            .map(entry -> entry.getTrack().getSpotifyId())
+            .collect(Collectors.toSet());
+        return spotifyIds.isEmpty()
+            ? Map.of()
+            : manualMetricsRepository.findBySpotifyIdIn(spotifyIds).stream()
+                .collect(Collectors.toMap(ManualMetrics::getSpotifyId, Function.identity()));
     }
 
     private Map<String, String> slotOverrides(List<PlaylistTrack> tracks) {

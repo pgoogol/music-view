@@ -17,6 +17,8 @@ export interface TrackResponse {
   bpmSource: string | null
   danceability: number | null
   musicalKey: string | null
+  /** Pozycja koła Camelot liczona z `musicalKey` przez backend (D25) — nie kolumna. */
+  camelot: string | null
   tempoClass: string | null
   energy: string | null
   lyricsTheme: string | null
@@ -114,6 +116,9 @@ export interface PlaylistTrackResponse {
   position: number
   djSlot: string | null
   djSlotOverride: string | null
+  /** Z metryk wgranych z pliku (D24) — tylko dla ostrzeżeń planera setu (D25). */
+  loudnessDb: number | null
+  timeSignature: number | null
   track: TrackResponse
 }
 
@@ -141,6 +146,12 @@ export interface SpotifyAccountResponse {
   scopes: string | null
   expiresAt: string | null
   connectedAt: string | null
+}
+
+/** Pokrycie katalogu metrykami z pliku — kontekst filtrów metryk (M4.1). */
+export interface MetricsCoverageResponse {
+  withMetrics: number
+  total: number
 }
 
 export interface MissingCountResponse {
@@ -176,6 +187,14 @@ export interface SearchParams {
   inLibrary?: boolean
   ratingMin?: number
   tag?: string
+  /** Filtr harmoniczny (M4.1/D25): pozycja koła + czy rozszerzyć do zgodnych. */
+  camelot?: string
+  camelotCompatible?: boolean
+  /** Filtry metryk (D24) — odsiewają utwory bez metryk, stąd licznik pokrycia. */
+  valenceMin?: number
+  valenceMax?: number
+  instrumentalMin?: number
+  livenessMax?: number
   sort?: CatalogSort
   direction?: SortDirection
   page?: number
@@ -234,6 +253,10 @@ export const api = {
       }
     })
     return request(`/api/catalog/tracks?${query}`)
+  },
+
+  metricsCoverage(): Promise<MetricsCoverageResponse> {
+    return request('/api/catalog/metrics-coverage')
   },
 
   /** Słownik custom tagów DJ-a — podpowiedzi filtra bibliotecznego (M3.2). */

@@ -47,6 +47,8 @@ public class PlaylistApiMapper {
             plannedTrack.position(),
             Objects.toString(plannedTrack.djSlot(), null),
             plannedTrack.djSlotOverride(),
+            plannedTrack.loudnessDb(),
+            plannedTrack.timeSignature(),
             catalogApiMapper.toResponse(plannedTrack.track()));
     }
 }

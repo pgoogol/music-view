@@ -29,6 +29,7 @@ export function aTrack(overrides: Partial<TrackResponse> = {}): TrackResponse {
     bpmSource: 'ACOUSTICBRAINZ',
     danceability: 0.85,
     musicalKey: 'A minor',
+    camelot: '8A',
     tempoClass: 'MEDIUM',
     energy: 'high',
     lyricsTheme: 'afirmacja życia',
@@ -45,9 +46,18 @@ export function aPlaylistTrack(
   track: Partial<TrackResponse>,
   djSlot: string | null,
   position = 1,
+  overrides: Partial<PlaylistTrackResponse> = {},
 ): PlaylistTrackResponse {
 
-  return { position, djSlot, djSlotOverride: null, track: aTrack(track) }
+  return {
+    position,
+    djSlot,
+    djSlotOverride: null,
+    loudnessDb: null,
+    timeSignature: null,
+    track: aTrack(track),
+    ...overrides,
+  }
 }
 
 export function aPlaylistSummary(

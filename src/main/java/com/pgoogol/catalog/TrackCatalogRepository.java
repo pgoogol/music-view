@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -54,13 +55,23 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
     List<TrackCatalog> findByIsrcInIgnoreCase(@Param("isrcs") Collection<String> isrcs);
 
     /**
-     * Katalog z dołączoną biblioteką DJ-a (M3.2). {@code library_entry.spotify_id}
-     * jest UNIQUE (V1), więc lewe złączenie nie zwielokrotnia wierszy katalogu —
-     * utwór spoza biblioteki dostaje po prostu NULL-e w kolumnach {@code l}.
+     * Katalog z dołączoną biblioteką DJ-a (M3.2) i metrykami z pliku (M4.1).
+     * {@code library_entry.spotify_id} jest UNIQUE (V1), a {@code manual_metrics.spotify_id}
+     * to klucz główny (V5), więc żadne z lewych złączeń nie zwielokrotnia wierszy
+     * katalogu — utwór bez wpisu dostaje po prostu NULL-e w kolumnach {@code l}/{@code m}.
      */
-    String SEARCH_FROM =
-        " from track_catalog t left join library_entry l on l.spotify_id = t.spotify_id ";
+    String SEARCH_FROM = """
+         from track_catalog t
+         left join library_entry l on l.spotify_id = t.spotify_id
+         left join manual_metrics m on m.spotify_id = t.spotify_id
+        """;
 
+    /**
+     * Filtr harmoniczny (D25) przychodzi jako lista dopuszczalnych zapisów tonacji
+     * sklejona znakiem {@code |} — zbiór liczy aplikacja z koła Camelot, więc
+     * zapytanie zostaje przy jednym porównaniu i nie potrzebuje kolejnego złączenia.
+     * Filtry metryk celowo odsiewają utwory bez metryk (NULL nie spełnia nierówności).
+     */
     String SEARCH_WHERE = """
         where (cast(:search as text) is null
                or t.search_vector @@ plainto_tsquery('simple', cast(:search as text))
@@ -76,6 +87,13 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
                or (cast(:inLibrary as boolean) = false and l.id is null))
           and (cast(:ratingMin as integer) is null or l.rating >= cast(:ratingMin as integer))
           and (cast(:tag as text) is null or cast(:tag as text) = any(l.custom_tags))
+          and (cast(:musicalKeys as text) is null
+               or upper(t.musical_key) = any(string_to_array(cast(:musicalKeys as text), '|')))
+          and (cast(:valenceMin as numeric) is null or m.valence >= cast(:valenceMin as numeric))
+          and (cast(:valenceMax as numeric) is null or m.valence <= cast(:valenceMax as numeric))
+          and (cast(:instrumentalMin as numeric) is null
+               or m.instrumentalness >= cast(:instrumentalMin as numeric))
+          and (cast(:livenessMax as numeric) is null or m.liveness <= cast(:livenessMax as numeric))
         """;
 
     /**
@@ -149,7 +167,19 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
                               @Param("inLibrary") Boolean inLibrary,
                               @Param("ratingMin") Integer ratingMin,
                               @Param("tag") String tag,
+                              @Param("musicalKeys") String musicalKeys,
+                              @Param("valenceMin") BigDecimal valenceMin,
+                              @Param("valenceMax") BigDecimal valenceMax,
+                              @Param("instrumentalMin") BigDecimal instrumentalMin,
+                              @Param("livenessMax") BigDecimal livenessMax,
                               @Param("sort") String sort,
                               @Param("direction") String direction,
                               Pageable pageable);
+
+    /**
+     * Pokrycie metrykami (M4.1) — filtry z {@code manual_metrics} działają tylko
+     * na tym podzbiorze, więc UI musi umieć powiedzieć „X z Y utworów ma metryki".
+     */
+    @Query(value = "select count(*) from manual_metrics", nativeQuery = true)
+    long countWithMetrics();
 }

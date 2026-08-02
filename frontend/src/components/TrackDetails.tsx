@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { api, type LibraryEntryResponse, type TrackMetricsResponse } from '../api'
+import { useHashRoute } from '../hooks/useHashRoute'
 import StarRating from './StarRating'
 import TagChips from './TagChips'
 import { useToast } from './Toasts'
@@ -29,6 +30,7 @@ interface Props {
 export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
 
   const { notify, reportError } = useToast()
+  const { setParams } = useHashRoute()
   const [entry, setEntry] = useState<LibraryEntryResponse | null>(null)
   const [metrics, setMetrics] = useState<TrackMetricsResponse | null>(null)
   const [djNotes, setDjNotes] = useState('')
@@ -156,7 +158,27 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
               <dt>Tempo</dt>
               <dd>{tempoLabel(track.tempoClass)}</dd>
               <dt>Tonacja</dt>
-              <dd>{track.musicalKey ?? DASH}</dd>
+              <dd>
+                {track.musicalKey ?? DASH}
+                {track.camelot && (
+                  <>
+                    {' '}
+                    <span className="badge" title="pozycja koła Camelot (D25)">
+                      {track.camelot}
+                    </span>{' '}
+                    <button
+                      className="link"
+                      data-testid="harmonic-match"
+                      onClick={() => {
+                        setParams({ key: track.camelot!, keyExact: undefined, page: undefined })
+                        onClose()
+                      }}
+                    >
+                      pasujące tonacyjnie
+                    </button>
+                  </>
+                )}
+              </dd>
               <dt>Taneczność</dt>
               <dd>{track.danceability ?? DASH}</dd>
               <dt>Gatunek</dt>

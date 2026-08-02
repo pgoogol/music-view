@@ -370,12 +370,37 @@ label { color: var(--muted); }
   border-left: 2px solid var(--accent-2);
   box-shadow: -6px 0 14px -8px var(--accent-2);
 }
+/* harmonia i metryki (M4.1) — ta sama „szyna" co filtry biblioteczne, żeby
+   było widać, że to osobne grupy, a nie kolejne pola w jednym rzędzie */
+.filters-harmonic,
+.filters-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  border-left: 2px solid var(--accent-2);
+  box-shadow: -6px 0 14px -8px var(--accent-2);
+}
+.filters-metrics input[type='number'] { width: 6.5rem; }
+
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font: 600 10px/1.6 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
 .result-summary {
   margin: 0 var(--space-2) var(--space-2);
   font: 600 11px/1.6 var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
+.metrics-coverage { margin: 0 var(--space-2) var(--space-2); font-size: 12px; }
 
 /* --- tabele --- */
 

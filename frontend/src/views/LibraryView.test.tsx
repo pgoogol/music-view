@@ -20,11 +20,14 @@ const tracks = [
 let fetchMock: ReturnType<typeof vi.fn>
 let searchResponse = aPage(tracks)
 
-/** Widok pyta też o słownik tagów (M3.2) — liczy się ostatnie zapytanie o katalog. */
+/**
+ * Widok pyta też o słownik tagów (M3.2) i pokrycie metrykami (M4.1) — liczy się
+ * ostatnie zapytanie o same utwory.
+ */
 function lastRequestUrl(): string {
 
   const catalogCalls = fetchMock.mock.calls.filter((call) =>
-    String(call[0]).includes('/api/catalog'),
+    String(call[0]).includes('/api/catalog/tracks'),
   )
   return String(catalogCalls.at(-1)?.[0])
 }
@@ -44,11 +47,14 @@ function renderLibrary(overrides: Partial<Parameters<typeof LibraryView>[0]> = {
 
 beforeEach(() => {
   searchResponse = aPage(tracks)
-  fetchMock = vi.fn().mockImplementation((url: string) =>
-    Promise.resolve(
-      jsonResponse(String(url).includes('/api/library/tags') ? ['wesele'] : searchResponse),
-    ),
-  )
+  fetchMock = vi.fn().mockImplementation((url: string) => {
+    const target = String(url)
+    if (target.includes('/api/library/tags')) return Promise.resolve(jsonResponse(['wesele']))
+    if (target.includes('/api/catalog/metrics-coverage')) {
+      return Promise.resolve(jsonResponse({ withMetrics: 120, total: 2500 }))
+    }
+    return Promise.resolve(jsonResponse(searchResponse))
+  })
   globalThis.fetch = fetchMock as unknown as typeof fetch
 })
 
@@ -140,10 +146,41 @@ describe('LibraryView', () => {
     expect(window.location.hash).toContain('rating=4')
   })
 
+  it('filtr tonacji wysyła pozycję koła i domyślnie rozszerza go do zgodnych', async () => {
+
+    const user = userEvent.setup()
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    await user.selectOptions(screen.getByLabelText('tonacja (Camelot)'), '8A')
+
+    await waitFor(() => expect(lastRequestUrl()).toContain('camelot=8A'))
+    expect(lastRequestUrl()).toContain('camelotCompatible=true')
+
+    await user.click(screen.getByLabelText('tylko dokładna tonacja'))
+
+    await waitFor(() => expect(lastRequestUrl()).toContain('camelotCompatible=false'))
+    expect(window.location.hash).toContain('key=8A')
+  })
+
+  it('przy filtrach metryk mówi, ilu utworów one dotyczą', async () => {
+
+    const user = userEvent.setup()
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    expect(screen.queryByTestId('metrics-coverage')).toBeNull()
+
+    await user.type(screen.getByLabelText('instrumentalność od'), '0.5')
+
+    await waitFor(() => expect(lastRequestUrl()).toContain('instrumentalMin=0.5'))
+    expect(await screen.findByTestId('metrics-coverage')).toHaveTextContent('120 z 2500')
+  })
+
   it('wyczyszczenie filtrów kasuje także filtry biblioteczne', async () => {
 
     const user = userEvent.setup()
-    window.location.hash = '#/library?lib=yes&rating=3&tag=wesele'
+    window.location.hash = '#/library?lib=yes&rating=3&tag=wesele&key=8A&valMin=0.3'
     renderLibrary()
     await screen.findByText('Vivir Mi Vida')
 
@@ -152,6 +189,8 @@ describe('LibraryView', () => {
     await waitFor(() => expect(window.location.hash).not.toContain('lib=yes'))
     expect(window.location.hash).not.toContain('rating=3')
     expect(window.location.hash).not.toContain('tag=wesele')
+    expect(window.location.hash).not.toContain('key=8A')
+    expect(window.location.hash).not.toContain('valMin=0.3')
   })
 
   it('gdy filtry nic nie zwracają, tłumaczy to filtrami zamiast pustą biblioteką', async () => {
