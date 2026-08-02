@@ -16,17 +16,18 @@ services:
       timeout: 3s
       retries: 10
 
-  # Cała aplikacja pod jednym adresem (M5.3/D30). `docker compose up -d` nadal
-  # wstawia samą bazę — tak wygląda praca nad kodem; pełny zestaw uruchamia
-  # `docker compose --profile full up -d --build`.
+  # Dwie osobne aplikacje (M5.3/D30): backend Spring Boot i front na nginksie.
+  # `docker compose up -d` nadal wstawia samą bazę — tak wygląda praca nad kodem;
+  # pełny zestaw uruchamia `docker compose --profile full up -d --build`
+  # (front pod http://localhost:5173, API pod http://localhost:8080).
   #
   # UWAGA (D30): Spotify wymaga zgodności redirect URI znak w znak i nie przyjmie
   # adresu w sieci lokalnej po HTTP, więc konto łączymy raz z laptopa po loopbacku.
   # Telefon w LAN korzysta z konta już połączonego — tokeny żyją server-side (D20).
-  app:
+  api:
     profiles: ["full"]
     build: .
-    container_name: music-view-app
+    container_name: music-view-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +45,20 @@ services:
       MB_USER_AGENT: ${MB_USER_AGENT:-}
     ports:
       - "8080:8080"
+
+  web:
+    profiles: ["full"]
+    build: ./frontend
+    container_name: music-view-web
+    depends_on:
+      - api
+    environment:
+      # front woła adresy względne, a nginx przekazuje /api na backend —
+      # dzięki temu nie trzeba otwierać CORS-a w aplikacji bez auth (D2/D14)
+      API_HOST: api
+      API_PORT: "8080"
+    ports:
+      - "5173:80"
 
 volumes:
   postgres-data:

@@ -538,28 +538,48 @@ Pięć zakładek z M3.2 jest operacyjnych; nie ma ekranu odpowiadającego na pyt
   **z zachowaniem tego, co DJ ma wpisane w polu**. Cichy zapis „ostatni wygrywa" jest
   gorszy od komunikatu, bo notatka ginie bez śladu i bez szansy na odtworzenie.
 
-## D30. Jeden artefakt uruchomieniowy i testy E2E (M5.3)
+## D30. Dwie osobne aplikacje i testy E2E (M5.3)
 
-- **Front pakowany do jara przez jawny profil `-Pfullstack`, nie domyślnie.** `./mvnw verify`
-  ma zostać szybkie i działać na maszynie bez Node; CI woła profil jawnie. Zbudowany front
-  ląduje w `target/classes/static`, skąd serwuje go Spring Boot.
+Backend i front są **osobnymi aplikacjami**: własny obraz, własny cykl życia, własny
+port. Front nie wchodzi do jara.
+
+**Rozważone i odrzucone: jeden artefakt** (front pakowany do `target/classes/static`
+przez profil `-Pfullstack` i serwowany przez Spring Boot). Kusiło prostotą uruchomienia,
+ale sklejało dwie rzeczy, które zmieniają się w innym rytmie i inaczej się wdraża:
+poprawka w CSS-ie wymagałaby przepakowania i restartu backendu, front przestałby dać się
+wystawić na statycznym hostingu (Vercel z DEPLOYMENT.md), a build backendu zaczynałby
+zależeć od Node'a w PATH. Prostota uruchomienia jest osiągalna taniej — `docker compose`
+podnosi obie usługi jedną komendą.
+
+- **Backend: `Dockerfile` w katalogu głównym** (maven → JRE), tylko aplikacja Spring Boot.
+  `./mvnw package` nie wie nic o froncie i nie potrzebuje Node'a.
+- **Front: `frontend/Dockerfile`** (node → nginx) — statyki z Vite podane przez nginx.
+- **nginx przekazuje `/api` na backend, zamiast otwierać CORS.** Front woła adresy
+  względne, więc zbudowany pakiet JS nie zawiera adresu API i ten sam obraz działa
+  lokalnie i na serwerze; adres backendu siedzi w konfiguracji proxy (`API_HOST`/`API_PORT`,
+  podstawiane przez entrypoint nginksa). CORS wymagałby wpuszczenia obcego originu do
+  aplikacji, która nie ma auth (D2/D14) — to zły kierunek dla czegoś, co i tak trzeba
+  postawić za bramką na hasło.
 - **Bez fallbacku SPA.** Stan widoku siedzi w hashu (`#/library?q=…`, D22), więc przeglądarka
   nigdy nie prosi serwera o `/library` — wystarczy `index.html` pod `/`. Rezygnacja
   z routera z M3.1 opłaca się tutaj drugi raz.
-- **Aplikacja w `docker-compose.yml` pod profilem `full`.** `docker compose up -d` musi
+- **Obie usługi w `docker-compose.yml` pod profilem `full`.** `docker compose up -d` musi
   nadal wstawiać samą bazę, bo tak wygląda praca nad kodem; pełny zestaw uruchamia
-  `docker compose --profile full up -d`.
+  `docker compose --profile full up -d --build` (front na :5173, API na :8080).
 - **OAuth Spotify zostaje na loopbacku.** Spotify wymaga zgodności redirect URI znak w znak
   i nie przyjmie adresu w sieci lokalnej po HTTP, więc konto łączymy raz z laptopa
   (`http://127.0.0.1:8080/api/auth/spotify/callback`), a telefon korzysta z konta już
-  połączonego — tokeny i tak żyją wyłącznie server-side (D20).
-- **Jeden artefakt niczego nie zmienia w kwestii wystawienia na świat.** Aplikacja nadal
+  połączonego — tokeny i tak żyją wyłącznie server-side (D20). Uwaga: redirect URI wskazuje
+  **backend**, nie front — callback obsługuje API.
+- **Podział na dwie aplikacje niczego nie zmienia w kwestii wystawienia na świat.** Nadal
   nie ma logowania (D2/D14), więc ostrzeżenie z DEPLOYMENT.md zostaje w mocy: publiczny
   adres wymaga najpierw bramki na hasło. „Dostęp z telefonu" znaczy tu sieć lokalna.
-- **E2E: Playwright przeciw spakowanemu jarowi**, z Postgresem z docker-compose i klientami
-  zewnętrznymi na WireMocku (`WireMockRestClients` istnieje od M1.3). Test przepływu nie może
-  zależeć od dostępności Spotify ani od klucza LLM — inaczej czerwone CI przestaje cokolwiek
-  znaczyć. Osobny job w CI, żeby podstawowy build nie urósł.
+- **E2E: Playwright przeciw dwóm procesom** — zbudowany front podany statycznie
+  (`vite preview`, odpowiednik nginksa z obrazu) i backend jako osobny proces, z API pod
+  względnym `/api`. Testujemy ten układ, w którym aplikacja realnie działa, a nie serwer
+  dev z HMR-em. Postgres z docker-compose, źródła zewnętrzne na stubie: test przepływu nie
+  może zależeć od dostępności Spotify ani od klucza LLM, bo wtedy czerwone CI przestaje
+  cokolwiek znaczyć. Osobny job w CI, żeby podstawowy build nie urósł.
 - **Zakres E2E to jeden przepływ, a nie siatka przypadków**: import CSV → przegląd →
   biblioteka i utwór (z zapisem danych DJ-a, czyli wersjonowaniem z D29) → wzbogacenie AI
   na stubie → set → generator propozycji. Od testu E2E chcemy sygnału „całość się rozpięła";

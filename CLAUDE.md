@@ -20,12 +20,12 @@ i commitach wskazują decyzje z DECYZJE.md.
 | Front — tryb dev | `cd frontend && npm install && npm run dev` (proxy `/api` na :8080) |
 | Front — testy | `cd frontend && npm test` (Vitest + Testing Library) |
 | Front — build | `cd frontend && npm run build` (typecheck + vite build) |
-| Jeden artefakt (front w jarze) | `./mvnw -Pfullstack package` (wymaga `npm` w PATH) |
-| Cała aplikacja w Dockerze | `docker compose --profile full up -d --build` → http://localhost:8080 |
-| Testy E2E (po `-Pfullstack package`) | `cd e2e && npm install && npx playwright test` (potrzebuje Postgresa z `docker compose up -d`) |
+| Obie aplikacje w Dockerze | `docker compose --profile full up -d --build` → front http://localhost:5173, API http://localhost:8080 |
+| Testy E2E | `./mvnw -DskipTests package && (cd frontend && npm run build) && cd e2e && npm install && npx playwright test` (potrzebuje Postgresa z `docker compose up -d`) |
 
 CI (GitHub Actions) uruchamia `./mvnw verify` + build i testy frontu na każdy push
-na `master` i każdy PR; osobny job odpala test E2E na spakowanym jarze.
+na `master` i każdy PR; osobny job odpala test E2E na dwóch aplikacjach
+(zbudowany front + backend za proxy `/api`).
 
 ## Konwencje Java/Spring
 

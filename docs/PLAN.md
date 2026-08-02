@@ -407,7 +407,7 @@ jako jedyny chroni portfel.
 |---|---|---|---|
 | **M5.1** Przeliczanie estymat i koszty | `EnrichmentScope.OUTDATED`, szacunek kosztu przed startem joba, twardy limit utworów, historia jobów jednym zapytaniem (D28) | M1.6 | 📋 |
 | **M5.2** Spójność zapisu współbieżnego | `@Version` na `library_entry` i `playlist`, `409 RESOURCE_MODIFIED`, obsługa konfliktu we froncie (D29) | M1.7 | ✅ |
-| **M5.3** Jeden artefakt + testy E2E | Front pakowany do jara, `Dockerfile`, aplikacja w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | ✅ |
+| **M5.3** Dwie aplikacje + testy E2E | Osobne obrazy backendu i frontu (nginx z proxy `/api`), obie usługi w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | ✅ |
 
 ## M5.1 Przeliczanie estymat i bezpiecznik kosztowy *(po M1.6)*
 
@@ -453,32 +453,35 @@ komunikatem; `GET /api/enrich/jobs` wykonuje jedno zapytanie niezależnie od dł
 **DoD:** test integracyjny dwóch równoległych PATCH-y — drugi dostaje `409`, dane pierwszego
 zostają nienaruszone; ręcznie: dwie karty przeglądarki nie kasują sobie notatek.
 
-## M5.3 Jeden artefakt uruchomieniowy i testy E2E *(po Etapie 4)*
+## M5.3 Dwie osobne aplikacje i testy E2E *(po Etapie 4)*
 
-**Cel:** `docker compose --profile full up -d` i całość działa pod jednym adresem —
-łącznie z dostępem z telefonu w sieci lokalnej; przepływ z DoD Etapu 3 sprawdzany
+**Cel:** `docker compose --profile full up -d --build` podnosi **backend i front jako dwie
+osobne usługi** — każda z własnym obrazem i cyklem życia; przepływ z DoD Etapu 3 sprawdzany
 automatycznie, nie ręcznie.
 
-- Profil Mavena `-Pfullstack`: `npm ci && npm run build` → `frontend/dist`
-  do `target/classes/static`. Domyślne `./mvnw verify` zostaje bez Node i bez zmiany czasu
+- `Dockerfile` w katalogu głównym: **tylko backend** (maven → JRE). `./mvnw package` nie wie
+  nic o froncie i nie potrzebuje Node'a w PATH
+- `frontend/Dockerfile`: **tylko front** (node → nginx), statyki z Vite podane przez nginx
+- **nginx przekazuje `/api` na backend zamiast otwierać CORS** — front woła adresy względne,
+  więc zbudowany pakiet JS nie zawiera adresu API; adres siedzi w `API_HOST`/`API_PORT`
 - **Bez fallbacku SPA** — stan widoku siedzi w hashu (`#/library?…`, D22), więc żaden adres
   poza `/` nie trafia do serwera; decyzja o hashu zamiast routera opłaca się tu drugi raz
-- `Dockerfile` wieloetapowy (node → maven → JRE) i usługa `app` w `docker-compose.yml`
-  pod profilem `full`, żeby `docker compose up -d` nadal wstawiało samą bazę do pracy
-  nad kodem
+- Usługi `api` i `web` w `docker-compose.yml` pod profilem `full`, żeby `docker compose up -d`
+  nadal wstawiało samą bazę do pracy nad kodem (front :5173, API :8080)
 - OAuth Spotify łączymy raz z laptopa po loopbacku (`SPOTIFY_REDIRECT_URI` musi zgadzać się
   z dashboardem znak w znak); telefon w LAN korzysta z konta już połączonego — Spotify
   nie przyjmie adresu lokalnego po HTTP jako redirect URI (D30)
 - Playwright: przepływ (import CSV → przegląd → biblioteka i utwór → wzbogacenie AI →
-  set → generator) przeciw **spakowanemu jarowi**, z Postgresem z docker-compose i źródłami
-  zewnętrznymi na lokalnym stubie (`e2e/stub-server.mjs`); osobny job w CI, żeby podstawowy
-  build nie urósł
+  set → generator) przeciw **dwóm procesom** — zbudowany front podany statycznie
+  (`vite preview`, odpowiednik nginksa) i backend za proxy `/api`, czyli w układzie,
+  w jakim aplikacja realnie działa; Postgres z docker-compose, źródła zewnętrzne na lokalnym
+  stubie (`e2e/stub-server.mjs`); osobny job w CI, żeby podstawowy build nie urósł
 - **Eksport na Spotify zostaje poza E2E** (D30): wymagałby przeprowadzenia OAuth przez ekran
   zgody albo wpisania tokenów wprost do bazy, a ma własny test integracyjny na WireMocku
 
-**DoD:** `docker compose --profile full up -d --build` daje działającą aplikację pod jednym
-adresem na czysto sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek
-krok przepływu przestaje działać.
+**DoD:** `docker compose --profile full up -d --build` daje działający front i API na czysto
+sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok przepływu
+przestaje działać.
 
 ---
 

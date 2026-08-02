@@ -1,7 +1,8 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
 /**
- * Pełny przepływ DJ-a (DoD Etapu 3 rozszerzone o Etap 4) na spakowanym jarze:
+ * Pełny przepływ DJ-a (DoD Etapu 3 rozszerzone o Etap 4) na dwóch osobnych
+ * aplikacjach — zbudowany front i backend za proxy /api:
  * import → przegląd → biblioteka i utwór → wzbogacenie AI → set → generator.
  *
  * Eksport na Spotify świadomie zostaje poza tym testem: wymagałby albo
@@ -58,7 +59,7 @@ test.describe('przepływ DJ-a', () => {
     expect(imported.ok()).toBeTruthy()
     expect((await imported.json()).imported).toBe(5)
 
-    // --- przegląd: front wychodzi ze spakowanego jara, liczby liczy baza
+    // --- przegląd: front dochodzi do API po względnym /api, liczby liczy baza
     await page.goto('/#/overview')
     await expect(page.getByTestId('overview')).toBeVisible()
     await expect(page.getByTestId('overview-headline')).toContainText('5')

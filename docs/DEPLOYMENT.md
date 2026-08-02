@@ -8,6 +8,14 @@ z telefonu na imprezie.
 
 ## Wariant lokalny (domyślny)
 
+Dwie aplikacje w kontenerach, jedną komendą (M5.3/D30):
+
+```bash
+docker compose --profile full up -d --build   # front :5173, API :8080, baza :5432
+```
+
+Albo w trybie pracy nad kodem — sama baza w Dockerze, reszta z konsoli:
+
 ```bash
 docker compose up -d
 set -a && source .env && set +a
@@ -32,10 +40,14 @@ docker exec music-view-postgres pg_dump -U musicview musicview > backup.sql
    `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`,
    `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REDIRECT_URI`
    (adres publiczny!), `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL`, `MB_USER_AGENT`.
-3. **Front — Vercel.** Katalog `frontend/`, build `npm run build`, katalog
+3. **Front — Vercel** (albo dowolny hosting statyków; obraz `frontend/Dockerfile`
+   robi to samo nginksem). Katalog `frontend/`, build `npm run build`, katalog
    wyjściowy `dist`. Front woła względne `/api`, więc dodaj rewrite na backend
    (`vercel.json` → `rewrites: [{ "source": "/api/:path*", "destination":
    "https://<backend>/api/:path*" }]`) — inaczej trzeba by wprowadzać CORS.
+   Rozdział na dwie aplikacje (D30) jest właśnie po to, żeby ten wariant
+   pozostał możliwy: front da się wystawić na statycznym hostingu niezależnie
+   od backendu.
 4. **Spotify:** dopisz publiczny Redirect URI w dashboardzie aplikacji;
    ten z kroku 2 musi być z nim identyczny znak w znak.
 

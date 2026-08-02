@@ -1,13 +1,18 @@
 import { defineConfig, devices } from '@playwright/test'
 
 /**
- * Test E2E przepływu (M5.3/D30) — przeciw SPAKOWANEMU JAROWI, nie serwerowi dev:
- * sprawdzamy między innymi to, że front rzeczywiście wychodzi z jara pod /static
- * i że hash w adresie nie potrzebuje fallbacku SPA.
+ * Test E2E przepływu (M5.3/D30) — przeciw DWÓM OSOBNYM APLIKACJOM, tak jak
+ * działają na produkcji: zbudowany front podany statycznie (`vite preview`,
+ * odpowiednik nginksa z obrazu) i backend jako osobny proces, z API pod
+ * względnym /api przez proxy. Nie serwer dev z HMR-em i nie jeden artefakt.
  *
  * Zakres to jeden przepływ, nie siatka przypadków: od E2E chcemy sygnału
  * „całość się rozpięła", a szczegóły pokrywają testy jednostkowe i integracyjne.
+ *
+ * Wymaga zbudowanego frontu (`cd frontend && npm run build`) i spakowanego
+ * backendu (`./mvnw -DskipTests package`).
  */
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 5173)
 const PORT = Number(process.env.E2E_APP_PORT ?? 8080)
 const STUB_PORT = Number(process.env.E2E_STUB_PORT ?? 8089)
 const DATASOURCE_URL =
@@ -21,7 +26,9 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? [['github'], ['list']] : [['list']],
   use: {
-    baseURL: `http://127.0.0.1:${PORT}`,
+    // przeglądarka rozmawia wyłącznie z frontem — backend jest za proxy,
+    // dokładnie jak w układzie nginx + API z docker-compose
+    baseURL: `http://127.0.0.1:${WEB_PORT}`,
     trace: 'retain-on-failure',
   },
   // Jedna przeglądarka wystarczy: aplikacja jest narzędziem jednego DJ-a (D2),
@@ -69,6 +76,16 @@ export default defineConfig({
         MB_USER_AGENT: 'music-view-e2e (test@example.com)',
         MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: 'health,info',
       },
+    },
+    {
+      // druga aplikacja: statyki z `npm run build` podane przez podgląd Vite,
+      // który przekazuje /api na backend — tak samo jak nginx w obrazie frontu
+      command: 'npm run preview -- --port ' + WEB_PORT + ' --strictPort',
+      cwd: '../frontend',
+      url: `http://127.0.0.1:${WEB_PORT}/`,
+      timeout: 60_000,
+      reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
     },
   ],
 })

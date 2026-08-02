@@ -130,9 +130,10 @@ modelem/promptem, wyłącznie grupa AI), `POST /api/enrich/estimate` z kosztem p
 (stawki w `llm.cost.*`), twardy limit `llm.max-tracks-per-job`, historia jobów jednym
 zapytaniem. **M5.2 (współbieżność)** — `@Version` na `library_entry` i `playlist` (V6),
 wersja w DTO, `409 RESOURCE_MODIFIED`, front po konflikcie przeładowuje rekord bez kasowania
-tego, co DJ wpisał. **M5.3 (jeden artefakt)** — `./mvnw -Pfullstack package` pakuje front
-do jara, `Dockerfile` i usługa `app` w docker-compose (`--profile full`), test E2E
-w Playwright na spakowanym jarze.
+tego, co DJ wpisał. **M5.3 (dwie osobne aplikacje)** — backend i front jako niezależne obrazy: `Dockerfile`
+(maven → JRE) i `frontend/Dockerfile` (node → nginx z proxy `/api`, bez CORS-a), obie
+usługi w docker-compose pod `--profile full` (front :5173, API :8080); test E2E
+w Playwright przeciw temu samemu układowi dwóch procesów.
 
 ## Dalsze plany
 
