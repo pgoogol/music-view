@@ -211,6 +211,17 @@ export interface MetricsCoverageResponse {
   total: number
 }
 
+/** Szacunek zlecenia wzbogacania (M5.1/D28) — nic nie uruchamia. */
+export interface EnrichmentEstimateResponse {
+  trackCount: number
+  /** Utwory, za które realnie zapłacimy — tylko grupa AI. */
+  aiTracks: number
+  /** null = brak stawek w konfiguracji, nie zero. */
+  estimatedCost: number | null
+  limit: number
+  withinLimit: boolean
+}
+
 export interface MissingCountResponse {
   metadata: number
   audio: number
@@ -425,6 +436,14 @@ export const api = {
 
   restartJob(executionId: number): Promise<{ executionId: number }> {
     return request(`/api/enrich/jobs/${executionId}/restart`, { method: 'POST' })
+  },
+
+  estimateEnrichment(
+    scope: string,
+    fields: string[],
+    spotifyIds: string[],
+  ): Promise<EnrichmentEstimateResponse> {
+    return request('/api/enrich/estimate', jsonInit('POST', { scope, fields, spotifyIds }))
   },
 
   missingCount(): Promise<MissingCountResponse> {

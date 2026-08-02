@@ -43,7 +43,7 @@ class LlmSmokeTest {
 
         LlmProperties properties = new LlmProperties(
             env("LLM_PROVIDER", "openai"), env("LLM_BASE_URL", null), System.getenv("LLM_API_KEY"),
-            System.getenv("LLM_MODEL"), "v1", 5, 1, 2048, 0.2);
+            System.getenv("LLM_MODEL"), "v1", 5, 1, 2048, 0.2, 500, null);
         LlmClient llmClient = new LlmClientConfig().llmClient(properties, RestClient.builder());
         TrackAnalysisService service = new TrackAnalysisService(llmClient,
             new TrackAnalysisPrompt(properties), new ObjectMapper(), new HalfTimeCorrector(),

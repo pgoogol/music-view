@@ -1,5 +1,6 @@
 package com.pgoogol.api;
 
+import com.pgoogol.enrichment.EnrichmentEstimate;
 import com.pgoogol.enrichment.EnrichmentService;
 import com.pgoogol.enrichment.MissingFieldsCount;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,13 +33,29 @@ public class EnrichController {
     @PostMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(summary = "Zlecenie wzbogacania (asynchroniczne)",
-        description = "scope: SINGLE/SELECTED (z spotifyIds, max 100) lub MISSING (wg braków); "
-            + "fields: podzbiór METADATA/AUDIO/AI.")
+        description = "scope: SINGLE/SELECTED (z spotifyIds, max 100), MISSING (wg braków) "
+            + "albo OUTDATED (utwory opisane starszym modelem/promptem — wyłącznie grupa AI, D28); "
+            + "fields: podzbiór METADATA/AUDIO/AI. Zlecenie ponad llm.max-tracks-per-job "
+            + "kończy się 400 ENRICH_TOO_MANY_TRACKS — sprawdź wcześniej /api/enrich/estimate.")
     public Map<String, Long> startEnrichment(@Valid @RequestBody EnrichRequest request) {
 
         long executionId = enrichmentService.start(
             request.scope(), request.fields(), request.spotifyIdsOrEmpty());
         return Map.of("executionId", executionId);
+    }
+
+    @PostMapping("/estimate")
+    @Operation(summary = "Ile utworów obejmie zlecenie i ile będzie kosztowało",
+        description = "Nie uruchamia niczego (D28). Koszt liczony tylko dla grupy AI — metadane "
+            + "i cechy audio jadą z darmowych źródeł (D6). Pusty koszt oznacza brak stawek "
+            + "w konfiguracji (llm.cost.input-per-1m / llm.cost.output-per-1m), nie zero.")
+    public EnrichmentEstimateResponse estimate(@Valid @RequestBody EnrichRequest request) {
+
+        EnrichmentEstimate estimate = enrichmentService.estimate(
+            request.scope(), request.fields(), request.spotifyIdsOrEmpty());
+        return new EnrichmentEstimateResponse(
+            estimate.trackCount(), estimate.aiTracks(), estimate.estimatedCost(),
+            estimate.limit(), estimate.withinLimit());
     }
 
     @GetMapping("/jobs")

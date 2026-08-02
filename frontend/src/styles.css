@@ -955,3 +955,15 @@ tbody tr.selected {
 .chart-bar { fill: var(--accent-2); opacity: 0.85; }
 .chart-bar:hover { opacity: 1; }
 .chart-tick { fill: var(--muted); font: 9px var(--font-mono); }
+
+/* --- szacunek zlecenia (M5.1) --- */
+
+.estimate {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--border);
+  border-radius: var(--module-sm);
+  font-size: 13px;
+}
+.estimate strong { font-family: var(--font-mono); color: var(--accent-2); }

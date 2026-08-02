@@ -64,6 +64,39 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
         long getAi();
     }
 
+    /**
+     * Ile utworów obejmie zlecenie o zakresie MISSING dla wybranych grup pól —
+     * potrzebne do szacunku kosztu przed startem joba (D28). Warunki łączy OR,
+     * bo job bierze utwór, któremu brakuje czegokolwiek z zaznaczonych grup.
+     */
+    @Query(value = """
+        select count(*) from track_catalog
+         where (cast(:metadata as boolean)
+                and (isrc is null or year is null or duration_ms is null))
+            or (cast(:audio as boolean)
+                and (bpm is null or musical_key is null
+                     or danceability is null or tempo_class is null))
+            or (cast(:ai as boolean)
+                and (style is null or genre_family is null or lyrics_theme is null
+                     or description_pl is null or energy is null))
+        """, nativeQuery = true)
+    long countMissingForFields(@Param("metadata") boolean metadata,
+                               @Param("audio") boolean audio,
+                               @Param("ai") boolean ai);
+
+    /**
+     * Utwory opisane innym modelem albo inną wersją promptu niż bieżąca
+     * konfiguracja (D28). Utwór nigdy nieopisany tu nie wchodzi — należy
+     * do zakresu MISSING.
+     */
+    @Query(value = """
+        select count(*) from track_catalog
+         where enriched_at is not null
+           and (model_used is distinct from cast(:model as text)
+                or enrich_version is distinct from cast(:version as integer))
+        """, nativeQuery = true)
+    long countOutdated(@Param("model") String model, @Param("version") Integer version);
+
     @Query("select t.spotifyId from TrackCatalog t where t.spotifyId in :spotifyIds")
     Set<String> findExistingIds(@Param("spotifyIds") Collection<String> spotifyIds);
 

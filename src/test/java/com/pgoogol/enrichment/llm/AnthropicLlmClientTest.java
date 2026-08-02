@@ -31,7 +31,7 @@ class AnthropicLlmClientTest {
         // given
         stubFor(post(urlPathEqualTo("/v1/messages")).willReturn(okJson(RESPONSE_JSON)));
         LlmProperties properties = new LlmProperties("anthropic", wireMock.getHttpBaseUrl(),
-            "test-key", "test-model", "v1", 5, 100, 1024, 0.1);
+            "test-key", "test-model", "v1", 5, 100, 1024, 0.1, 500, null);
         LlmClient client = new AnthropicLlmClient(WireMockRestClients.builder(), properties);
 
         // when
