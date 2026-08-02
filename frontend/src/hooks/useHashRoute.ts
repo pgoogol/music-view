@@ -4,13 +4,14 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 
-export const ROUTES = ['library', 'playlists', 'sets', 'import', 'enrich'] as const
+export const ROUTES = ['overview', 'library', 'playlists', 'sets', 'import', 'enrich'] as const
 
 export type RouteName = (typeof ROUTES)[number]
 
 export const DEFAULT_ROUTE: RouteName = 'library'
 
 export const ROUTE_LABELS: Record<RouteName, string> = {
+  overview: 'Przegląd',
   library: 'Biblioteka',
   playlists: 'Playlisty',
   sets: 'Sety',

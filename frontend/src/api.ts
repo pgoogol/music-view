@@ -148,6 +148,30 @@ export interface SpotifyAccountResponse {
   connectedAt: string | null
 }
 
+/** Jeden słupek rozkładu w przeglądzie biblioteki (M4.3). */
+export interface BucketResponse {
+  label: string
+  count: number
+}
+
+export interface LibraryOverviewResponse {
+  catalogTracks: number
+  libraryTracks: number
+  tracksWithMetrics: number
+  metadataMissing: number
+  audioMissing: number
+  aiMissing: number
+  genres: BucketResponse[]
+  tempoClasses: BucketResponse[]
+  energies: BucketResponse[]
+  /** Ile biblioteki stoi na faktach, a ile na estymacie LLM (kryterium D19). */
+  bpmSources: BucketResponse[]
+  ratings: BucketResponse[]
+  bpmHistogram: BucketResponse[]
+  topArtists: BucketResponse[]
+  monthlyGrowth: BucketResponse[]
+}
+
 /** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
 export interface SetProposalRequest {
   targetMinutes: number
@@ -286,6 +310,10 @@ export const api = {
       }
     })
     return request(`/api/catalog/tracks?${query}`)
+  },
+
+  libraryOverview(): Promise<LibraryOverviewResponse> {
+    return request('/api/library/overview')
   },
 
   proposeSet(body: SetProposalRequest): Promise<SetProposalResponse> {

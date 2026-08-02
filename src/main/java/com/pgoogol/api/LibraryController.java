@@ -45,6 +45,16 @@ public class LibraryController {
         return PageResponse.of(libraryService.list(pageRequest), mapper::toResponse);
     }
 
+    @GetMapping("/overview")
+    @Operation(summary = "Przegląd biblioteki — rozkłady i pokrycie",
+        description = "Rozkłady gatunków, tempa, energii, źródeł BPM i ocen, histogram BPM, "
+            + "najczęstsi wykonawcy oraz przyrost biblioteki po miesiącach. Wszystko liczone "
+            + "w bazie jednym wywołaniem (D27). Udział bpm_source mówi, ile biblioteki stoi "
+            + "na faktach, a ile na estymacie LLM — wskaźnik z kryterium D19.")
+    public LibraryOverviewResponse getOverview() {
+        return mapper.toResponse(libraryService.overview());
+    }
+
     @GetMapping("/tags")
     @Operation(summary = "Custom tagi użyte w bibliotece",
         description = "Posortowany słownik tagów DJ-a — podpowiedzi filtra wyszukiwarki (M3.2).")

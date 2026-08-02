@@ -28,20 +28,41 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
     @Query("select t from TrackCatalog t where " + METADATA_MISSING)
     List<TrackCatalog> findMetadataMissing();
 
-    @Query("select count(t) from TrackCatalog t where " + METADATA_MISSING)
-    long countMetadataMissing();
-
     @Query("select t from TrackCatalog t where " + AUDIO_MISSING)
     List<TrackCatalog> findAudioMissing();
-
-    @Query("select count(t) from TrackCatalog t where " + AUDIO_MISSING)
-    long countAudioMissing();
 
     @Query("select t from TrackCatalog t where " + AI_MISSING)
     List<TrackCatalog> findAiMissing();
 
-    @Query("select count(t) from TrackCatalog t where " + AI_MISSING)
-    long countAiMissing();
+    /**
+     * Braki we wszystkich trzech grupach pól (D11/D17) jednym przejściem po tabeli
+     * (D27) — wcześniej były to trzy osobne {@code count}-y odpalane przy każdym
+     * wejściu na zakładkę Wzbogacanie.
+     */
+    @Query(value = """
+        select
+          count(*) filter (where isrc is null or year is null or duration_ms is null)
+            as metadata,
+          count(*) filter (where bpm is null or musical_key is null
+                              or danceability is null or tempo_class is null)
+            as audio,
+          count(*) filter (where style is null or genre_family is null
+                              or lyrics_theme is null or description_pl is null
+                              or energy is null)
+            as ai
+        from track_catalog
+        """, nativeQuery = true)
+    MissingCounts countMissingByGroup();
+
+    /** Projekcja pod {@link #countMissingByGroup()} — trzy liczby, jeden wiersz. */
+    interface MissingCounts {
+
+        long getMetadata();
+
+        long getAudio();
+
+        long getAi();
+    }
 
     @Query("select t.spotifyId from TrackCatalog t where t.spotifyId in :spotifyIds")
     Set<String> findExistingIds(@Param("spotifyIds") Collection<String> spotifyIds);

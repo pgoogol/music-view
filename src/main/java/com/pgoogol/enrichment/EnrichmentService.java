@@ -96,10 +96,9 @@ public class EnrichmentService {
 
     public MissingFieldsCount missingCount() {
 
-        return new MissingFieldsCount(
-            trackCatalogRepository.countMetadataMissing(),
-            trackCatalogRepository.countAudioMissing(),
-            trackCatalogRepository.countAiMissing());
+        TrackCatalogRepository.MissingCounts counts =
+            trackCatalogRepository.countMissingByGroup();
+        return new MissingFieldsCount(counts.getMetadata(), counts.getAudio(), counts.getAi());
     }
 
     private JobExecution launch(JobParameters parameters) {

@@ -29,17 +29,33 @@ public class LibraryService {
 
     private final LibraryEntryRepository libraryEntryRepository;
     private final TrackCatalogRepository trackCatalogRepository;
+    private final LibraryOverviewRepository libraryOverviewRepository;
 
     public LibraryService(LibraryEntryRepository libraryEntryRepository,
-                          TrackCatalogRepository trackCatalogRepository) {
+                          TrackCatalogRepository trackCatalogRepository,
+                          LibraryOverviewRepository libraryOverviewRepository) {
 
         this.libraryEntryRepository = libraryEntryRepository;
         this.trackCatalogRepository = trackCatalogRepository;
+        this.libraryOverviewRepository = libraryOverviewRepository;
     }
 
     @Transactional(readOnly = true)
     public Page<LibraryEntry> list(Pageable pageable) {
         return libraryEntryRepository.findPageWithTrack(pageable);
+    }
+
+    /**
+     * Przegląd biblioteki (M4.3) — wszystkie rozkłady liczy baza (D27). Braki
+     * per grupa pól bierzemy z tego samego zapytania co zakładka Wzbogacanie,
+     * żeby obie liczby nigdy się nie rozjechały.
+     */
+    @Transactional(readOnly = true)
+    public LibraryOverview overview() {
+
+        TrackCatalogRepository.MissingCounts missing = trackCatalogRepository.countMissingByGroup();
+        return libraryOverviewRepository.load(
+            missing.getMetadata(), missing.getAudio(), missing.getAi());
     }
 
     @Transactional(readOnly = true)
