@@ -127,4 +127,75 @@
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <!--
+      Jeden artefakt uruchomieniowy (M5.3/D30): front budowany Vite i pakowany
+      do jara pod /static, skąd serwuje go Spring Boot. Profil jest JAWNY —
+      domyślne `./mvnw verify` ma zostać szybkie i działać bez Node.
+      Fallback SPA nie jest potrzebny: stan widoku siedzi w hashu (D22), więc
+      przeglądarka nigdy nie prosi serwera o /library.
+      Wymaga `npm` w PATH (na Windowsie: npm.cmd).
+    -->
+    <profile>
+      <id>fullstack</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.5.1</version>
+            <configuration>
+              <workingDirectory>${project.basedir}/frontend</workingDirectory>
+            </configuration>
+            <executions>
+              <execution>
+                <id>frontend-install</id>
+                <phase>generate-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>npm</executable>
+                  <arguments>
+                    <argument>ci</argument>
+                    <argument>--no-audit</argument>
+                    <argument>--no-fund</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+              <execution>
+                <id>frontend-build</id>
+                <phase>generate-resources</phase>
+                <goals><goal>exec</goal></goals>
+                <configuration>
+                  <executable>npm</executable>
+                  <arguments>
+                    <argument>run</argument>
+                    <argument>build</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-resources-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>copy-frontend-dist</id>
+                <phase>process-resources</phase>
+                <goals><goal>copy-resources</goal></goals>
+                <configuration>
+                  <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                  <resources>
+                    <resource>
+                      <directory>${project.basedir}/frontend/dist</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

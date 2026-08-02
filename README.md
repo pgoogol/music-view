@@ -113,22 +113,30 @@ Camelot, danceability i energia — zmierzona energia ma pierwszeństwo przed es
 LLM-a, reszta wzbogacania AI działa bez zmian. Format pliku i lista kolumn:
 [docs/METRYKI_CSV.md](docs/METRYKI_CSV.md).
 
+## Etapy 4–5 (zrealizowane)
+
+**M4.1 (zgodność harmoniczna)** — Camelot liczony z `musical_key` (nie kolumna, jak `dj_slot`),
+filtry `camelot`/`camelotCompatible` w wyszukiwarce, filtry `valence`/`instrumentalness`/
+`liveness` z `manual_metrics` (+ `GET /api/catalog/metrics-coverage`), ostrzeżenia
+`KEY_CLASH`/`LOUDNESS_JUMP`/`ODD_METER` w planerze setu. **M4.2 (generator setu)** —
+`POST /api/sets/propose` układa wieczór na zadany czas i **niczego nie zapisuje**; krzywa
+25/30/30/15%, twarde ograniczenia (utwór raz, wykonawca raz na 30 min) i miękkie kary
+(skok BPM, harmonia, ocena), `seed` dla powtarzalności. **M4.3 (przegląd biblioteki)** —
+zakładka „Przegląd": `GET /api/library/overview` jednym wywołaniem, rozkłady gatunków,
+tempa, energii i **źródeł BPM**, histogram BPM i przyrost po miesiącach w SVG.
+
+**M5.1 (estymaty i koszty)** — `EnrichmentScope.OUTDATED` (utwory opisane starszym
+modelem/promptem, wyłącznie grupa AI), `POST /api/enrich/estimate` z kosztem przed startem
+(stawki w `llm.cost.*`), twardy limit `llm.max-tracks-per-job`, historia jobów jednym
+zapytaniem. **M5.2 (współbieżność)** — `@Version` na `library_entry` i `playlist` (V6),
+wersja w DTO, `409 RESOURCE_MODIFIED`, front po konflikcie przeładowuje rekord bez kasowania
+tego, co DJ wpisał. **M5.3 (jeden artefakt)** — `./mvnw -Pfullstack package` pakuje front
+do jara, `Dockerfile` i usługa `app` w docker-compose (`--profile full`), test E2E
+w Playwright na spakowanym jarze.
+
 ## Dalsze plany
 
-Rozpisane w [docs/PLAN.md](docs/PLAN.md), rozstrzygnięcia w
-[docs/DECYZJE.md](docs/DECYZJE.md) (D25–D30) — decyzje zapadły przed implementacją,
-więc kamienie da się brać w dowolnej kolejności.
-
-**Etap 4 — Warsztat DJ-a** (podpowiadanie, co z czym zagrać; wszystko na danych,
-które już są w bazie): **M4.1** zgodność harmoniczna (Camelot liczony z `musical_key`,
-filtry harmoniczne, ostrzeżenia tonacji i głośności w secie) plus filtry
-`valence`/`instrumentalness`/`liveness` z `manual_metrics`; **M4.2** generator setu
-na zadany czas — propozycja do ręcznej korekty, nie zapis; **M4.3** zakładka
-„Przegląd" z rozkładami gatunków, BPM, energii i udziałem źródeł BPM.
-
-**Etap 5 — Dojrzałość narzędzia** (kamienie niezależne od Etapu 4): **M5.1**
-przeliczanie estymat po zmianie modelu/promptu (`EnrichmentScope.OUTDATED`) razem
-z szacunkiem kosztu przed startem joba i twardym limitem utworów; **M5.2** blokada
-optymistyczna na danych DJ-a (dwie karty przeglądarki przestają nadpisywać sobie
-notatki); **M5.3** jeden artefakt uruchomieniowy (front w jarze, `Dockerfile`,
-aplikacja w docker-compose) i test E2E pełnego przepływu w Playwright.
+Otwarte pozostaje kryterium D19 (`AudioAnalyzer` — decyzję odblokowuje realny przebieg
+walidacyjny na prawdziwej bibliotece) oraz pomysły spoza Etapów 4–5: historia grania,
+wykrywanie duplikatów wydań, eksport setu poza Spotify (M3U/PDF) i import kolekcji
+z Rekordboksa jako lepsze źródło cech audio niż ręczny CSV (D24).

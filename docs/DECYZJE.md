@@ -1,9 +1,8 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status decyzji **D1–D24: przyjęte** (2026-07-03 i później, wraz z kolejnymi kamieniami).
-Status decyzji **D25–D30: zaplanowane** (2026-08-01) — rozstrzygnięcia podjęte *przed*
-implementacją Etapów 4–5, żeby kamienie dało się wziąć w dowolnej kolejności bez
-projektowania od zera; wchodzą w życie wraz z kamieniem, który je realizuje.
+Status wszystkich decyzji **D1–D30: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
+bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
 Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D30;
 odwołania §x wskazują sekcje konceptu.
 
@@ -561,6 +560,15 @@ Pięć zakładek z M3.2 jest operacyjnych; nie ma ekranu odpowiadającego na pyt
   zewnętrznymi na WireMocku (`WireMockRestClients` istnieje od M1.3). Test przepływu nie może
   zależeć od dostępności Spotify ani od klucza LLM — inaczej czerwone CI przestaje cokolwiek
   znaczyć. Osobny job w CI, żeby podstawowy build nie urósł.
-- **Zakres E2E to jeden przepływ z DoD Etapu 3** (import → przegląd → wzbogacenie → set →
-  eksport), a nie siatka przypadków. Od testu E2E chcemy sygnału „całość się rozpięła";
+- **Zakres E2E to jeden przepływ, a nie siatka przypadków**: import CSV → przegląd →
+  biblioteka i utwór (z zapisem danych DJ-a, czyli wersjonowaniem z D29) → wzbogacenie AI
+  na stubie → set → generator propozycji. Od testu E2E chcemy sygnału „całość się rozpięła";
   szczegóły należą do testów jednostkowych i integracyjnych, które są tańsze i celniejsze.
+- **Eksport na Spotify świadomie zostaje poza E2E.** Wymagałby albo przeprowadzenia OAuth
+  przez ekran zgody Spotify (którego nie kontrolujemy), albo wpisania tokenów wprost do bazy
+  — czyli obejścia tego, co miałby sprawdzać. Ta ścieżka ma własny test integracyjny na
+  WireMocku (`PlaylistExportIntegrationTest`); dublowanie jej w E2E kupiłoby ryzyko
+  fałszywych alarmów bez nowego sygnału.
+- **Stub źródeł zewnętrznych to kilkadziesiąt linii Node'a, nie WireMock.** WireMock obsługuje
+  testy integracyjne backendu i zostaje tam, gdzie jest; stawianie drugiego procesu JVM obok
+  aplikacji tylko po to, żeby oddać jedną odpowiedź LLM-a, byłoby kosztem bez zysku.

@@ -407,7 +407,7 @@ jako jedyny chroni portfel.
 |---|---|---|---|
 | **M5.1** Przeliczanie estymat i koszty | `EnrichmentScope.OUTDATED`, szacunek kosztu przed startem joba, twardy limit utworów, historia jobów jednym zapytaniem (D28) | M1.6 | 📋 |
 | **M5.2** Spójność zapisu współbieżnego | `@Version` na `library_entry` i `playlist`, `409 RESOURCE_MODIFIED`, obsługa konfliktu we froncie (D29) | M1.7 | ✅ |
-| **M5.3** Jeden artefakt + testy E2E | Front pakowany do jara, `Dockerfile`, aplikacja w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | 📋 |
+| **M5.3** Jeden artefakt + testy E2E | Front pakowany do jara, `Dockerfile`, aplikacja w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | ✅ |
 
 ## M5.1 Przeliczanie estymat i bezpiecznik kosztowy *(po M1.6)*
 
@@ -469,14 +469,16 @@ automatycznie, nie ręcznie.
 - OAuth Spotify łączymy raz z laptopa po loopbacku (`SPOTIFY_REDIRECT_URI` musi zgadzać się
   z dashboardem znak w znak); telefon w LAN korzysta z konta już połączonego — Spotify
   nie przyjmie adresu lokalnego po HTTP jako redirect URI (D30)
-- Playwright: pełny przepływ (import → przegląd → wzbogacenie → set → eksport) przeciw
-  **spakowanemu jarowi**, z Postgresem z docker-compose i klientami zewnętrznymi na
-  WireMocku (`WireMockRestClients` istnieje od M1.3); osobny job w CI, żeby podstawowy
+- Playwright: przepływ (import CSV → przegląd → biblioteka i utwór → wzbogacenie AI →
+  set → generator) przeciw **spakowanemu jarowi**, z Postgresem z docker-compose i źródłami
+  zewnętrznymi na lokalnym stubie (`e2e/stub-server.mjs`); osobny job w CI, żeby podstawowy
   build nie urósł
+- **Eksport na Spotify zostaje poza E2E** (D30): wymagałby przeprowadzenia OAuth przez ekran
+  zgody albo wpisania tokenów wprost do bazy, a ma własny test integracyjny na WireMocku
 
-**DoD:** `docker compose --profile full up -d` daje działającą aplikację pod jednym adresem
-na czysto sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok
-przepływu przestaje działać.
+**DoD:** `docker compose --profile full up -d --build` daje działającą aplikację pod jednym
+adresem na czysto sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek
+krok przepływu przestaje działać.
 
 ---
 

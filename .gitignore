@@ -28,3 +28,8 @@ audio_features.csv
 # Frontend (od M1.8)
 frontend/node_modules/
 frontend/dist/
+
+# Testy E2E (M5.3)
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/

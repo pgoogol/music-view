@@ -16,5 +16,34 @@ services:
       timeout: 3s
       retries: 10
 
+  # Cała aplikacja pod jednym adresem (M5.3/D30). `docker compose up -d` nadal
+  # wstawia samą bazę — tak wygląda praca nad kodem; pełny zestaw uruchamia
+  # `docker compose --profile full up -d --build`.
+  #
+  # UWAGA (D30): Spotify wymaga zgodności redirect URI znak w znak i nie przyjmie
+  # adresu w sieci lokalnej po HTTP, więc konto łączymy raz z laptopa po loopbacku.
+  # Telefon w LAN korzysta z konta już połączonego — tokeny żyją server-side (D20).
+  app:
+    profiles: ["full"]
+    build: .
+    container_name: music-view-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/musicview
+      SPRING_DATASOURCE_USERNAME: musicview
+      SPRING_DATASOURCE_PASSWORD: musicview
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:8080/api/auth/spotify/callback}
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      MB_USER_AGENT: ${MB_USER_AGENT:-}
+    ports:
+      - "8080:8080"
+
 volumes:
   postgres-data:
