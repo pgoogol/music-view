@@ -10,6 +10,8 @@ public record PlaylistSummaryResponse(
     String name,
     String spotifyPlaylistId,
     Instant createdAt,
-    long trackCount) {
+    long trackCount,
+    /** Wersja do blokady optymistycznej (D29) — odeślij ją przy zmianie. */
+    int version) {
 
 }

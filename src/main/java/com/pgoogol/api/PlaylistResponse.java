@@ -14,6 +14,8 @@ public record PlaylistResponse(
     String name,
     String spotifyPlaylistId,
     Instant createdAt,
+    /** Wersja do blokady optymistycznej (D29) — odeślij ją przy zmianie kolejności. */
+    int version,
     List<PlaylistTrackResponse> tracks) {
 
     /**

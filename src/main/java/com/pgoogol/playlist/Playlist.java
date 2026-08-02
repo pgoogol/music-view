@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -21,6 +22,14 @@ public class Playlist {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * Blokada optymistyczna na agregacie (D29): zmiana składu albo kolejności
+     * setu podbija tę wersję, choć zmieniają się wiersze {@code playlist_track}.
+     */
+    @Version
+    @Column(nullable = false)
+    private int version;
 
     @Column(nullable = false)
     private String name;
@@ -39,6 +48,10 @@ public class Playlist {
 
         this.name = Objects.requireNonNull(name, "name");
         this.createdAt = Instant.now();
+    }
+
+    public int getVersion() {
+        return version;
     }
 
     public Long getId() {

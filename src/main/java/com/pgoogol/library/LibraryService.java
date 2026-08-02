@@ -94,6 +94,7 @@ public class LibraryService {
 
         Objects.requireNonNull(update, "update");
         LibraryEntry entry = requireEntry(spotifyId);
+        requireCurrentVersion(entry, update.expectedVersion());
         if (Objects.nonNull(update.djNotes())) {
             entry.setDjNotes(update.djNotes().isBlank() ? null : update.djNotes());
         }
@@ -123,6 +124,21 @@ public class LibraryService {
         return libraryEntryRepository.findWithTrackByTrackSpotifyId(spotifyId)
             .orElseThrow(() -> new NotFoundException("LIBRARY_ENTRY_NOT_FOUND",
                 "Utworu '%s' nie ma w bibliotece".formatted(spotifyId)));
+    }
+
+    /**
+     * Nieświeży klient (D29): wersja z żądania nie zgadza się z tą w bazie, więc
+     * PATCH pisałby po zmianie, której nadawca nie widział. Wyścig równoległych
+     * transakcji łapie osobno {@code @Version} na encji.
+     */
+    private void requireCurrentVersion(LibraryEntry entry, int expectedVersion) {
+
+        if (entry.getVersion() != expectedVersion) {
+            throw new ConflictException("RESOURCE_MODIFIED",
+                ("Wpis zmienił się w innym miejscu (wersja %d, przysłano %d) — "
+                    + "odśwież i spróbuj ponownie")
+                    .formatted(entry.getVersion(), expectedVersion));
+        }
     }
 
     private Integer normalizedRating(int rating) {

@@ -46,6 +46,8 @@ export interface LibraryEntryResponse {
   customTags: string[] | null
   rating: number | null
   djSlotOverride: string | null
+  /** Wersja do blokady optymistycznej (D29) — odsyłamy ją przy PATCH-u. */
+  version: number
   track: TrackResponse
 }
 
@@ -110,6 +112,7 @@ export interface PlaylistSummaryResponse {
   spotifyPlaylistId: string | null
   createdAt: string
   trackCount: number
+  version: number
 }
 
 export interface PlaylistTrackResponse {
@@ -127,6 +130,8 @@ export interface PlaylistResponse {
   name: string
   spotifyPlaylistId: string | null
   createdAt: string
+  /** Wersja agregatu (D29) — odsyłamy ją przy zmianie kolejności i nazwy. */
+  version: number
   tracks: PlaylistTrackResponse[]
 }
 
@@ -274,6 +279,8 @@ export interface UpdateLibraryEntryRequest {
   customTags?: string[] | null
   rating?: number | null
   djSlotOverride?: string | null
+  /** Wymagana (D29) — bez niej backend odrzuca PATCH. */
+  version: number
 }
 
 export class ApiError extends Error {
@@ -396,8 +403,8 @@ export const api = {
     return request('/api/playlists', jsonInit('POST', { name }))
   },
 
-  renamePlaylist(id: number, name: string): Promise<PlaylistSummaryResponse> {
-    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name }))
+  renamePlaylist(id: number, name: string, version: number): Promise<PlaylistSummaryResponse> {
+    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name, version }))
   },
 
   deletePlaylist(id: number): Promise<void> {
@@ -414,8 +421,8 @@ export const api = {
     })
   },
 
-  reorderPlaylist(id: number, spotifyIds: string[]): Promise<PlaylistResponse> {
-    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds }))
+  reorderPlaylist(id: number, spotifyIds: string[], version: number): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds, version }))
   },
 
   exportPlaylist(id: number): Promise<PlaylistExportResponse> {

@@ -13,10 +13,10 @@ public interface PlaylistRepository extends JpaRepository<Playlist, Long> {
     /** Lista playlist z liczbą utworów — jednym zapytaniem, bez dociągania utworów. */
     @Query("""
         select new com.pgoogol.playlist.PlaylistSummary(
-            p.id, p.name, p.spotifyPlaylistId, p.createdAt, count(pt.id))
+            p.id, p.name, p.spotifyPlaylistId, p.createdAt, count(pt.id), p.version)
         from Playlist p
         left join PlaylistTrack pt on pt.playlist = p
-        group by p.id, p.name, p.spotifyPlaylistId, p.createdAt
+        group by p.id, p.name, p.spotifyPlaylistId, p.createdAt, p.version
         order by p.createdAt desc
         """)
     List<PlaylistSummary> findAllSummaries();

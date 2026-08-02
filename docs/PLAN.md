@@ -406,7 +406,7 @@ jako jedyny chroni portfel.
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
 | **M5.1** Przeliczanie estymat i koszty | `EnrichmentScope.OUTDATED`, szacunek kosztu przed startem joba, twardy limit utworów, historia jobów jednym zapytaniem (D28) | M1.6 | 📋 |
-| **M5.2** Spójność zapisu współbieżnego | `@Version` na `library_entry` i `playlist`, `409 RESOURCE_MODIFIED`, obsługa konfliktu we froncie (D29) | M1.7 | 📋 |
+| **M5.2** Spójność zapisu współbieżnego | `@Version` na `library_entry` i `playlist`, `409 RESOURCE_MODIFIED`, obsługa konfliktu we froncie (D29) | M1.7 | ✅ |
 | **M5.3** Jeden artefakt + testy E2E | Front pakowany do jara, `Dockerfile`, aplikacja w docker-compose, Playwright na pełnym przepływie (D30) | Etap 4 | 📋 |
 
 ## M5.1 Przeliczanie estymat i bezpiecznik kosztowy *(po M1.6)*

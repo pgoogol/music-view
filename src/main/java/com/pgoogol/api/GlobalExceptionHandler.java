@@ -6,6 +6,7 @@ import com.pgoogol.common.NotFoundException;
 import com.pgoogol.common.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -61,6 +62,20 @@ public class GlobalExceptionHandler {
 
         log.warn("Conflict: {} — {}", ex.getErrorCode(), ex.getMessage());
         return ErrorResponse.of(ex.getErrorCode(), ex.getMessage());
+    }
+
+    /**
+     * Konflikt wykryty przez JPA (D29) — dwa żądania weszły równolegle i drugie
+     * pisałoby po świeżo zmienionym wierszu. Nieświeżego klienta łapiemy wcześniej,
+     * porównując wersję z żądania; tutaj zostaje wyścig transakcji.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleOptimisticLock(OptimisticLockingFailureException ex) {
+
+        log.info("Konflikt zapisu (blokada optymistyczna): {}", ex.getMessage());
+        return ErrorResponse.of("RESOURCE_MODIFIED",
+            "Wpis zmienił się w innym miejscu — odśwież i spróbuj ponownie");
     }
 
     @ExceptionHandler(NotFoundException.class)

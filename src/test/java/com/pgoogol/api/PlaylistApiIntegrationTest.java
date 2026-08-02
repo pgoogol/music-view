@@ -152,7 +152,7 @@ class PlaylistApiIntegrationTest {
             trackCatalogRepository.findById("sp-warmup").orElseThrow(), LibrarySource.FILE));
         mockMvc.perform(patch("/api/library/tracks/sp-warmup")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"djSlotOverride\": \"closing\"}"))
+                .content("{\"djSlotOverride\": \"closing\", \"version\": 0}"))
             .andExpect(status().isOk());
 
         // when + then — override zapisany kanonicznie i wygrywa z wyliczeniem
@@ -171,7 +171,7 @@ class PlaylistApiIntegrationTest {
         // when + then
         mockMvc.perform(patch("/api/library/tracks/sp-peak")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"djSlotOverride\": \"po_polnocy\"}"))
+                .content("{\"djSlotOverride\": \"po_polnocy\", \"version\": 0}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("DJ_SLOT_INVALID"));
     }
@@ -199,7 +199,8 @@ class PlaylistApiIntegrationTest {
         // when + then
         mockMvc.perform(put("/api/playlists/%d/tracks".formatted(playlistId))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"spotifyIds\": [\"sp-peak\", \"sp-warmup\"]}"))
+                .content("{\"spotifyIds\": [\"sp-peak\", \"sp-warmup\"], \"version\": %d}"
+                    .formatted(currentVersion(playlistId))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.tracks[0].track.spotifyId").value("sp-peak"))
             .andExpect(jsonPath("$.tracks[0].position").value(0))
@@ -217,7 +218,8 @@ class PlaylistApiIntegrationTest {
         // when + then
         mockMvc.perform(put("/api/playlists/%d/tracks".formatted(playlistId))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"spotifyIds\": [\"sp-peak\"]}"))
+                .content("{\"spotifyIds\": [\"sp-peak\"], \"version\": %d}"
+                    .formatted(currentVersion(playlistId))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("PLAYLIST_ORDER_MISMATCH"));
         assertThat(playlistTrackRepository.countByPlaylistId(playlistId)).isEqualTo(2);
@@ -254,7 +256,9 @@ class PlaylistApiIntegrationTest {
 
         // when + then
         mockMvc.perform(patch("/api/playlists/" + playlistId)
-                .contentType(MediaType.APPLICATION_JSON).content("{\"name\": \"Wesele\"}"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\": \"Wesele\", \"version\": %d}"
+                    .formatted(currentVersion(playlistId))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("Wesele"))
             .andExpect(jsonPath("$.trackCount").value(1));
@@ -285,6 +289,15 @@ class PlaylistApiIntegrationTest {
             .andReturn().getResponse().getContentAsString();
         JsonNode created = objectMapper.readTree(body);
         return created.get("id").asLong();
+    }
+
+    /** Wersja agregatu (D29) rośnie z każdą zmianą składu — czytamy ją, nie zgadujemy. */
+    private int currentVersion(long playlistId) throws Exception {
+
+        String body = mockMvc.perform(get("/api/playlists/" + playlistId))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        return objectMapper.readTree(body).get("version").asInt();
     }
 
     private void addTrack(long playlistId, String spotifyId) throws Exception {

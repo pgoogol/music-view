@@ -59,6 +59,7 @@ public class LibraryApiMapper {
             entry.getCustomTags(),
             entry.getRating(),
             entry.getDjSlotOverride(),
+            entry.getVersion(),
             catalogApiMapper.toResponse(entry.getTrack()));
     }
 
@@ -68,7 +69,8 @@ public class LibraryApiMapper {
             request.djNotes(),
             request.customTags(),
             request.rating(),
-            canonicalSlotOverride(request.djSlotOverride()));
+            canonicalSlotOverride(request.djSlotOverride()),
+            request.version());
     }
 
     /** Override slotu musi być jedną z wartości {@link DjSlot}; pusty = wyczyszczenie. */

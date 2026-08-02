@@ -79,9 +79,11 @@ public class LibraryController {
 
     @PatchMapping("/tracks/{spotifyId}")
     @Operation(summary = "Aktualizacja danych prywatnych DJ-a",
-        description = "null = bez zmian; pusty string / pusta lista / rating 0 = wyczyszczenie pola.")
+        description = "null = bez zmian; pusty string / pusta lista / rating 0 = wyczyszczenie "
+            + "pola. Pole version jest wymagane (D29) — niezgodna wersja kończy się 409 "
+            + "RESOURCE_MODIFIED, żeby cudza notatka nie zniknęła po cichu.")
     public LibraryEntryResponse updateTrack(@PathVariable String spotifyId,
-                                            @RequestBody UpdateLibraryEntryRequest request) {
+                                            @Valid @RequestBody UpdateLibraryEntryRequest request) {
 
         return mapper.toResponse(libraryService.update(spotifyId, mapper.toUpdate(request)));
     }

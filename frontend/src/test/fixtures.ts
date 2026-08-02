@@ -70,6 +70,7 @@ export function aPlaylistSummary(
     spotifyPlaylistId: null,
     createdAt: '2026-07-01T18:00:00Z',
     trackCount: 2,
+    version: 0,
     ...overrides,
   }
 }
@@ -84,6 +85,7 @@ export function aPlaylist(
     name: 'Sabor Latino — piątek',
     spotifyPlaylistId: null,
     createdAt: '2026-07-01T18:00:00Z',
+    version: 0,
     tracks,
     ...overrides,
   }

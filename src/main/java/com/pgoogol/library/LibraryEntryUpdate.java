@@ -13,6 +13,7 @@ public record LibraryEntryUpdate(
     @Nullable String djNotes,
     @Nullable List<String> customTags,
     @Nullable Integer rating,
-    @Nullable String djSlotOverride) {
+    @Nullable String djSlotOverride,
+    int expectedVersion) {
 
 }

@@ -125,7 +125,8 @@ class LibraryApiIntegrationTest {
         mockMvc.perform(patch("/api/library/tracks/sp-vivir")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"djNotes": "pewniak na parkiet", "customTags": ["wesele", "opener"], "rating": 5}
+                    {"djNotes": "pewniak na parkiet", "customTags": ["wesele", "opener"],
+                     "rating": 5, "version": 0}
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.djNotes").value("pewniak na parkiet"))
@@ -135,7 +136,7 @@ class LibraryApiIntegrationTest {
         // czyszczenie notatki pustym stringiem; rating i tagi bez zmian (null)
         mockMvc.perform(patch("/api/library/tracks/sp-vivir")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"djNotes\": \"\"}"))
+                .content("{\"djNotes\": \"\", \"version\": 1}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.djNotes").doesNotExist())
             .andExpect(jsonPath("$.rating").value(5));
@@ -149,7 +150,7 @@ class LibraryApiIntegrationTest {
             .andExpect(status().isCreated());
         mockMvc.perform(patch("/api/library/tracks/sp-vivir")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"customTags\": [\"wesele\", \"opener\", \"wesele\"]}"))
+                .content("{\"customTags\": [\"wesele\", \"opener\", \"wesele\"], \"version\": 0}"))
             .andExpect(status().isOk());
 
         mockMvc.perform(get("/api/library/tags"))
@@ -176,7 +177,7 @@ class LibraryApiIntegrationTest {
 
         mockMvc.perform(patch("/api/library/tracks/sp-vivir")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"rating\": 7}"))
+                .content("{\"rating\": 7, \"version\": 0}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("RATING_OUT_OF_RANGE"));
     }
@@ -186,7 +187,7 @@ class LibraryApiIntegrationTest {
 
         mockMvc.perform(patch("/api/library/tracks/sp-nieistnieje")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"rating\": 3}"))
+                .content("{\"rating\": 3, \"version\": 0}"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.errorCode").value("LIBRARY_ENTRY_NOT_FOUND"));
     }
