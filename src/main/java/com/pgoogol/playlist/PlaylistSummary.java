@@ -10,6 +10,7 @@ public record PlaylistSummary(
     String name,
     String spotifyPlaylistId,
     Instant createdAt,
-    long trackCount) {
+    long trackCount,
+    int version) {
 
 }

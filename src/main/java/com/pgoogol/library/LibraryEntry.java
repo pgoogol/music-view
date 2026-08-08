@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -30,6 +31,11 @@ public class LibraryEntry {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /** Blokada optymistyczna (D29) — dwie karty przeglądarki nie nadpiszą sobie notatek. */
+    @Version
+    @Column(nullable = false)
+    private int version;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "spotify_id", nullable = false)
@@ -63,6 +69,10 @@ public class LibraryEntry {
         this.track = Objects.requireNonNull(track, "track");
         this.source = Objects.requireNonNull(source, "source");
         this.addedAt = Instant.now();
+    }
+
+    public int getVersion() {
+        return version;
     }
 
     public Long getId() {

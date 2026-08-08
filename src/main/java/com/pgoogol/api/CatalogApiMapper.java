@@ -1,5 +1,6 @@
 package com.pgoogol.api;
 
+import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.TrackCatalog;
 import org.springframework.stereotype.Component;
@@ -48,6 +49,7 @@ public class CatalogApiMapper {
             Objects.toString(track.getBpmSource(), null),
             track.getDanceability(),
             track.getMusicalKey(),
+            CamelotKey.ofMusicalKey(track.getMusicalKey()).map(CamelotKey::label).orElse(null),
             Objects.toString(track.getTempoClass(), null),
             track.getEnergy(),
             track.getLyricsTheme(),

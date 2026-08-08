@@ -45,6 +45,16 @@ public class LibraryController {
         return PageResponse.of(libraryService.list(pageRequest), mapper::toResponse);
     }
 
+    @GetMapping("/overview")
+    @Operation(summary = "Przegląd biblioteki — rozkłady i pokrycie",
+        description = "Rozkłady gatunków, tempa, energii, źródeł BPM i ocen, histogram BPM, "
+            + "najczęstsi wykonawcy oraz przyrost biblioteki po miesiącach. Wszystko liczone "
+            + "w bazie jednym wywołaniem (D27). Udział bpm_source mówi, ile biblioteki stoi "
+            + "na faktach, a ile na estymacie LLM — wskaźnik z kryterium D19.")
+    public LibraryOverviewResponse getOverview() {
+        return mapper.toResponse(libraryService.overview());
+    }
+
     @GetMapping("/tags")
     @Operation(summary = "Custom tagi użyte w bibliotece",
         description = "Posortowany słownik tagów DJ-a — podpowiedzi filtra wyszukiwarki (M3.2).")
@@ -69,9 +79,11 @@ public class LibraryController {
 
     @PatchMapping("/tracks/{spotifyId}")
     @Operation(summary = "Aktualizacja danych prywatnych DJ-a",
-        description = "null = bez zmian; pusty string / pusta lista / rating 0 = wyczyszczenie pola.")
+        description = "null = bez zmian; pusty string / pusta lista / rating 0 = wyczyszczenie "
+            + "pola. Pole version jest wymagane (D29) — niezgodna wersja kończy się 409 "
+            + "RESOURCE_MODIFIED, żeby cudza notatka nie zniknęła po cichu.")
     public LibraryEntryResponse updateTrack(@PathVariable String spotifyId,
-                                            @RequestBody UpdateLibraryEntryRequest request) {
+                                            @Valid @RequestBody UpdateLibraryEntryRequest request) {
 
         return mapper.toResponse(libraryService.update(spotifyId, mapper.toUpdate(request)));
     }

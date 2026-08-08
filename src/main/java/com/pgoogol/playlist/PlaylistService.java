@@ -1,5 +1,7 @@
 package com.pgoogol.playlist;
 
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
 import com.pgoogol.common.ConflictException;
@@ -7,8 +9,11 @@ import com.pgoogol.common.NotFoundException;
 import com.pgoogol.common.ValidationException;
 import com.pgoogol.library.LibraryEntryRepository;
 import com.pgoogol.library.TrackSlotOverride;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,19 +42,25 @@ public class PlaylistService {
     private final PlaylistTrackRepository playlistTrackRepository;
     private final TrackCatalogRepository trackCatalogRepository;
     private final LibraryEntryRepository libraryEntryRepository;
+    private final ManualMetricsRepository manualMetricsRepository;
     private final DjSlotCalculator djSlotCalculator;
+    private final EntityManager entityManager;
 
     public PlaylistService(PlaylistRepository playlistRepository,
                            PlaylistTrackRepository playlistTrackRepository,
                            TrackCatalogRepository trackCatalogRepository,
                            LibraryEntryRepository libraryEntryRepository,
-                           DjSlotCalculator djSlotCalculator) {
+                           ManualMetricsRepository manualMetricsRepository,
+                           DjSlotCalculator djSlotCalculator,
+                           EntityManager entityManager) {
 
         this.playlistRepository = playlistRepository;
         this.playlistTrackRepository = playlistTrackRepository;
         this.trackCatalogRepository = trackCatalogRepository;
         this.libraryEntryRepository = libraryEntryRepository;
+        this.manualMetricsRepository = manualMetricsRepository;
         this.djSlotCalculator = djSlotCalculator;
+        this.entityManager = entityManager;
     }
 
     @Transactional
@@ -57,7 +69,7 @@ public class PlaylistService {
         Playlist playlist = playlistRepository.save(new Playlist(requireName(name)));
         log.info("Utworzono playlistę '{}' ({})", playlist.getName(), playlist.getId());
         return new PlaylistSummary(playlist.getId(), playlist.getName(),
-            playlist.getSpotifyPlaylistId(), playlist.getCreatedAt(), 0);
+            playlist.getSpotifyPlaylistId(), playlist.getCreatedAt(), 0, playlist.getVersion());
     }
 
     @Transactional(readOnly = true)
@@ -71,13 +83,14 @@ public class PlaylistService {
     }
 
     @Transactional
-    public PlaylistSummary rename(Long playlistId, String name) {
+    public PlaylistSummary rename(Long playlistId, String name, Integer expectedVersion) {
 
         Playlist playlist = requirePlaylist(playlistId);
+        requireCurrentVersion(playlist, expectedVersion);
         playlist.setName(requireName(name));
         return new PlaylistSummary(playlist.getId(), playlist.getName(),
             playlist.getSpotifyPlaylistId(), playlist.getCreatedAt(),
-            playlistTrackRepository.countByPlaylistId(playlistId));
+            playlistTrackRepository.countByPlaylistId(playlistId), playlist.getVersion());
     }
 
     @Transactional
@@ -102,6 +115,7 @@ public class PlaylistService {
         }
         int position = (int) playlistTrackRepository.countByPlaylistId(playlistId);
         playlistTrackRepository.save(new PlaylistTrack(playlist, track, position));
+        bumpVersion(playlist);
         return plan(playlist);
     }
 
@@ -116,6 +130,7 @@ public class PlaylistService {
         playlistTrackRepository.delete(entry);
         playlistTrackRepository.flush();
         renumber(playlistId);
+        bumpVersion(playlist);
         return plan(playlist);
     }
 
@@ -124,9 +139,10 @@ public class PlaylistService {
      * obecnego składu, żeby przypadkowe pominięcie utworu nie skasowało go po cichu.
      */
     @Transactional
-    public PlaylistPlan reorder(Long playlistId, List<String> spotifyIds) {
+    public PlaylistPlan reorder(Long playlistId, List<String> spotifyIds, Integer expectedVersion) {
 
         Playlist playlist = requirePlaylist(playlistId);
+        requireCurrentVersion(playlist, expectedVersion);
         Objects.requireNonNull(spotifyIds, "spotifyIds");
         Map<String, PlaylistTrack> current = playlistTrackRepository
             .findAllByPlaylistIdOrderByPositionAsc(playlistId).stream()
@@ -139,7 +155,31 @@ public class PlaylistService {
         }
         IntStream.range(0, spotifyIds.size())
             .forEach(position -> current.get(spotifyIds.get(position)).setPosition(position));
+        bumpVersion(playlist);
         return plan(playlist);
+    }
+
+    /**
+     * Wersja siedzi na agregacie (D29): zmiana wierszy {@code playlist_track} musi
+     * podbić {@code playlist.version}, a {@code @Version} na encji nadrzędnej sama
+     * tego nie zrobi — stąd jawny {@code OPTIMISTIC_FORCE_INCREMENT}.
+     */
+    private void bumpVersion(Playlist playlist) {
+        entityManager.lock(playlist, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+    }
+
+    /**
+     * Nieświeży klient (D29): kolejność albo nazwa przyszły z widoku sprzed cudzej
+     * zmiany. Brak wersji w żądaniu traktujemy jak niezgodność — kontrakt jej wymaga.
+     */
+    private void requireCurrentVersion(Playlist playlist, Integer expectedVersion) {
+
+        if (Objects.isNull(expectedVersion) || playlist.getVersion() != expectedVersion) {
+            throw new ConflictException("RESOURCE_MODIFIED",
+                ("Set zmienił się w innym miejscu (wersja %d, przysłano %s) — "
+                    + "odśwież i spróbuj ponownie")
+                    .formatted(playlist.getVersion(), expectedVersion));
+        }
     }
 
     private void renumber(Long playlistId) {
@@ -155,19 +195,37 @@ public class PlaylistService {
         List<PlaylistTrack> tracks =
             playlistTrackRepository.findAllWithTrackByPlaylistId(playlist.getId());
         Map<String, String> overrides = slotOverrides(tracks);
+        Map<String, ManualMetrics> metrics = metrics(tracks);
         List<PlannedTrack> planned = tracks.stream()
-            .map(entry -> toPlanned(entry, overrides.get(entry.getTrack().getSpotifyId())))
+            .map(entry -> toPlanned(entry,
+                overrides.get(entry.getTrack().getSpotifyId()),
+                metrics.get(entry.getTrack().getSpotifyId())))
             .toList();
         return new PlaylistPlan(playlist, planned);
     }
 
-    private PlannedTrack toPlanned(PlaylistTrack playlistTrack, String override) {
+    private PlannedTrack toPlanned(PlaylistTrack playlistTrack, String override,
+                                   @Nullable ManualMetrics metrics) {
 
         TrackCatalog track = playlistTrack.getTrack();
         DjSlot slot = DjSlot.parse(override)
             .or(() -> djSlotCalculator.calculate(track))
             .orElse(null);
-        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override);
+        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override,
+            Optional.ofNullable(metrics).map(ManualMetrics::getLoudnessDb).orElse(null),
+            Optional.ofNullable(metrics).map(ManualMetrics::getTimeSignature).orElse(null));
+    }
+
+    /** Metryki z pliku (D24) dla ostrzeżeń planera o głośności i metrum (D25). */
+    private Map<String, ManualMetrics> metrics(List<PlaylistTrack> tracks) {
+
+        Set<String> spotifyIds = tracks.stream()
+            .map(entry -> entry.getTrack().getSpotifyId())
+            .collect(Collectors.toSet());
+        return spotifyIds.isEmpty()
+            ? Map.of()
+            : manualMetricsRepository.findBySpotifyIdIn(spotifyIds).stream()
+                .collect(Collectors.toMap(ManualMetrics::getSpotifyId, Function.identity()));
     }
 
     private Map<String, String> slotOverrides(List<PlaylistTrack> tracks) {

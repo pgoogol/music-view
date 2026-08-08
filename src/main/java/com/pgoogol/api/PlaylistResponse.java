@@ -1,5 +1,6 @@
 package com.pgoogol.api;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -13,12 +14,21 @@ public record PlaylistResponse(
     String name,
     String spotifyPlaylistId,
     Instant createdAt,
+    /** Wersja do blokady optymistycznej (D29) — odeślij ją przy zmianie kolejności. */
+    int version,
     List<PlaylistTrackResponse> tracks) {
 
+    /**
+     * {@code loudnessDb} i {@code timeSignature} pochodzą z metryk wgranych z pliku
+     * (D24) i służą wyłącznie ostrzeżeniom planera setu (D25) — skok głośności
+     * i metrum inne niż 4/4. Tonacja jedzie w {@code track.camelot}.
+     */
     public record PlaylistTrackResponse(
         int position,
         String djSlot,
         String djSlotOverride,
+        BigDecimal loudnessDb,
+        Integer timeSignature,
         TrackResponse track) {
 
     }

@@ -69,7 +69,7 @@ public class PlaylistController {
     public PlaylistSummaryResponse rename(@PathVariable Long id,
                                           @Valid @RequestBody SavePlaylistRequest request) {
 
-        return mapper.toResponse(playlistService.rename(id, request.name()));
+        return mapper.toResponse(playlistService.rename(id, request.name(), request.version()));
     }
 
     @DeleteMapping("/{id}")
@@ -99,7 +99,8 @@ public class PlaylistController {
     public PlaylistResponse reorder(@PathVariable Long id,
                                     @Valid @RequestBody ReorderPlaylistRequest request) {
 
-        return mapper.toResponse(playlistService.reorder(id, request.spotifyIds()));
+        return mapper.toResponse(
+            playlistService.reorder(id, request.spotifyIds(), request.version()));
     }
 
     @PostMapping("/{id}/export-to-spotify")

@@ -17,6 +17,8 @@ export interface TrackResponse {
   bpmSource: string | null
   danceability: number | null
   musicalKey: string | null
+  /** Pozycja koła Camelot liczona z `musicalKey` przez backend (D25) — nie kolumna. */
+  camelot: string | null
   tempoClass: string | null
   energy: string | null
   lyricsTheme: string | null
@@ -44,6 +46,8 @@ export interface LibraryEntryResponse {
   customTags: string[] | null
   rating: number | null
   djSlotOverride: string | null
+  /** Wersja do blokady optymistycznej (D29) — odsyłamy ją przy PATCH-u. */
+  version: number
   track: TrackResponse
 }
 
@@ -108,12 +112,16 @@ export interface PlaylistSummaryResponse {
   spotifyPlaylistId: string | null
   createdAt: string
   trackCount: number
+  version: number
 }
 
 export interface PlaylistTrackResponse {
   position: number
   djSlot: string | null
   djSlotOverride: string | null
+  /** Z metryk wgranych z pliku (D24) — tylko dla ostrzeżeń planera setu (D25). */
+  loudnessDb: number | null
+  timeSignature: number | null
   track: TrackResponse
 }
 
@@ -122,6 +130,8 @@ export interface PlaylistResponse {
   name: string
   spotifyPlaylistId: string | null
   createdAt: string
+  /** Wersja agregatu (D29) — odsyłamy ją przy zmianie kolejności i nazwy. */
+  version: number
   tracks: PlaylistTrackResponse[]
 }
 
@@ -141,6 +151,80 @@ export interface SpotifyAccountResponse {
   scopes: string | null
   expiresAt: string | null
   connectedAt: string | null
+}
+
+/** Jeden słupek rozkładu w przeglądzie biblioteki (M4.3). */
+export interface BucketResponse {
+  label: string
+  count: number
+}
+
+export interface LibraryOverviewResponse {
+  catalogTracks: number
+  libraryTracks: number
+  tracksWithMetrics: number
+  metadataMissing: number
+  audioMissing: number
+  aiMissing: number
+  genres: BucketResponse[]
+  tempoClasses: BucketResponse[]
+  energies: BucketResponse[]
+  /** Ile biblioteki stoi na faktach, a ile na estymacie LLM (kryterium D19). */
+  bpmSources: BucketResponse[]
+  ratings: BucketResponse[]
+  bpmHistogram: BucketResponse[]
+  topArtists: BucketResponse[]
+  monthlyGrowth: BucketResponse[]
+}
+
+/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
+export interface SetProposalRequest {
+  targetMinutes: number
+  seed?: number
+  search?: string
+  genreFamily?: string
+  bpmMin?: number
+  bpmMax?: number
+  tempoClass?: string
+  energy?: string
+  inLibrary?: boolean
+  ratingMin?: number
+  tag?: string
+  camelot?: string
+  camelotCompatible?: boolean
+}
+
+export interface ProposedTrackResponse {
+  position: number
+  djSlot: string | null
+  track: TrackResponse
+}
+
+export interface SetProposalResponse {
+  trackCount: number
+  totalDurationMs: number
+  targetDurationMs: number
+  /** Ziarno użyte przy losowaniu — podaj je z powrotem, żeby dostać ten sam set. */
+  seed: number
+  notes: string[]
+  tracks: ProposedTrackResponse[]
+}
+
+/** Pokrycie katalogu metrykami z pliku — kontekst filtrów metryk (M4.1). */
+export interface MetricsCoverageResponse {
+  withMetrics: number
+  total: number
+}
+
+/** Szacunek zlecenia wzbogacania (M5.1/D28) — nic nie uruchamia. */
+export interface EnrichmentEstimateResponse {
+  trackCount: number
+  /** Utwory, za które realnie zapłacimy — tylko grupa AI. */
+  aiTracks: number
+  /** null = brak stawek w konfiguracji, nie zero. */
+  estimatedCost: number | null
+  limit: number
+  withinLimit: boolean
 }
 
 export interface MissingCountResponse {
@@ -176,6 +260,14 @@ export interface SearchParams {
   inLibrary?: boolean
   ratingMin?: number
   tag?: string
+  /** Filtr harmoniczny (M4.1/D25): pozycja koła + czy rozszerzyć do zgodnych. */
+  camelot?: string
+  camelotCompatible?: boolean
+  /** Filtry metryk (D24) — odsiewają utwory bez metryk, stąd licznik pokrycia. */
+  valenceMin?: number
+  valenceMax?: number
+  instrumentalMin?: number
+  livenessMax?: number
   sort?: CatalogSort
   direction?: SortDirection
   page?: number
@@ -187,6 +279,8 @@ export interface UpdateLibraryEntryRequest {
   customTags?: string[] | null
   rating?: number | null
   djSlotOverride?: string | null
+  /** Wymagana (D29) — bez niej backend odrzuca PATCH. */
+  version: number
 }
 
 export class ApiError extends Error {
@@ -234,6 +328,18 @@ export const api = {
       }
     })
     return request(`/api/catalog/tracks?${query}`)
+  },
+
+  libraryOverview(): Promise<LibraryOverviewResponse> {
+    return request('/api/library/overview')
+  },
+
+  proposeSet(body: SetProposalRequest): Promise<SetProposalResponse> {
+    return request('/api/sets/propose', jsonInit('POST', body))
+  },
+
+  metricsCoverage(): Promise<MetricsCoverageResponse> {
+    return request('/api/catalog/metrics-coverage')
   },
 
   /** Słownik custom tagów DJ-a — podpowiedzi filtra bibliotecznego (M3.2). */
@@ -297,8 +403,8 @@ export const api = {
     return request('/api/playlists', jsonInit('POST', { name }))
   },
 
-  renamePlaylist(id: number, name: string): Promise<PlaylistSummaryResponse> {
-    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name }))
+  renamePlaylist(id: number, name: string, version: number): Promise<PlaylistSummaryResponse> {
+    return request(`/api/playlists/${id}`, jsonInit('PATCH', { name, version }))
   },
 
   deletePlaylist(id: number): Promise<void> {
@@ -315,8 +421,8 @@ export const api = {
     })
   },
 
-  reorderPlaylist(id: number, spotifyIds: string[]): Promise<PlaylistResponse> {
-    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds }))
+  reorderPlaylist(id: number, spotifyIds: string[], version: number): Promise<PlaylistResponse> {
+    return request(`/api/playlists/${id}/tracks`, jsonInit('PUT', { spotifyIds, version }))
   },
 
   exportPlaylist(id: number): Promise<PlaylistExportResponse> {
@@ -337,6 +443,14 @@ export const api = {
 
   restartJob(executionId: number): Promise<{ executionId: number }> {
     return request(`/api/enrich/jobs/${executionId}/restart`, { method: 'POST' })
+  },
+
+  estimateEnrichment(
+    scope: string,
+    fields: string[],
+    spotifyIds: string[],
+  ): Promise<EnrichmentEstimateResponse> {
+    return request('/api/enrich/estimate', jsonInit('POST', { scope, fields, spotifyIds }))
   },
 
   missingCount(): Promise<MissingCountResponse> {

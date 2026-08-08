@@ -1,4 +1,4 @@
-// Powłoka aplikacji (M3.1, motyw „konsola" M3.2): pięć zakładek zamiast jednej
+// Powłoka aplikacji (M3.1, motyw „konsola" M3.2, przegląd M4.3): sześć zakładek zamiast jednej
 // długiej strony, wspólne zaznaczenie utworów przechodzące między widokami
 // i jeden host toastów.
 
@@ -9,6 +9,7 @@ import { ROUTES, ROUTE_LABELS, useHashRoute } from './hooks/useHashRoute'
 import EnrichView from './views/EnrichView'
 import ImportView from './views/ImportView'
 import LibraryView from './views/LibraryView'
+import OverviewView from './views/OverviewView'
 import PlaylistsView from './views/PlaylistsView'
 import SetsView from './views/SetsView'
 
@@ -73,6 +74,7 @@ function AppShell() {
       </header>
 
       <main>
+        {route === 'overview' && <OverviewView refreshKey={refreshKey} />}
         {route === 'library' && (
           <LibraryView
             refreshKey={refreshKey}

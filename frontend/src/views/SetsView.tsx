@@ -4,10 +4,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  ApiError,
   api,
   type PlaylistResponse,
   type PlaylistSummaryResponse,
 } from '../api'
+import SetGeneratorPanel from '../components/SetGeneratorPanel'
 import SetStats from '../components/SetStats'
 import { useToast } from '../components/Toasts'
 import { useHashRoute } from '../hooks/useHashRoute'
@@ -61,7 +63,14 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
       refreshList()
       if (message) notify(message)
     } catch (error) {
-      reportError(error)
+      // konflikt (D29) — set zmienił się w innym miejscu; pokazujemy aktualny stan,
+      // bo dalsze przeciąganie po nieaktualnym składzie tylko mnożyłoby konflikty
+      if (error instanceof ApiError && error.errorCode === 'RESOURCE_MODIFIED' && openId !== null) {
+        setPlaylist(await api.getPlaylist(openId).catch(() => null))
+        notify('Set zmienił się w innym miejscu — odświeżono skład', 'error')
+      } else {
+        reportError(error)
+      }
     } finally {
       setBusy(false)
     }
@@ -85,7 +94,7 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
     const name = window.prompt('Nowa nazwa setu', playlist.name)
     if (!name || name.trim() === playlist.name) return
     try {
-      await api.renamePlaylist(playlist.id, name.trim())
+      await api.renamePlaylist(playlist.id, name.trim(), playlist.version)
       setPlaylist(await api.getPlaylist(playlist.id))
       refreshList()
       notify('Zmieniono nazwę setu')
@@ -133,13 +142,13 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
     const order = playlist.tracks.map((entry) => entry.track.spotifyId)
     const [moved] = order.splice(from, 1)
     order.splice(to, 0, moved)
-    return run(() => api.reorderPlaylist(playlist.id, order))
+    return run(() => api.reorderPlaylist(playlist.id, order, playlist.version))
   }
 
   const autoArrange = () => {
     if (!playlist || playlist.tracks.length < 2) return
     return run(
-      () => api.reorderPlaylist(playlist.id, arrangeBySlot(playlist.tracks)),
+      () => api.reorderPlaylist(playlist.id, arrangeBySlot(playlist.tracks), playlist.version),
       'Ułożono set wg faz wieczoru (D9)',
     )
   }
@@ -199,6 +208,13 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
           ))}
           {playlists.length === 0 && <li className="muted">Brak setów — utwórz pierwszy.</li>}
         </ul>
+
+        <SetGeneratorPanel
+          onCreated={(playlistId) => {
+            refreshList()
+            setParams({ set: playlistId })
+          }}
+        />
       </section>
 
       <section className="panel" aria-label="Skład setu">

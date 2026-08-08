@@ -1,5 +1,6 @@
 package com.pgoogol.ingestion;
 
+import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.ManualMetricsRepository;
@@ -91,9 +92,29 @@ public class MetricsIngestionService {
                 spotifyId -> existing.getOrDefault(spotifyId, new ManualMetrics(track)));
             overwrite(metrics, row.row().metrics(), source, importedAt);
             applier.apply(track, metrics);
+            warnOnCamelotMismatch(row.row().line(), track, metrics);
         }));
         manualMetricsRepository.saveAll(working.values());
         return working;
+    }
+
+    /**
+     * Camelot z pliku zostaje surową wartością (D24), ale logika miksowania liczy
+     * go z {@code musical_key} (D25) — jeśli oba są znane i się rozjeżdżają, wiersz
+     * i utwór najpewniej opisują inne nagranie. Nie przerywamy importu: metryki bywają
+     * dobre mimo literówki w jednej kolumnie, a decyzja należy do DJ-a.
+     */
+    private void warnOnCamelotMismatch(long line, TrackCatalog track, ManualMetrics metrics) {
+
+        Optional<CamelotKey> fromFile = CamelotKey.ofLabel(metrics.getCamelot());
+        Optional<CamelotKey> fromKey = CamelotKey.ofMusicalKey(track.getMusicalKey());
+        if (fromFile.isEmpty() || fromKey.isEmpty() || fromFile.equals(fromKey)) {
+            return;
+        }
+        log.warn("Wiersz {}: Camelot z pliku ({}) nie zgadza się z tonacją utworu {} ({} → {}) "
+                + "— sprawdź, czy wiersz opisuje to nagranie",
+            line, fromFile.orElseThrow().label(), track.getSpotifyId(),
+            track.getMusicalKey(), fromKey.orElseThrow().label());
     }
 
     /**

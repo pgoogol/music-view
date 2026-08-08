@@ -1,7 +1,10 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji: **przyjęte** (2026-07-03). Decyzje nadpisują [KONCEPT.md](KONCEPT.md)
-tam, gdzie się różnią. Numeracja D1–D19; odwołania §x wskazują sekcje konceptu.
+Status wszystkich decyzji **D1–D30: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
+bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D30;
+odwołania §x wskazują sekcje konceptu.
 
 ---
 
@@ -388,3 +391,204 @@ pobieranie ich tą drogą omija wyłączenie i łamie ToS obu stron. Do czasu in
 **Tymczasowość jest świadoma:** to obejście, nie docelowe źródło. Gdy wróci sensowne API
 albo zapadnie decyzja o `AudioAnalyzer` (D19), `manual_metrics` zostaje jako jedno ze źródeł
 kaskady — zmienia się tylko to, kto je wypełnia.
+
+---
+
+## D25. Zgodność harmoniczna z tonacji, reszta metryk jako filtry (M4.1)
+
+Camelot jest w bazie od V5 (`manual_metrics.camelot`), ale wyłącznie do oglądania
+w szufladzie utworu; pozostałe zmierzone cechy (`valence`, `instrumentalness`,
+`speechiness`, `liveness`, `loudness_db`, `time_signature`) nie są czytane przez nic
+poza `TrackDetails`. Rozstrzygnięcia:
+
+- **Camelot liczy aplikacja z `track_catalog.musical_key`, a nie czyta z pliku.**
+  Tonacja jest w katalogu i wpada tam z dwóch źródeł (metryki ręczne D24, dump
+  AcousticBrainz D7), podczas gdy `manual_metrics.camelot` istnieje tylko dla utworów
+  z wgranego pliku — liczenie z `musical_key` daje pokrycie wszędzie tam, gdzie w ogóle
+  znamy tonację. Mapowanie tonacja ↔ Camelot jest bijekcją na 24 wartościach, więc nic
+  po drodze nie ginie. To ta sama zasada co przy `dj_slot` (D9): wartość wyprowadzalna
+  z danych nie zostaje kolumną.
+- **Parser tonacji przyjmuje obie notacje enharmoniczne** („D# minor" = „Eb minor").
+  D24 normalizuje zapis do konwencji AcousticBrainz, ale plik od DJ-a bywa niesforny,
+  a tonacja ma znaczyć zawsze to samo.
+- **`manual_metrics.camelot` zostaje surową wartością z pliku** (D24: plik jest źródłem
+  prawdy dla swojej tabeli) i służy do kontroli — rozjazd z wyliczeniem z `musical_key`
+  trafia do logu przy imporcie, bo zwykle znaczy, że plik i katalog mówią o innym nagraniu.
+- **Zgodność harmoniczna = ten sam klucz, ±1 na kole, względna dur/moll.** Cztery wartości,
+  klasyczny zestaw miksowania harmonicznego. Skok energetyczny (+2 na kole) świadomie
+  pomijamy — to chwyt na konkretny moment wieczoru, nie reguła, i wymaga ucha, nie filtra.
+- **Filtr tłumaczy się na `musical_key in (…)`, nie na kolejne złączenie.** Zbiór zgodnych
+  Camelotów (najwyżej cztery) aplikacja mapuje z powrotem na nazwy tonacji *przed*
+  zapytaniem, więc wyszukiwarka zostaje przy jednym `left join` z D23, a plan zapytania
+  się nie zmienia.
+- **Koło kwintowe jest w backendzie, sama reguła zgodności we froncie.** Backend zwraca
+  wyliczony `camelot` w DTO (pole liczone, jak `djSlot`); porównanie dwóch etykiet
+  („ta sama liczba, ±1 modulo 12, ta sama litera") to kilka linii w TS i nie jest
+  duplikacją mapowania. Zgodne z D22: ostrzeżenia o secie liczy front.
+- **Pozostałe metryki wchodzą jako filtry, nie jako kolumny katalogu.** `valenceMin/Max`,
+  `instrumentalMin` i `livenessMax` przez `left join manual_metrics` (klucz tabeli to PK,
+  więc złączenie nie zwielokrotnia wierszy katalogu) — wzorzec z D23. Przenoszenie ich
+  do `track_catalog` łamałoby D24: plik jest surowym źródłem, katalog jego projekcją,
+  i projektujemy tylko to, czego używa reszta aplikacji.
+- **`loudness_db` i `time_signature` nie są filtrami, tylko ostrzeżeniami w secie.**
+  Skok głośności powyżej 3 dB między sąsiadami i metrum inne niż 4/4 to informacja
+  o przejściu, a nie kryterium wyboru utworu — nikt nie szuka „utworów w 3/4",
+  ale każdy chce wiedzieć, że taki właśnie stoi w kolejce.
+- **Bez sortowania po metrykach** — dokładnie z powodu podanego w D23 przy ocenie:
+  kolumny nie ma w tabeli biblioteki, więc porządek byłby dla DJ-a niewidoczny.
+- **Filtry metryk działają na podzbiorze biblioteki** (tylko utwory z wgranym plikiem),
+  więc UI musi to mówić wprost licznikiem „X z Y utworów ma metryki". Bez tego pusty
+  wynik wygląda jak awaria, a jest brakiem danych.
+
+## D26. Generator setu zwraca propozycję, nie zapisuje playlisty (M4.2)
+
+M3.1 dało „Ułóż wg faz wieczoru" — permutację istniejącego składu. Kolejny krok to
+zbudowanie setu z biblioteki na zadany czas. Rozstrzygnięcia:
+
+- **Generator niczego nie zapisuje.** `POST /api/sets/propose` zwraca kolejność utworów
+  i ostrzeżenia; playlistę zakłada DJ istniejącą drogą (`POST /api/playlists` +
+  `POST /{id}/tracks`). Set ułożony maszynowo jest punktem wyjścia do ręcznej korekty,
+  nie wynikiem — zapis w jednym kroku zamieniłby podgląd w sprzątanie po generatorze.
+  Przy okazji generator zostaje bezstanowy i nie dubluje CRUD-a z M2.3.
+- **Krzywa wieczoru jest stała i wpisana w kod:** WARMUP 25% / MIDDLE 30% / PEAK 30% /
+  CLOSING 15% docelowego czasu. Parametryzacja krzywej to opcja dla jednego użytkownika,
+  który i tak poprawia wynik ręcznie; progi zostają punktem wyjścia, jak w D21.
+- **Ograniczenia dzielą się na twarde i miękkie.** Twarde zawężają pulę kandydatów:
+  utwór raz w secie, ten sam wykonawca nie częściej niż raz na 30 minut. Miękkie są karami
+  w ocenie kandydata: skok BPM powyżej 15, brak zgodności harmonicznej (D25), niska ocena,
+  brak BPM. Gdyby miękkie zrobić twardymi, generator przy wąskiej bibliotece zwracałby
+  pustkę zamiast setu z ostrzeżeniami — a DJ woli set do poprawienia niż komunikat.
+- **Powtarzalność przez `seed` w żądaniu.** Czysto zachłanny generator daje za każdym
+  razem ten sam set, więc po pierwszym uruchomieniu jest bezużyteczny. Wybór spośród
+  pięciu najlepszych kandydatów z ziarnem: podany `seed` = wynik odtwarzalny (da się
+  wrócić do propozycji sprzed korekty), brak `seed` = inna propozycja przy każdym kliknięciu.
+- **Za uboga pula = krótszy set z powodem, nie błąd.** Odpowiedź niesie osiągnięty czas
+  i informację, której fazy nie dało się domknąć — „mam za mało utworów na szczyt" jest
+  użyteczną odpowiedzią, `400` nie jest.
+- **Otwarte:** kryterium „dawno nie grany" wymaga historii grania, której w modelu nie ma.
+  Gdyby powstała, wchodzi jako kolejny składnik oceny kandydata, bez zmiany kontraktu API.
+
+## D27. Przegląd biblioteki — agregaty liczy baza (M4.3)
+
+Pięć zakładek z M3.2 jest operacyjnych; nie ma ekranu odpowiadającego na pytanie
+„co ja właściwie mam". Rozstrzygnięcia:
+
+- **Jeden endpoint `GET /api/library/overview`, agregaty liczone w SQL** (`count(*) filter`,
+  `width_bucket` na BPM). Front nie dostaje 2500 wierszy po to, żeby je zliczyć
+  w przeglądarce — to jedyny sensowny podział pracy przy tej skali.
+- **Bez cache.** Kilkanaście agregatów na ~2500 wierszach Postgres liczy w kilkanaście
+  milisekund; docs/rules/database.md każe cache'ować tam, gdzie zapytanie boli, a tutaj
+  nie boli. Cache dołożyłby za to pytanie o unieważnianie po każdym imporcie i po każdym
+  jobie wzbogacania.
+- **Udział `bpm_source` jest najważniejszą liczbą na ekranie, nie ozdobą.** Mówi, ile
+  biblioteki stoi na faktach (manual / AcousticBrainz / Deezer), a ile na estymacie LLM —
+  czyli podaje na bieżąco wskaźnik, który D19 uczynił kryterium decyzji o `AudioAnalyzer`,
+  zamiast liczyć go raz na przebieg walidacyjny.
+- **Wykresy rysowane inline w SVG**, jak `BpmCurve` z M3.1. D23 zabrania zasobów z sieci
+  (narzędzie ma działać offline), a biblioteka wykresów dołożyłaby build i słownictwo
+  przy pięciu wykresach.
+- **`GET /api/enrich/missing-count` schodzi do jednego zapytania** z `count(*) filter (where …)`
+  zamiast trzech osobnych `count`-ów; ten sam ekran i tak liczy więcej agregatów jednym
+  przejściem po tabeli.
+
+## D28. Przeliczanie estymat i bezpiecznik kosztowy (M5.1)
+
+- **`EnrichmentScope.OUTDATED` domyka pętlę zaprojektowaną w D3/D15.** `model_used`
+  i `enrich_version` zapisujemy od M1.1 właśnie po to, żeby po zmianie providera, modelu
+  albo promptu przeliczyć **same estymaty** bez ponownego odpytywania źródeł faktów.
+  Brakowało zakresu, który te pola czyta — nowy porównuje je z bieżącą konfiguracją
+  (`llm.model` oraz `llm.prompt-version` zamieniona na liczbę tak jak dziś
+  w `TrackEnricher.promptVersionNumber()`).
+- **Zakres `OUTDATED` dotyczy wyłącznie grupy AI.** Fakty (METADATA/AUDIO) nie zależą
+  od modelu ani od promptu, więc ich przeliczanie byłoby wywołaniem cudzego API bez powodu.
+- **Koszt pokazujemy przed startem, nie po.** `GET /api/enrich/estimate` zwraca liczbę
+  objętych utworów i widełki kosztu; stawki przenoszą się ze zmiennych środowiskowych
+  `LlmSmokeTest` do konfiguracji (`llm.cost.input-per-1m`, `llm.cost.output-per-1m`),
+  a zużycie tokenów bierze się z pomiaru M1.9 (~140 wejściowych + ~120 wyjściowych
+  na utwór przy prompcie v1 i batchu po 5).
+- **Twardy limit `llm.max-tracks-per-job`, domyślnie 500.** `SELECTED` ma limit 100 od M1.6,
+  `MISSING` nie miał żadnego — a literówka w `LLM_MODEL` (drogi model zamiast klasy
+  mini/haiku) przy 2500 utworach to rachunek, o którym dowiadujemy się po fakcie. Limit
+  obowiązuje każdy zakres; jego podniesienie jest zmianą konfiguracji, czyli świadomą
+  decyzją, a nie kliknięciem w UI.
+- **Historia jobów jednym zapytaniem.** `JobExplorer` nie umie „ostatnie N wykonań dowolnej
+  instancji", więc `EnrichmentService.listJobs` odpytuje wykonania osobno dla każdej
+  instancji i przycina dopiero w pamięci. Tabele `BATCH_*` zakłada nasza migracja V3,
+  więc zapytanie wprost do `BATCH_JOB_EXECUTION` (`order by job_execution_id desc limit n`)
+  mieści się w tym, czym i tak zarządzamy — to nie jest sięganie do cudzych wnętrzności.
+
+## D29. Blokada optymistyczna na danych DJ-a (M5.2)
+
+- **Wersjonujemy `library_entry` i `playlist`, nie `track_catalog`.** Do katalogu pisze
+  wyłącznie job wzbogacania (jeden pisarz), a konflikt optymistyczny kosztowałby tam
+  restart całego chunka. Dane prywatne DJ-a i sety mają realnie dwóch pisarzy — dwie karty
+  przeglądarki, laptop i telefon (scenariusz z DEPLOYMENT.md) — i są jedynym, czego nie
+  odtworzy żadne API.
+- **Wersja siedzi na agregacie, nie na elementach.** Zmiana składu albo kolejności setu
+  podbija `playlist.version`, mimo że zmieniają się wiersze `playlist_track`. Wymaga to
+  jawnego `OPTIMISTIC_FORCE_INCREMENT` na playliście, bo `@Version` na encji nadrzędnej
+  nie reaguje na zapisy w podrzędnej — to pułapka implementacyjna, nie szczegół. Wersja
+  per `playlist_track` byłaby bezużyteczna: reorder i tak dotyczy całej playlisty (D21
+  wymaga permutacji całego składu).
+- **Wersja jedzie w ciele odpowiedzi, nie w `ETag`/`If-Match`.** HTTP-owo poprawniejsze
+  byłyby nagłówki, ale front trzyma cały obiekt w stanie widoku i wersja jedzie z nim
+  za darmo, podczas gdy ETagi wymagałyby osobnego magazynu obok stanu. Narzędzie jest
+  jednoosobowe — wybieramy prostszy kontrakt.
+- **Konflikt to `409 RESOURCE_MODIFIED`**, obsłużony we froncie przeładowaniem rekordu
+  **z zachowaniem tego, co DJ ma wpisane w polu**. Cichy zapis „ostatni wygrywa" jest
+  gorszy od komunikatu, bo notatka ginie bez śladu i bez szansy na odtworzenie.
+
+## D30. Dwie osobne aplikacje i testy E2E (M5.3)
+
+Backend i front są **osobnymi aplikacjami**: własny obraz, własny cykl życia, własny
+port. Front nie wchodzi do jara.
+
+**Rozważone i odrzucone: jeden artefakt** (front pakowany do `target/classes/static`
+przez profil `-Pfullstack` i serwowany przez Spring Boot). Kusiło prostotą uruchomienia,
+ale sklejało dwie rzeczy, które zmieniają się w innym rytmie i inaczej się wdraża:
+poprawka w CSS-ie wymagałaby przepakowania i restartu backendu, front przestałby dać się
+wystawić na statycznym hostingu (Vercel z DEPLOYMENT.md), a build backendu zaczynałby
+zależeć od Node'a w PATH. Prostota uruchomienia jest osiągalna taniej — `docker compose`
+podnosi obie usługi jedną komendą.
+
+- **Backend: `Dockerfile` w katalogu głównym** (maven → JRE), tylko aplikacja Spring Boot.
+  `./mvnw package` nie wie nic o froncie i nie potrzebuje Node'a.
+- **Front: `frontend/Dockerfile`** (node → nginx) — statyki z Vite podane przez nginx.
+- **nginx przekazuje `/api` na backend, zamiast otwierać CORS.** Front woła adresy
+  względne, więc zbudowany pakiet JS nie zawiera adresu API i ten sam obraz działa
+  lokalnie i na serwerze; adres backendu siedzi w konfiguracji proxy (`API_HOST`/`API_PORT`,
+  podstawiane przez entrypoint nginksa). CORS wymagałby wpuszczenia obcego originu do
+  aplikacji, która nie ma auth (D2/D14) — to zły kierunek dla czegoś, co i tak trzeba
+  postawić za bramką na hasło.
+- **Bez fallbacku SPA.** Stan widoku siedzi w hashu (`#/library?q=…`, D22), więc przeglądarka
+  nigdy nie prosi serwera o `/library` — wystarczy `index.html` pod `/`. Rezygnacja
+  z routera z M3.1 opłaca się tutaj drugi raz.
+- **Obie usługi w `docker-compose.yml` pod profilem `full`.** `docker compose up -d` musi
+  nadal wstawiać samą bazę, bo tak wygląda praca nad kodem; pełny zestaw uruchamia
+  `docker compose --profile full up -d --build` (front na :5173, API na :8080).
+- **OAuth Spotify zostaje na loopbacku.** Spotify wymaga zgodności redirect URI znak w znak
+  i nie przyjmie adresu w sieci lokalnej po HTTP, więc konto łączymy raz z laptopa
+  (`http://127.0.0.1:8080/api/auth/spotify/callback`), a telefon korzysta z konta już
+  połączonego — tokeny i tak żyją wyłącznie server-side (D20). Uwaga: redirect URI wskazuje
+  **backend**, nie front — callback obsługuje API.
+- **Podział na dwie aplikacje niczego nie zmienia w kwestii wystawienia na świat.** Nadal
+  nie ma logowania (D2/D14), więc ostrzeżenie z DEPLOYMENT.md zostaje w mocy: publiczny
+  adres wymaga najpierw bramki na hasło. „Dostęp z telefonu" znaczy tu sieć lokalna.
+- **E2E: Playwright przeciw dwóm procesom** — zbudowany front podany statycznie
+  (`vite preview`, odpowiednik nginksa z obrazu) i backend jako osobny proces, z API pod
+  względnym `/api`. Testujemy ten układ, w którym aplikacja realnie działa, a nie serwer
+  dev z HMR-em. Postgres z docker-compose, źródła zewnętrzne na stubie: test przepływu nie
+  może zależeć od dostępności Spotify ani od klucza LLM, bo wtedy czerwone CI przestaje
+  cokolwiek znaczyć. Osobny job w CI, żeby podstawowy build nie urósł.
+- **Zakres E2E to jeden przepływ, a nie siatka przypadków**: import CSV → przegląd →
+  biblioteka i utwór (z zapisem danych DJ-a, czyli wersjonowaniem z D29) → wzbogacenie AI
+  na stubie → set → generator propozycji. Od testu E2E chcemy sygnału „całość się rozpięła";
+  szczegóły należą do testów jednostkowych i integracyjnych, które są tańsze i celniejsze.
+- **Eksport na Spotify świadomie zostaje poza E2E.** Wymagałby albo przeprowadzenia OAuth
+  przez ekran zgody Spotify (którego nie kontrolujemy), albo wpisania tokenów wprost do bazy
+  — czyli obejścia tego, co miałby sprawdzać. Ta ścieżka ma własny test integracyjny na
+  WireMocku (`PlaylistExportIntegrationTest`); dublowanie jej w E2E kupiłoby ryzyko
+  fałszywych alarmów bez nowego sygnału.
+- **Stub źródeł zewnętrznych to kilkadziesiąt linii Node'a, nie WireMock.** WireMock obsługuje
+  testy integracyjne backendu i zostaje tam, gdzie jest; stawianie drugiego procesu JVM obok
+  aplikacji tylko po to, żeby oddać jedną odpowiedź LLM-a, byłoby kosztem bez zysku.

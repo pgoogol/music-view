@@ -97,7 +97,7 @@ class TrackCatalogRepositoryTest {
         repository.save(TrackCatalogFixtures.enrichedTrack("sp-full"));
 
         // when
-        long count = repository.countAudioMissing();
+        long count = repository.countMissingByGroup().getAudio();
 
         // then
         assertThat(count).isEqualTo(1);

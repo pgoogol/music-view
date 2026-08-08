@@ -8,6 +8,41 @@ import { SLOT_ORDER, type SlotKey } from './format'
 /** Próg, powyżej którego skok tempa między sąsiadami trudno przemiksować. */
 export const BPM_JUMP_THRESHOLD = 15
 
+/** Skok głośności, powyżej którego przejście słychać jako „skok" (D25). */
+export const LOUDNESS_JUMP_THRESHOLD_DB = 3
+
+/** Metrum, którego parkiet się spodziewa; reszta to pułapka na przejściu (D25). */
+const EXPECTED_TIME_SIGNATURE = 4
+
+interface Wheel {
+  number: number
+  minor: boolean
+}
+
+/**
+ * Etykieta koła Camelot („8A") → pozycja. Samo koło liczy backend z tonacji
+ * (D25); tutaj zostaje wyłącznie porównanie dwóch etykiet, bo ostrzeżenia
+ * o secie liczy front (D22).
+ */
+function parseWheel(camelot: string | null): Wheel | null {
+  const match = /^(\d{1,2})([AB])$/.exec(camelot ?? '')
+  if (!match) return null
+  const number = Number(match[1])
+  return number >= 1 && number <= 12 ? { number, minor: match[2] === 'A' } : null
+}
+
+/** Zgodne: ta sama tonacja, sąsiedzi na kole (±1) i tonacja równoległa. */
+export function areKeysCompatible(left: string | null, right: string | null): boolean {
+  const first = parseWheel(left)
+  const second = parseWheel(right)
+  if (!first || !second) return true
+  if (first.minor === second.minor) {
+    const distance = Math.abs(first.number - second.number)
+    return distance <= 1 || distance === 11
+  }
+  return first.number === second.number
+}
+
 export type SlotCounts = Record<SlotKey | 'UNKNOWN', number>
 
 export interface SetStats {
@@ -23,7 +58,13 @@ export interface SetStats {
   missingSlot: number
 }
 
-export type SetWarningKind = 'BPM_JUMP' | 'NO_BPM' | 'SLOT_BACKWARDS'
+export type SetWarningKind =
+  | 'BPM_JUMP'
+  | 'NO_BPM'
+  | 'SLOT_BACKWARDS'
+  | 'KEY_CLASH'
+  | 'LOUDNESS_JUMP'
+  | 'ODD_METER'
 
 export interface SetWarning {
   /** Pozycja w secie liczona od 1 — tak jak widzi ją DJ. */
@@ -89,8 +130,9 @@ function phaseIndex(entry: PlaylistTrackResponse): number {
 }
 
 /**
- * Ostrzeżenia dla ułożonego setu: skoki tempa między sąsiadami, utwory bez BPM
- * (nie da się ich zaplanować) i cofnięcia fazy wieczoru (np. szczyt → rozgrzewka).
+ * Ostrzeżenia dla ułożonego setu: skoki tempa i głośności między sąsiadami,
+ * zderzenia tonacji, utwory bez BPM (nie da się ich zaplanować), metrum inne
+ * niż 4/4 i cofnięcia fazy wieczoru (np. szczyt → rozgrzewka).
  */
 export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWarning[] {
 
@@ -99,6 +141,7 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
     const position = index + 1
     const bpm = entry.track.bpm
     const title = entry.track.title ?? entry.track.spotifyId
+    const previous = tracks[index - 1]
 
     if (bpm === null) {
       warnings.push({
@@ -106,17 +149,44 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
         kind: 'NO_BPM',
         message: `„${title}" bez BPM — wzbogać utwór, żeby wszedł w planowanie`,
       })
-      return
-    }
-
-    const previous = tracks[index - 1]
-    if (previous && previous.track.bpm !== null) {
+    } else if (previous && previous.track.bpm !== null) {
       const jump = Math.abs(bpm - previous.track.bpm)
       if (jump > BPM_JUMP_THRESHOLD) {
         warnings.push({
           position,
           kind: 'BPM_JUMP',
           message: `skok tempa ${previous.track.bpm} → ${bpm} BPM (${jump}) przed „${title}"`,
+        })
+      }
+    }
+
+    if (entry.timeSignature !== null && entry.timeSignature !== EXPECTED_TIME_SIGNATURE) {
+      warnings.push({
+        position,
+        kind: 'ODD_METER',
+        message: `„${title}" w metrum ${entry.timeSignature}/4 — przejście trzeba policzyć ręcznie`,
+      })
+    }
+
+    if (!previous) return
+
+    if (!areKeysCompatible(previous.track.camelot, entry.track.camelot)) {
+      warnings.push({
+        position,
+        kind: 'KEY_CLASH',
+        message:
+          `zderzenie tonacji ${previous.track.camelot} → ${entry.track.camelot} przed „${title}"`,
+      })
+    }
+
+    if (entry.loudnessDb !== null && previous.loudnessDb !== null) {
+      const jump = Math.abs(entry.loudnessDb - previous.loudnessDb)
+      if (jump > LOUDNESS_JUMP_THRESHOLD_DB) {
+        warnings.push({
+          position,
+          kind: 'LOUDNESS_JUMP',
+          message:
+            `skok głośności ${previous.loudnessDb} → ${entry.loudnessDb} dB przed „${title}"`,
         })
       }
     }

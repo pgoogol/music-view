@@ -112,3 +112,32 @@ i są rzutowane na katalog: BPM (z korektą half-time, `bpm_source=MANUAL`), ton
 Camelot, danceability i energia — zmierzona energia ma pierwszeństwo przed estymatą
 LLM-a, reszta wzbogacania AI działa bez zmian. Format pliku i lista kolumn:
 [docs/METRYKI_CSV.md](docs/METRYKI_CSV.md).
+
+## Etapy 4–5 (zrealizowane)
+
+**M4.1 (zgodność harmoniczna)** — Camelot liczony z `musical_key` (nie kolumna, jak `dj_slot`),
+filtry `camelot`/`camelotCompatible` w wyszukiwarce, filtry `valence`/`instrumentalness`/
+`liveness` z `manual_metrics` (+ `GET /api/catalog/metrics-coverage`), ostrzeżenia
+`KEY_CLASH`/`LOUDNESS_JUMP`/`ODD_METER` w planerze setu. **M4.2 (generator setu)** —
+`POST /api/sets/propose` układa wieczór na zadany czas i **niczego nie zapisuje**; krzywa
+25/30/30/15%, twarde ograniczenia (utwór raz, wykonawca raz na 30 min) i miękkie kary
+(skok BPM, harmonia, ocena), `seed` dla powtarzalności. **M4.3 (przegląd biblioteki)** —
+zakładka „Przegląd": `GET /api/library/overview` jednym wywołaniem, rozkłady gatunków,
+tempa, energii i **źródeł BPM**, histogram BPM i przyrost po miesiącach w SVG.
+
+**M5.1 (estymaty i koszty)** — `EnrichmentScope.OUTDATED` (utwory opisane starszym
+modelem/promptem, wyłącznie grupa AI), `POST /api/enrich/estimate` z kosztem przed startem
+(stawki w `llm.cost.*`), twardy limit `llm.max-tracks-per-job`, historia jobów jednym
+zapytaniem. **M5.2 (współbieżność)** — `@Version` na `library_entry` i `playlist` (V6),
+wersja w DTO, `409 RESOURCE_MODIFIED`, front po konflikcie przeładowuje rekord bez kasowania
+tego, co DJ wpisał. **M5.3 (dwie osobne aplikacje)** — backend i front jako niezależne obrazy: `Dockerfile`
+(maven → JRE) i `frontend/Dockerfile` (node → nginx z proxy `/api`, bez CORS-a), obie
+usługi w docker-compose pod `--profile full` (front :5173, API :8080); test E2E
+w Playwright przeciw temu samemu układowi dwóch procesów.
+
+## Dalsze plany
+
+Otwarte pozostaje kryterium D19 (`AudioAnalyzer` — decyzję odblokowuje realny przebieg
+walidacyjny na prawdziwej bibliotece) oraz pomysły spoza Etapów 4–5: historia grania,
+wykrywanie duplikatów wydań, eksport setu poza Spotify (M3U/PDF) i import kolekcji
+z Rekordboksa jako lepsze źródło cech audio niż ręczny CSV (D24).

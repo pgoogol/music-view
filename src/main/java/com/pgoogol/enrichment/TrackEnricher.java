@@ -25,8 +25,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -37,7 +35,6 @@ import java.util.stream.Collectors;
 @Component
 public class TrackEnricher {
 
-    private static final Pattern VERSION_DIGITS = Pattern.compile("\\d+");
 
     private final SpotifyClient spotifyClient;
     private final MusicBrainzClient musicBrainzClient;
@@ -192,13 +189,6 @@ public class TrackEnricher {
         }
         track.setEnrichedAt(Instant.now());
         track.setModelUsed(llmProperties.model());
-        track.setEnrichVersion(promptVersionNumber());
-    }
-
-    private Integer promptVersionNumber() {
-
-        Matcher matcher = VERSION_DIGITS.matcher(
-            Objects.requireNonNullElse(llmProperties.promptVersion(), ""));
-        return matcher.find() ? Integer.valueOf(matcher.group()) : null;
+        track.setEnrichVersion(llmProperties.promptVersionNumber().orElse(null));
     }
 }

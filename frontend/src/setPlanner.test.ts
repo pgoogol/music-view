@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { aPlaylistTrack } from './test/fixtures'
-import { arrangeBySlot, computeSetStats, findSetWarnings } from './setPlanner'
+import { areKeysCompatible, arrangeBySlot, computeSetStats, findSetWarnings } from './setPlanner'
 
 describe('computeSetStats', () => {
 
@@ -147,5 +147,107 @@ describe('arrangeBySlot', () => {
     ]
 
     expect(arrangeBySlot(tracks).sort()).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('zgodność harmoniczna (D25)', () => {
+
+  it('uznaje za zgodne tę samą tonację, sąsiadów na kole i tonację równoległą', () => {
+
+    expect(areKeysCompatible('8A', '8A')).toBe(true)
+    expect(areKeysCompatible('8A', '9A')).toBe(true)
+    expect(areKeysCompatible('8A', '7A')).toBe(true)
+    expect(areKeysCompatible('8A', '8B')).toBe(true)
+  })
+
+  it('zawija koło: 1A sąsiaduje z 12A', () => {
+
+    expect(areKeysCompatible('1A', '12A')).toBe(true)
+    expect(areKeysCompatible('12A', '1A')).toBe(true)
+  })
+
+  it('odrzuca odległe pozycje i skos przez środek koła', () => {
+
+    expect(areKeysCompatible('8A', '10A')).toBe(false)
+    expect(areKeysCompatible('8A', '2A')).toBe(false)
+    expect(areKeysCompatible('8A', '9B')).toBe(false)
+  })
+
+  it('nie ostrzega, gdy któraś tonacja jest nieznana — to brak danych, nie zderzenie', () => {
+
+    expect(areKeysCompatible(null, '8A')).toBe(true)
+    expect(areKeysCompatible('8A', null)).toBe(true)
+    expect(areKeysCompatible('nonsens', '8A')).toBe(true)
+  })
+})
+
+describe('findSetWarnings — harmonia, głośność i metrum (M4.1)', () => {
+
+  it('zgłasza zderzenie tonacji między sąsiadami', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120, camelot: '8A' }, 'MIDDLE'),
+      aPlaylistTrack({ spotifyId: 'b', bpm: 122, camelot: '2A' }, 'MIDDLE', 2),
+    ]
+
+    const warnings = findSetWarnings(tracks)
+
+    expect(warnings.map((warning) => warning.kind)).toContain('KEY_CLASH')
+    expect(warnings.find((warning) => warning.kind === 'KEY_CLASH')?.position).toBe(2)
+  })
+
+  it('milczy o tonacji, gdy sąsiedzi są zgodni', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120, camelot: '8A' }, 'MIDDLE'),
+      aPlaylistTrack({ spotifyId: 'b', bpm: 122, camelot: '9A' }, 'MIDDLE', 2),
+    ]
+
+    expect(findSetWarnings(tracks).map((warning) => warning.kind)).not.toContain('KEY_CLASH')
+  })
+
+  it('zgłasza skok głośności powyżej progu', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120 }, 'MIDDLE', 1, { loudnessDb: -12 }),
+      aPlaylistTrack({ spotifyId: 'b', bpm: 122 }, 'MIDDLE', 2, { loudnessDb: -5 }),
+    ]
+
+    const warnings = findSetWarnings(tracks).filter((warning) => warning.kind === 'LOUDNESS_JUMP')
+
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].position).toBe(2)
+  })
+
+  it('nie liczy skoku głośności, gdy brakuje pomiaru po którejś stronie', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120 }, 'MIDDLE', 1, { loudnessDb: -12 }),
+      aPlaylistTrack({ spotifyId: 'b', bpm: 122 }, 'MIDDLE', 2, { loudnessDb: null }),
+    ]
+
+    expect(findSetWarnings(tracks).map((warning) => warning.kind)).not.toContain('LOUDNESS_JUMP')
+  })
+
+  it('zgłasza metrum inne niż 4/4 i milczy przy 4/4', () => {
+
+    const odd = [aPlaylistTrack({ spotifyId: 'a', bpm: 120 }, 'MIDDLE', 1, { timeSignature: 3 })]
+    const even = [aPlaylistTrack({ spotifyId: 'b', bpm: 120 }, 'MIDDLE', 1, { timeSignature: 4 })]
+
+    expect(findSetWarnings(odd).map((warning) => warning.kind)).toContain('ODD_METER')
+    expect(findSetWarnings(even).map((warning) => warning.kind)).not.toContain('ODD_METER')
+  })
+
+  it('utwór bez BPM nadal potrafi zgłosić zderzenie tonacji', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120, camelot: '8A' }, 'MIDDLE'),
+      aPlaylistTrack({ spotifyId: 'b', bpm: null, camelot: '2A' }, 'MIDDLE', 2),
+    ]
+
+    const kinds = findSetWarnings(tracks).map((warning) => warning.kind)
+
+    expect(kinds).toContain('NO_BPM')
+    expect(kinds).toContain('KEY_CLASH')
   })
 })

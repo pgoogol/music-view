@@ -4,7 +4,7 @@ Osobiste narzędzie DJ-a do zarządzania biblioteką muzyczną. Spring Boot 3.x
 (Java 21, Maven) + Spring Batch + PostgreSQL 16 + React (Vite, od M1.8).
 
 Dokumentacja nadrzędna: [docs/KONCEPT.md](docs/KONCEPT.md) (specyfikacja),
-[docs/DECYZJE.md](docs/DECYZJE.md) (obowiązujące decyzje D1–D19 — nadpisują koncept),
+[docs/DECYZJE.md](docs/DECYZJE.md) (obowiązujące decyzje D1–D30 — nadpisują koncept),
 [docs/PLAN.md](docs/PLAN.md) (etapy i kamienie milowe). Odwołania „Dx" w kodzie
 i commitach wskazują decyzje z DECYZJE.md.
 
@@ -20,8 +20,12 @@ i commitach wskazują decyzje z DECYZJE.md.
 | Front — tryb dev | `cd frontend && npm install && npm run dev` (proxy `/api` na :8080) |
 | Front — testy | `cd frontend && npm test` (Vitest + Testing Library) |
 | Front — build | `cd frontend && npm run build` (typecheck + vite build) |
+| Obie aplikacje w Dockerze | `docker compose --profile full up -d --build` → front http://localhost:5173, API http://localhost:8080 |
+| Testy E2E | `./mvnw -DskipTests package && (cd frontend && npm run build) && cd e2e && npm install && npx playwright test` (potrzebuje Postgresa z `docker compose up -d`) |
 
-CI (GitHub Actions) uruchamia `./mvnw verify` na każdy push na `master` i każdy PR.
+CI (GitHub Actions) uruchamia `./mvnw verify` + build i testy frontu na każdy push
+na `master` i każdy PR; osobny job odpala test E2E na dwóch aplikacjach
+(zbudowany front + backend za proxy `/api`).
 
 ## Konwencje Java/Spring
 

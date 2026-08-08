@@ -4,7 +4,14 @@
 // wyłącznie w hashu.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { api, type CatalogSort, type PageResponse, type SortDirection, type TrackResponse } from '../api'
+import {
+  api,
+  type CatalogSort,
+  type MetricsCoverageResponse,
+  type PageResponse,
+  type SortDirection,
+  type TrackResponse,
+} from '../api'
 import LibraryTable from '../components/LibraryTable'
 import TrackDetails from '../components/TrackDetails'
 import { useToast } from '../components/Toasts'
@@ -16,6 +23,11 @@ const TEMPO_CLASSES = Object.keys(TEMPO_LABELS)
 const ENERGIES = Object.keys(ENERGY_LABELS)
 const PAGE_SIZES = [20, 50, 100]
 const RATINGS = [1, 2, 3, 4, 5]
+/** Wszystkie 24 pozycje koła Camelot (D25) — 1A–12A moll, 1B–12B dur. */
+const CAMELOT_KEYS = Array.from({ length: 12 }, (_, index) => index + 1).flatMap((number) => [
+  `${number}A`,
+  `${number}B`,
+])
 const DEFAULT_PAGE_SIZE = 20
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -82,6 +94,12 @@ export default function LibraryView({
   const inLibrary = params.get('lib') ?? ''
   const ratingMin = params.get('rating') ?? ''
   const tag = params.get('tag') ?? ''
+  const camelot = params.get('key') ?? ''
+  const keyExact = params.get('keyExact') === '1'
+  const valenceMin = params.get('valMin') ?? ''
+  const valenceMax = params.get('valMax') ?? ''
+  const instrumentalMin = params.get('instr') ?? ''
+  const livenessMax = params.get('live') ?? ''
   const sort = (params.get('sort') ?? 'RELEVANCE') as CatalogSort
   const direction = (params.get('dir') ?? 'ASC') as SortDirection
   const page = Number(params.get('page') ?? '0')
@@ -90,6 +108,7 @@ export default function LibraryView({
 
   const [result, setResult] = useState<PageResponse<TrackResponse> | null>(null)
   const [knownTags, setKnownTags] = useState<string[]>([])
+  const [coverage, setCoverage] = useState<MetricsCoverageResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   const pushSearch = useCallback(
@@ -117,6 +136,21 @@ export default function LibraryView({
     }
   }, [refreshKey])
 
+  // pokrycie metrykami: filtry metryk odsiewają utwory bez nich, więc pusty
+  // wynik trzeba umieć wytłumaczyć brakiem danych, a nie awarią (D25)
+  useEffect(() => {
+    let current = true
+    api
+      .metricsCoverage()
+      .then((loaded) => {
+        if (current) setCoverage(loaded)
+      })
+      .catch(() => setCoverage(null))
+    return () => {
+      current = false
+    }
+  }, [refreshKey])
+
   useEffect(() => {
     let current = true
     setLoading(true)
@@ -131,6 +165,12 @@ export default function LibraryView({
         inLibrary: parseInLibrary(inLibrary),
         ratingMin: ratingMin ? Number(ratingMin) : undefined,
         tag: tag || undefined,
+        camelot: camelot || undefined,
+        camelotCompatible: camelot ? !keyExact : undefined,
+        valenceMin: valenceMin ? Number(valenceMin) : undefined,
+        valenceMax: valenceMax ? Number(valenceMax) : undefined,
+        instrumentalMin: instrumentalMin ? Number(instrumentalMin) : undefined,
+        livenessMax: livenessMax ? Number(livenessMax) : undefined,
         sort,
         direction,
         page,
@@ -158,6 +198,12 @@ export default function LibraryView({
     inLibrary,
     ratingMin,
     tag,
+    camelot,
+    keyExact,
+    valenceMin,
+    valenceMax,
+    instrumentalMin,
+    livenessMax,
     sort,
     direction,
     page,
@@ -167,12 +213,28 @@ export default function LibraryView({
   ])
 
   const tracks = result?.content ?? []
+  const metricFiltersActive =
+    valenceMin !== '' || valenceMax !== '' || instrumentalMin !== '' || livenessMax !== ''
+  const activeValues = [
+    search,
+    genreFamily,
+    bpmMin,
+    bpmMax,
+    tempoClass,
+    energy,
+    inLibrary,
+    ratingMin,
+    tag,
+    camelot,
+    valenceMin,
+    valenceMax,
+    instrumentalMin,
+    livenessMax,
+  ]
   const filtersActive = useMemo(
-    () =>
-      [search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag].some(
-        (value) => value !== '',
-      ),
-    [search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag],
+    () => activeValues.some((value) => value !== ''),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    activeValues,
   )
 
   const toggleTrack = (spotifyId: string) => {
@@ -210,6 +272,12 @@ export default function LibraryView({
       lib: undefined,
       rating: undefined,
       tag: undefined,
+      key: undefined,
+      keyExact: undefined,
+      valMin: undefined,
+      valMax: undefined,
+      instr: undefined,
+      live: undefined,
       page: undefined,
     })
 
@@ -323,6 +391,94 @@ export default function LibraryView({
           </label>
         </div>
 
+        {/* harmonia (D25): koło Camelot liczy backend z tonacji, więc filtr
+            obejmuje też utwory z dumpa AB, nie tylko te z wgranego pliku */}
+        <div className="filters-harmonic" data-testid="harmonic-filters">
+          <label className="filter-group">
+            <span>tonacja</span>
+            <select
+              value={camelot}
+              onChange={(event) => setParams({ key: event.target.value, page: undefined })}
+              aria-label="tonacja (Camelot)"
+            >
+              <option value="">dowolna</option>
+              {CAMELOT_KEYS.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          {camelot !== '' && (
+            <label className="filter-check">
+              <input
+                type="checkbox"
+                checked={keyExact}
+                onChange={(event) =>
+                  setParams({ keyExact: event.target.checked ? '1' : undefined, page: undefined })
+                }
+              />
+              <span>tylko dokładna tonacja</span>
+            </label>
+          )}
+        </div>
+
+        {/* metryki z pliku (D24) — filtr działa wyłącznie na utworach, które je mają */}
+        <div className="filters-metrics" data-testid="metric-filters">
+          <label className="filter-group">
+            <span>nastrój od</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              placeholder="0.00"
+              value={valenceMin}
+              onChange={(event) => setParams({ valMin: event.target.value, page: undefined })}
+              aria-label="nastrój od"
+            />
+          </label>
+          <label className="filter-group">
+            <span>nastrój do</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              placeholder="1.00"
+              value={valenceMax}
+              onChange={(event) => setParams({ valMax: event.target.value, page: undefined })}
+              aria-label="nastrój do"
+            />
+          </label>
+          <label className="filter-group">
+            <span>instrumentalność od</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              placeholder="0.00"
+              value={instrumentalMin}
+              onChange={(event) => setParams({ instr: event.target.value, page: undefined })}
+              aria-label="instrumentalność od"
+            />
+          </label>
+          <label className="filter-group">
+            <span>koncertowość do</span>
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.05"
+              placeholder="1.00"
+              value={livenessMax}
+              onChange={(event) => setParams({ live: event.target.value, page: undefined })}
+              aria-label="koncertowość do"
+            />
+          </label>
+        </div>
+
         {filtersActive && (
           <button className="link" onClick={clearFilters} data-testid="clear-filters">
             wyczyść filtry
@@ -348,6 +504,13 @@ export default function LibraryView({
           : 'Ładowanie…'}
         {selectedIds.size > 0 && ` · zaznaczonych: ${selectedIds.size}`}
       </p>
+
+      {metricFiltersActive && coverage && (
+        <p className="muted metrics-coverage" data-testid="metrics-coverage">
+          Filtry metryk działają na {coverage.withMetrics} z {coverage.total} utworów — resztę
+          uzupełnisz plikiem CSV w zakładce Import.
+        </p>
+      )}
 
       <LibraryTable
         tracks={tracks}

@@ -28,7 +28,8 @@ public class PlaylistApiMapper {
     public PlaylistSummaryResponse toResponse(PlaylistSummary summary) {
 
         return new PlaylistSummaryResponse(summary.id(), summary.name(),
-            summary.spotifyPlaylistId(), summary.createdAt(), summary.trackCount());
+            summary.spotifyPlaylistId(), summary.createdAt(), summary.trackCount(),
+            summary.version());
     }
 
     public PlaylistResponse toResponse(PlaylistPlan plan) {
@@ -38,7 +39,8 @@ public class PlaylistApiMapper {
             .map(this::toResponse)
             .toList();
         return new PlaylistResponse(playlist.getId(), playlist.getName(),
-            playlist.getSpotifyPlaylistId(), playlist.getCreatedAt(), tracks);
+            playlist.getSpotifyPlaylistId(), playlist.getCreatedAt(), playlist.getVersion(),
+            tracks);
     }
 
     private PlaylistResponse.PlaylistTrackResponse toResponse(PlannedTrack plannedTrack) {
@@ -47,6 +49,8 @@ public class PlaylistApiMapper {
             plannedTrack.position(),
             Objects.toString(plannedTrack.djSlot(), null),
             plannedTrack.djSlotOverride(),
+            plannedTrack.loudnessDb(),
+            plannedTrack.timeSignature(),
             catalogApiMapper.toResponse(plannedTrack.track()));
     }
 }

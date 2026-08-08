@@ -3,7 +3,8 @@
 // tagów i slot z listy wartości enuma DjSlot zamiast wolnego tekstu.
 
 import { useEffect, useState } from 'react'
-import { api, type LibraryEntryResponse, type TrackMetricsResponse } from '../api'
+import { ApiError, api, type LibraryEntryResponse, type TrackMetricsResponse } from '../api'
+import { useHashRoute } from '../hooks/useHashRoute'
 import StarRating from './StarRating'
 import TagChips from './TagChips'
 import { useToast } from './Toasts'
@@ -29,6 +30,7 @@ interface Props {
 export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
 
   const { notify, reportError } = useToast()
+  const { setParams } = useHashRoute()
   const [entry, setEntry] = useState<LibraryEntryResponse | null>(null)
   const [metrics, setMetrics] = useState<TrackMetricsResponse | null>(null)
   const [djNotes, setDjNotes] = useState('')
@@ -74,7 +76,23 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
     }
   }, [spotifyId])
 
+  /**
+   * Konflikt (D29): ktoś — albo Ty w drugiej karcie — zmienił ten wpis. Przeładowujemy
+   * rekord, ale ZOSTAWIAMY to, co DJ ma wpisane w polach: cichy zapis „ostatni wygrywa"
+   * jest zły, ale skasowanie właśnie napisanej notatki jest jeszcze gorsze.
+   */
+  const reloadAfterConflict = async () => {
+    try {
+      const fresh = await api.getLibraryEntry(spotifyId)
+      setEntry(fresh)
+      notify('Wpis zmienił się w innym miejscu — sprawdź i zapisz ponownie', 'error')
+    } catch {
+      notify('Wpis zmienił się w innym miejscu — odśwież widok', 'error')
+    }
+  }
+
   const save = async () => {
+    if (!entry) return
     setSaving(true)
     try {
       setEntry(await api.updateLibraryEntry(spotifyId, {
@@ -82,11 +100,16 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
         customTags: tags,
         rating,
         djSlotOverride: slotOverride,
+        version: entry.version,
       }))
       notify('Zapisano dane DJ-a')
       onChanged()
     } catch (error) {
-      reportError(error, 'Nie udało się zapisać')
+      if (error instanceof ApiError && error.errorCode === 'RESOURCE_MODIFIED') {
+        await reloadAfterConflict()
+      } else {
+        reportError(error, 'Nie udało się zapisać')
+      }
     } finally {
       setSaving(false)
     }
@@ -156,7 +179,27 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
               <dt>Tempo</dt>
               <dd>{tempoLabel(track.tempoClass)}</dd>
               <dt>Tonacja</dt>
-              <dd>{track.musicalKey ?? DASH}</dd>
+              <dd>
+                {track.musicalKey ?? DASH}
+                {track.camelot && (
+                  <>
+                    {' '}
+                    <span className="badge" title="pozycja koła Camelot (D25)">
+                      {track.camelot}
+                    </span>{' '}
+                    <button
+                      className="link"
+                      data-testid="harmonic-match"
+                      onClick={() => {
+                        setParams({ key: track.camelot!, keyExact: undefined, page: undefined })
+                        onClose()
+                      }}
+                    >
+                      pasujące tonacyjnie
+                    </button>
+                  </>
+                )}
+              </dd>
               <dt>Taneczność</dt>
               <dd>{track.danceability ?? DASH}</dd>
               <dt>Gatunek</dt>

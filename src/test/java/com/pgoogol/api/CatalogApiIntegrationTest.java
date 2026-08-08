@@ -3,6 +3,8 @@ package com.pgoogol.api;
 import com.pgoogol.TestcontainersConfiguration;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
@@ -17,7 +19,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -38,6 +44,12 @@ class CatalogApiIntegrationTest {
     @Autowired
     private LibraryEntryRepository libraryEntryRepository;
 
+    @Autowired
+    private ManualMetricsRepository manualMetricsRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     @BeforeEach
     void seedCatalog() {
 
@@ -48,12 +60,15 @@ class CatalogApiIntegrationTest {
         rock.setBpm(72);
         rock.setTempoClass(TempoClass.SLOW);
         rock.setEnergy("medium");
+        // 8B — tonacja równoległa do 8A utworu sp-vivir (D25)
+        rock.setMusicalKey("C major");
         trackCatalogRepository.save(rock);
     }
 
     @AfterEach
     void cleanDatabase() {
 
+        manualMetricsRepository.deleteAll();
         libraryEntryRepository.deleteAll();
         trackCatalogRepository.deleteAll();
     }
@@ -264,6 +279,142 @@ class CatalogApiIntegrationTest {
             .andExpect(jsonPath("$.content[1].spotifyId").value("sp-carnaval"));
     }
 
+    @Test
+    void getTrack_computesCamelotFromMusicalKey() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks/sp-vivir"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.musicalKey").value("A minor"))
+            .andExpect(jsonPath("$.camelot").value("8A"));
+    }
+
+    @Test
+    void getTrack_whenKeyUnknown_leavesCamelotEmpty() throws Exception {
+
+        trackCatalogRepository.save(new TrackCatalog("sp-szkielet", "Szkielet", "Nieznany"));
+
+        mockMvc.perform(get("/api/catalog/tracks/sp-szkielet"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.camelot").doesNotExist());
+    }
+
+    @Test
+    void searchTracks_whenCamelotCompatible_returnsNeighboursAndRelativeKey() throws Exception {
+
+        saveTrackWithKey("sp-daleki", "Daleki", "Eb minor");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("camelot", "8A"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.content[*].spotifyId").value(
+                org.hamcrest.Matchers.containsInAnyOrder("sp-vivir", "sp-carnaval", "sp-bohemian")));
+    }
+
+    @Test
+    void searchTracks_whenCamelotExact_returnsOnlyThatPosition() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("camelot", "8A")
+                .param("camelotCompatible", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenCamelotWrittenWithFlats_matchesSharpSpellingInCatalog() throws Exception {
+
+        saveTrackWithKey("sp-bemol", "Bemol", "Eb minor");
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("camelot", "2A")
+                .param("camelotCompatible", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bemol"))
+            .andExpect(jsonPath("$.content[0].camelot").value("2A"));
+    }
+
+    @Test
+    void searchTracks_whenCamelotOutsideWheel_returns400WithErrorCode() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("camelot", "13Z"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_CAMELOT"));
+    }
+
+    @Test
+    void searchTracks_whenMetricFilter_keepsOnlyTracksWithMatchingMetrics() throws Exception {
+
+        saveMetrics("sp-vivir", "0.80", "0.05", "0.10");
+        saveMetrics("sp-carnaval", "0.20", "0.90", "0.10");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("valenceMin", "0.5"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenMetricFilter_dropsTracksWithoutMetricsAltogether() throws Exception {
+
+        saveMetrics("sp-vivir", "0.80", "0.95", "0.10");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("instrumentalMin", "0.5"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+    }
+
+    @Test
+    void searchTracks_whenLivenessMax_filtersOutConcertRecordings() throws Exception {
+
+        saveMetrics("sp-vivir", "0.80", "0.05", "0.90");
+        saveMetrics("sp-carnaval", "0.80", "0.05", "0.10");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("livenessMax", "0.5"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+    }
+
+    @Test
+    void getMetricsCoverage_reportsHowManyTracksHaveMetrics() throws Exception {
+
+        saveMetrics("sp-vivir", "0.80", "0.05", "0.10");
+
+        mockMvc.perform(get("/api/catalog/metrics-coverage"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.withMetrics").value(1))
+            .andExpect(jsonPath("$.total").value(3));
+    }
+
+    private void saveTrackWithKey(String spotifyId, String title, String musicalKey) {
+
+        TrackCatalog track = new TrackCatalog(spotifyId, title, "Nieznany");
+        track.setMusicalKey(musicalKey);
+        trackCatalogRepository.save(track);
+    }
+
+    /**
+     * {@code ManualMetrics} dzieli klucz z utworem ({@code @MapsId}), więc utwór
+     * musi być encją zarządzaną — inaczej Hibernate uzna go za nowy i spróbuje
+     * wstawić drugi raz. Produkcyjny import robi to samo wewnątrz transakcji.
+     */
+    private void saveMetrics(String spotifyId, String valence, String instrumentalness,
+                             String liveness) {
+
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            ManualMetrics metrics = new ManualMetrics(
+                trackCatalogRepository.findById(spotifyId).orElseThrow());
+            metrics.setValence(new BigDecimal(valence));
+            metrics.setInstrumentalness(new BigDecimal(instrumentalness));
+            metrics.setLiveness(new BigDecimal(liveness));
+            metrics.setImportedAt(Instant.now());
+            manualMetricsRepository.save(metrics);
+        });
+    }
+
     private void addToLibrary(String spotifyId, Integer rating, String tag) {
 
         LibraryEntry entry = new LibraryEntry(
@@ -283,6 +434,8 @@ class CatalogApiIntegrationTest {
         track.setBpmSource(BpmSource.DEEZER);
         track.setTempoClass(bpm > 160 ? TempoClass.VERY_FAST : TempoClass.SLOW);
         track.setEnergy("high");
+        // 8A i 9A — sąsiedzi na kole Camelot, żeby filtr harmoniczny miał co dopasować
+        track.setMusicalKey("sp-vivir".equals(spotifyId) ? "A minor" : "E minor");
         return track;
     }
 }

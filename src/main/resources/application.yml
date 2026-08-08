@@ -38,6 +38,14 @@ llm:
   requests-per-second: 2
   max-tokens: 2048
   temperature: 0.2
+  # twardy sufit zlecenia (D28) — SELECTED miał limit od M1.6, MISSING nie miał
+  # żadnego, a pomyłka w LLM_MODEL przy 2500 utworach to realny rachunek
+  max-tracks-per-job: ${LLM_MAX_TRACKS_PER_JOB:500}
+  # stawki providera w USD za 1M tokenów; puste = nie znamy cennika i mówimy to
+  # wprost zamiast zgadywać (szacunek pokazujemy przed startem joba)
+  cost:
+    input-per-1m: ${LLM_COST_INPUT_PER_1M:}
+    output-per-1m: ${LLM_COST_OUTPUT_PER_1M:}
 
 clients:
   spotify:
