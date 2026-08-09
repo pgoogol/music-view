@@ -592,3 +592,31 @@ podnosi obie usługi jedną komendą.
 - **Stub źródeł zewnętrznych to kilkadziesiąt linii Node'a, nie WireMock.** WireMock obsługuje
   testy integracyjne backendu i zostaje tam, gdzie jest; stawianie drugiego procesu JVM obok
   aplikacji tylko po to, żeby oddać jedną odpowiedź LLM-a, byłoby kosztem bez zysku.
+
+## D31. Import hurtem raportuje awarie, zamiast się przerywać
+
+Dotyczy dwóch wejść, które przetwarzają wiele niezależnych porcji: importu własnych
+playlist (tryb C) i importu metryk z plików CSV (D24).
+
+- **Awaria jednej porcji nie przerywa przebiegu.** Import kilkudziesięciu playlist trwa
+  kwadranse (jedna playlista = kilka wywołań Spotify z limiterem), więc wywrotka na
+  dwudziestej kasowała efekt całej reszty i zmuszała do powtarzania od zera. Tak samo
+  jeden felerny plik CSV nie może zabierać ze sobą tych, które weszły. Porcja, która
+  padła, wraca w raporcie z `errorCode` i powodem — DJ wie, co powtórzyć.
+- **Każda porcja ma własną transakcję.** Playlista idzie przez
+  `PlaylistIngestionService`, plik przez `MetricsIngestionService` — wołane z osobnego
+  beana, żeby proxy Springa realnie otwierało transakcję (samowywołanie by ją zgubiło).
+  Rollback obejmuje wtedy wyłącznie porcję, która padła; ponowny import jest i tak
+  idempotentny, więc powtórka nie dubluje danych.
+- **Nieoczekiwany wyjątek nie wychodzi na zewnątrz treścią.** Do raportu trafia
+  `INTERNAL_ERROR` i odesłanie do logów; komunikaty typowanych wyjątków (`AppException`)
+  są już pisane dla użytkownika, więc te przepuszczamy w całości
+  (docs/rules/errorhandling.md).
+- **Kontrakty odpowiedzi zmieniają kształt na `{ imported, failed }`.**
+  `POST /api/ingest/my-playlists` zwraca obiekt zamiast gołej listy, a
+  `POST /api/ingest/metrics` — sumy partii plus sekcję `files[]` z raportem per plik.
+  Numer wiersza bez nazwy pliku przestał cokolwiek znaczyć, gdy plików jest kilkanaście.
+- **Wiele plików idzie w jednym żądaniu jako powtórzone pole `file`.** Eksport analizatora
+  playlist powstaje per playlista, więc uzupełnienie biblioteki to kilkanaście plików pod
+  rząd. Osobne żądanie na plik działałoby tak samo, ale raport rozjechałby się na
+  kilkanaście toastów zamiast jednego podsumowania.

@@ -44,6 +44,10 @@ curl -X POST http://localhost:8080/api/ingest/my-playlists
 W raporcie: `tracks` (unikalne utwory), `imported` (nowe w bibliotece),
 `alreadyExisted`, `skipped` (pliki lokalne, odcinki podcastów, utwory usunięte).
 
+Tryb C zwraca `{ imported[], failed[] }` (D31): playlista, która padła — wygasły token,
+chwilowe 5xx ze Spotify — nie przerywa przebiegu, tylko wraca w `failed` z `errorCode`
+i powodem. Wystarczy powtórzyć ją po linku albo puścić import jeszcze raz; jest idempotentny.
+
 ## 4. Wzbogacenie zaimportowanych utworów
 
 Import playlisty wypełnia grupę METADATA od ręki, więc zwykle wystarczy:

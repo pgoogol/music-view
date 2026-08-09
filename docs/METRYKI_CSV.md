@@ -6,16 +6,23 @@ ze Spotify, D6).
 
 ## Jak wgrać
 
-- **UI:** zakładka *Import* → panel „Metryki utworów (CSV)" → wybierz plik → *Wgraj metryki*.
-- **API:** `POST /api/ingest/metrics`, multipart, pole `file`.
+- **UI:** zakładka *Import* → panel „Metryki utworów (CSV)" → wybierz pliki → *Wgraj metryki*.
+- **API:** `POST /api/ingest/metrics`, multipart, pole `file` — można je podać wiele razy.
 
 ```bash
 curl -F file=@metryki.csv http://localhost:8080/api/ingest/metrics
+curl -F file=@wesela.csv -F file=@salsa.csv http://localhost:8080/api/ingest/metrics
 ```
 
-Odpowiedź: `applied` (utwory uzupełnione), `matchedByIsrc` (wiersze dopasowane dopiero
-po ISRC), `skipped` (wiersze bez utworu w katalogu), `failed` (wiersze odrzucone przez
-parser) — dwa ostatnie z numerem wiersza i powodem.
+Odpowiedź to sumy całej partii — `applied` (utwory uzupełnione), `matchedByIsrc` (wiersze
+dopasowane dopiero po ISRC), `skippedRows`, `failedRows` — plus `files[]` z raportem
+per plik: `applied`, `matchedByIsrc`, `skipped` (wiersze bez utworu w katalogu) i `failed`
+(wiersze odrzucone przez parser), oba z numerem wiersza i powodem.
+
+Każdy plik idzie osobno i w **osobnej transakcji** (D31): plik odrzucony w całości —
+np. bez kolumny identyfikującej utwór — wraca w `files[]` z `errorCode` i `error`,
+a pozostałe wchodzą normalnie. Kolejność ma znaczenie tylko wtedy, gdy ten sam utwór
+występuje w kilku plikach: wygrywa ostatni.
 
 Ponowny import **nadpisuje** metryki utworu; wiersz jest liczony raz, nawet jeśli
 powtarza się w pliku.

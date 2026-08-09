@@ -4,7 +4,7 @@
 // playliście), więc podsumowanie nie może zniknąć razem z toastem.
 
 import { useCallback, useEffect, useState } from 'react'
-import { api, type IngestPlaylistResponse, type SpotifyAccountResponse } from '../api'
+import { api, type IngestMyPlaylistsResponse, type SpotifyAccountResponse } from '../api'
 import Modal from './Modal'
 import { useToast } from './Toasts'
 import { formatDateTime } from '../format'
@@ -17,7 +17,7 @@ export default function SpotifyPanel({ onImported }: Props) {
 
   const { notify, reportError } = useToast()
   const [account, setAccount] = useState<SpotifyAccountResponse | null>(null)
-  const [reports, setReports] = useState<IngestPlaylistResponse[] | null>(null)
+  const [reports, setReports] = useState<IngestMyPlaylistsResponse | null>(null)
   const [busy, setBusy] = useState(false)
 
   const refresh = useCallback(() => {
@@ -40,15 +40,17 @@ export default function SpotifyPanel({ onImported }: Props) {
   }
 
   const closeReport = () => {
-    const imported = reports
+    const finished = reports
     setReports(null)
-    if (imported && imported.length > 0) {
-      notify(`Zaimportowano ${imported.length} playlist`)
+    if (finished && finished.imported.length > 0) {
+      notify(`Zaimportowano ${finished.imported.length} playlist`)
     }
   }
 
-  const totalTracks = (reports ?? []).reduce((sum, report) => sum + report.imported, 0)
-  const totalSkipped = (reports ?? []).reduce((sum, report) => sum + report.skipped.length, 0)
+  const imported = reports?.imported ?? []
+  const failed = reports?.failed ?? []
+  const totalTracks = imported.reduce((sum, report) => sum + report.imported, 0)
+  const totalSkipped = imported.reduce((sum, report) => sum + report.skipped.length, 0)
 
   return (
     <section className="panel" aria-label="Konto Spotify">
@@ -95,12 +97,12 @@ export default function SpotifyPanel({ onImported }: Props) {
 
       {reports && (
         <Modal title="Import playlist zakończony" onClose={closeReport} testId="my-playlists-modal">
-          {reports.length === 0 ? (
+          {imported.length === 0 && failed.length === 0 ? (
             <p className="muted">Konto nie ma playlist do zaimportowania.</p>
           ) : (
             <>
               <p>
-                Playlist: <strong>{reports.length}</strong>, nowych utworów w bibliotece:{' '}
+                Playlist: <strong>{imported.length}</strong>, nowych utworów w bibliotece:{' '}
                 <strong>{totalTracks}</strong>
                 {totalSkipped > 0 && (
                   <>
@@ -109,7 +111,7 @@ export default function SpotifyPanel({ onImported }: Props) {
                 )}
               </p>
               <ul className="modal-list" data-testid="my-playlists-report">
-                {reports.map((report) => (
+                {imported.map((report) => (
                   <li key={report.spotifyPlaylistId}>
                     „{report.name}" — {report.tracks} utworów, nowych:{' '}
                     <strong>{report.imported}</strong>
@@ -119,6 +121,22 @@ export default function SpotifyPanel({ onImported }: Props) {
                   </li>
                 ))}
               </ul>
+              {failed.length > 0 && (
+                <>
+                  {/* import leci dalej mimo awarii — tutaj widać, co powtórzyć po linku */}
+                  <p className="error">
+                    Nieudane playlisty: <strong>{failed.length}</strong>
+                  </p>
+                  <ul className="modal-list" data-testid="my-playlists-failed">
+                    {failed.map((playlist) => (
+                      <li key={playlist.spotifyPlaylistId}>
+                        „{playlist.name}" — {playlist.reason}{' '}
+                        <span className="muted">({playlist.errorCode})</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </>
           )}
         </Modal>

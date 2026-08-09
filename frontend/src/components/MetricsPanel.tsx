@@ -1,9 +1,11 @@
 // Ręczne wgrywanie metryk utworów z CSV (D24) — obejście na czas, gdy Spotify
 // nie oddaje już audio-features. Panel celowo mówi wprost, że plik tylko
 // uzupełnia utwory, które są już w katalogu: biblioteka jedzie ze Spotify.
+// Eksport analizatora idzie per playlista, więc plików wybiera się kilka naraz
+// — każdy ma własny wiersz raportu, bo numer wiersza bez nazwy pliku nic nie mówi.
 
 import { useRef, useState } from 'react'
-import { api, type IngestMetricsResponse } from '../api'
+import { api, type IngestMetricsResponse, type MetricsFileReportResponse } from '../api'
 import { useToast } from './Toasts'
 
 interface Props {
@@ -20,16 +22,21 @@ export default function MetricsPanel({ onImported }: Props) {
   const [report, setReport] = useState<IngestMetricsResponse | null>(null)
 
   const upload = async () => {
-    const file = fileInput.current?.files?.[0]
-    if (!file) {
+    const files = Array.from(fileInput.current?.files ?? [])
+    if (files.length === 0) {
       notify('Wybierz plik CSV z metrykami', 'error')
       return
     }
     setBusy(true)
     try {
-      const uploaded = await api.ingestMetrics(file)
+      const uploaded = await api.ingestMetrics(files)
       setReport(uploaded)
-      notify(`Uzupełniono metryki dla ${uploaded.applied} utworów`)
+      const broken = uploaded.files.filter((file) => file.error)
+      if (broken.length === uploaded.files.length) {
+        notify(broken[0].error ?? 'Nie udało się wczytać żadnego pliku', 'error')
+      } else {
+        notify(`Uzupełniono metryki dla ${uploaded.applied} utworów`)
+      }
       onImported()
     } catch (error) {
       reportError(error, 'Import metryk nie powiódł się')
@@ -44,11 +51,17 @@ export default function MetricsPanel({ onImported }: Props) {
       <p className="muted">
         BPM, tonacja, Camelot i cechy audio wgrywane ręcznie. Wiersze dopasowywane po
         Spotify Track Id, a gdy go brak — po ISRC; utwory spoza katalogu są pomijane.
-        Ponowny import nadpisuje metryki.
+        Można wskazać kilka plików naraz; ponowny import nadpisuje metryki.
       </p>
 
       <div className="row">
-        <input ref={fileInput} type="file" accept=".csv,text/csv" data-testid="metrics-input" />
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".csv,text/csv"
+          multiple
+          data-testid="metrics-input"
+        />
         <button onClick={upload} disabled={busy} data-testid="metrics-upload">
           {busy ? 'Wgrywam…' : 'Wgraj metryki'}
         </button>
@@ -59,13 +72,38 @@ export default function MetricsPanel({ onImported }: Props) {
           <p>
             uzupełnione utwory: <strong>{report.applied}</strong>, dopasowane po ISRC:{' '}
             <strong>{report.matchedByIsrc}</strong>, spoza katalogu:{' '}
-            <strong>{report.skipped.length}</strong>, odrzucone wiersze:{' '}
-            <strong>{report.failed.length}</strong>
+            <strong>{report.skippedRows}</strong>, odrzucone wiersze:{' '}
+            <strong>{report.failedRows}</strong>
           </p>
-          <ProblemRows rows={[...report.skipped, ...report.failed]} />
+          <ul className="modal-list">
+            {report.files.map((file) => (
+              <li key={file.file}>
+                <FileReport file={file} />
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </section>
+  )
+}
+
+function FileReport({ file }: { file: MetricsFileReportResponse }) {
+
+  if (file.error) {
+    return (
+      <>
+        <strong>{file.file}</strong> — <span className="error">plik odrzucony: {file.error}</span>
+      </>
+    )
+  }
+  return (
+    <>
+      <strong>{file.file}</strong> — uzupełnione: {file.applied}
+      {file.skipped.length > 0 && <span className="muted">, spoza katalogu: {file.skipped.length}</span>}
+      {file.failed.length > 0 && <span className="muted">, odrzucone: {file.failed.length}</span>}
+      <ProblemRows rows={[...file.skipped, ...file.failed]} />
+    </>
   )
 }
 
