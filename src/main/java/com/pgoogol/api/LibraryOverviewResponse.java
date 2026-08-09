@@ -14,6 +14,7 @@ public record LibraryOverviewResponse(
     long metadataMissing,
     long audioMissing,
     long aiMissing,
+    long lyricsMissing,
     List<BucketResponse> genres,
     List<BucketResponse> tempoClasses,
     List<BucketResponse> energies,

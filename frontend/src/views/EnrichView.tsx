@@ -13,11 +13,12 @@ import {
 import JobHistory from '../components/JobHistory'
 import { useToast } from '../components/Toasts'
 
-const FIELD_GROUPS = ['METADATA', 'AUDIO', 'AI'] as const
+const FIELD_GROUPS = ['METADATA', 'AUDIO', 'AI', 'LYRICS'] as const
 const GROUP_LABELS: Record<string, string> = {
   METADATA: 'metadane (Spotify)',
   AUDIO: 'audio (BPM, tonacja)',
   AI: 'opisy AI',
+  LYRICS: 'teksty (LRCLIB + tłumaczenie)',
 }
 const SCOPES = ['MISSING', 'SELECTED', 'OUTDATED'] as const
 type Scope = (typeof SCOPES)[number]
@@ -154,8 +155,12 @@ export default function EnrichView({ selectedIds, onJobFinished }: Props) {
     if (!missing) return null
     if (group === 'METADATA') return missing.metadata
     if (group === 'AUDIO') return missing.audio
+    if (group === 'LYRICS') return missing.lyrics
     return missing.ai
   }
+
+  // tłumaczenie tekstu kosztuje jak grupa AI, tylko wielokrotnie drożej za utwór (D32)
+  const paidTracks = estimate ? estimate.aiTracks + estimate.lyricsTracks : 0
 
   return (
     <div className="enrich-layout">
@@ -247,10 +252,13 @@ export default function EnrichView({ selectedIds, onJobFinished }: Props) {
           {estimate && (
             <>
               <strong>{estimate.trackCount}</strong> utworów w zleceniu
-              {estimate.aiTracks > 0 && (
+              {paidTracks > 0 && (
                 <>
                   {' · płatnych '}
-                  <strong>{estimate.aiTracks}</strong>
+                  <strong>{paidTracks}</strong>
+                  {estimate.lyricsTracks > 0 && (
+                    <span className="muted">{` (w tym ${estimate.lyricsTracks} z tekstem)`}</span>
+                  )}
                   {' · koszt '}
                   <strong>
                     {estimate.estimatedCost === null
@@ -259,8 +267,8 @@ export default function EnrichView({ selectedIds, onJobFinished }: Props) {
                   </strong>
                 </>
               )}
-              {estimate.aiTracks === 0 && ' · bez kosztu (darmowe źródła)'}
-              {estimate.estimatedCost === null && estimate.aiTracks > 0 && (
+              {paidTracks === 0 && ' · bez kosztu (darmowe źródła)'}
+              {estimate.estimatedCost === null && paidTracks > 0 && (
                 <span className="muted">
                   {' '}
                   — ustaw llm.cost.input-per-1m i llm.cost.output-per-1m

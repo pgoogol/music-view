@@ -53,6 +53,14 @@ public class EnrichmentJobConfig {
     static final Pattern SAFE_MODEL = Pattern.compile("[A-Za-z0-9._:/-]{1,128}");
 
     private static final int READER_PAGE_SIZE = 50;
+
+    /**
+     * Zlecenie na wskazane utwory to świadome polecenie DJ-a, więc odświeża
+     * dane pobrane wcześniej (dziś dotyczy tekstów — D32); przebieg masowy
+     * uzupełnia wyłącznie braki.
+     */
+    private static final Set<EnrichmentScope> FORCED_SCOPES =
+        EnumSet.of(EnrichmentScope.SINGLE, EnrichmentScope.SELECTED);
     private static final String METADATA_MISSING_SQL =
         "(isrc is null or year is null or duration_ms is null)";
     private static final String AUDIO_MISSING_SQL =
@@ -60,6 +68,17 @@ public class EnrichmentJobConfig {
     private static final String AI_MISSING_SQL =
         "(style is null or genre_family is null or lyrics_theme is null "
             + "or description_pl is null or energy is null)";
+
+    /**
+     * Utwór bez rozstrzygniętego tekstu (D32): brak wiersza albo wiersz ze
+     * statusem FETCHED (tekst jest, tłumaczenia nie). NOT_FOUND i INSTRUMENTAL
+     * są odpowiedzią ostateczną — pytanie o nie LRCLIB drugi raz niczego by nie
+     * zmieniło, a kosztowałoby przebieg po całej bibliotece.
+     */
+    private static final String LYRICS_MISSING_SQL =
+        "(not exists (select 1 from track_lyrics tl "
+            + "where tl.spotify_id = track_catalog.spotify_id "
+            + "and tl.status in ('TRANSLATED', 'NOT_FOUND', 'INSTRUMENTAL')))";
 
     @Bean
     public Job enrichmentJob(JobRepository jobRepository, Step enrichmentStep) {
@@ -112,12 +131,14 @@ public class EnrichmentJobConfig {
     @StepScope
     public ItemWriter<String> enrichmentTrackWriter(TrackCatalogRepository trackCatalogRepository,
                                                     TrackEnricher trackEnricher,
-                                                    @Value("#{jobParameters['fields']}") String fields) {
+                                                    @Value("#{jobParameters['fields']}") String fields,
+                                                    @Value("#{jobParameters['scope']}") String scope) {
 
         Set<FieldGroup> fieldGroups = parseFields(fields);
+        boolean force = FORCED_SCOPES.contains(EnrichmentScope.valueOf(scope));
         return chunk -> {
             List<TrackCatalog> tracks = trackCatalogRepository.findAllById(List.copyOf(chunk.getItems()));
-            trackEnricher.enrich(tracks, fieldGroups);
+            trackEnricher.enrich(tracks, fieldGroups, force);
             trackCatalogRepository.saveAll(tracks);
         };
     }
@@ -189,6 +210,7 @@ public class EnrichmentJobConfig {
                 case METADATA -> METADATA_MISSING_SQL;
                 case AUDIO -> AUDIO_MISSING_SQL;
                 case AI -> AI_MISSING_SQL;
+                case LYRICS -> LYRICS_MISSING_SQL;
             })
             .collect(Collectors.joining(" or "));
     }

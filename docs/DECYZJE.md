@@ -620,3 +620,54 @@ playlist (tryb C) i importu metryk z plików CSV (D24).
   playlist powstaje per playlista, więc uzupełnienie biblioteki to kilkanaście plików pod
   rząd. Osobne żądanie na plik działałoby tak samo, ale raport rozjechałby się na
   kilkanaście toastów zamiast jednego podsumowania.
+
+## D32. Teksty utworów: LRCLIB + tłumaczenie i interpretacja (M6.1)
+
+Warstwa AI dostaje **drugi cel** obok dotychczasowego: tłumaczy teksty utworów na polski
+i je interpretuje. Analiza DJ-ska z M1.5 (`style`, `genre_family`, `energy`,
+`description_pl`, awaryjne BPM) **zostaje bez zmian** — karmi sloty wieczoru (D9),
+generator setu (D26) i korektę half-time, więc jej wyłączenie zabrałoby te funkcje
+utworom bez wgranych metryk (D24).
+
+- **Nowa grupa pól `LYRICS`** obok METADATA/AUDIO/AI (D11). Rozdzielona od AI, bo ma inne
+  źródło (LRCLIB, nie wiedza modelu), inną wersję promptu i inny rząd kosztu: wejściem jest
+  cały tekst, nie garść metadanych. Kto nie chce płacić za tłumaczenia, odznacza grupę.
+- **Źródło tekstów: LRCLIB** — publiczne, darmowe, bez klucza API; jedyny wymóg to
+  identyfikujący `User-Agent` (jak MusicBrainz w D6, i tak samo nie jest to sekret).
+  Dwa kroki: dokładne dopasowanie `/api/get` (wykonawca + tytuł + album + czas trwania),
+  a przy 404 luźniejsze `/api/search`. Czas trwania idzie tylko w pierwszym kroku, bo
+  LRCLIB traktuje go jako warunek i inne wydanie nagrania odpadłoby bez fallbacku.
+- **Wyszukiwanie w internecie odrzucone.** Rozważane jako trzeci element (kontekst
+  o utworze z sieci do promptu interpretacji), odrzucone przez właściciela: przy lokalnym
+  modelu wymagałoby albo kolejnego płatnego klucza (Brave/Tavily), albo kruchego scrapingu
+  szukajki, a interpretacja z samego tekstu jest tym, czego DJ realnie potrzebuje.
+  Interfejs pod to nie powstaje — wróci jako osobna decyzja, jeśli okaże się potrzebny.
+- **Osobna tabela `track_lyrics`** (migracja V7, klucz = `spotify_id`, jak `manual_metrics`
+  z D24) zamiast kolumn w `track_catalog`. Tekst i tłumaczenie to kilka kilobajtów na utwór,
+  a katalog czyta wyszukiwarka przy każdym przewinięciu listy 2500 pozycji. To nie jest
+  zmiana zamrożonego modelu domenowego, tylko rozszerzenie strony katalogowej (D3).
+- **`status` pełni rolę negatywnego cache'u** (w duchu D18): `NOT_FOUND` i `INSTRUMENTAL`
+  to potwierdzone odpowiedzi LRCLIB, więc zakres MISSING ich nie rusza — inaczej każdy
+  przebieg po bibliotece pytałby o utwory, o których już wiadomo, że tekstu nie mają.
+  `FETCHED` (tekst jest, tłumaczenia nie ma, bo padł provider) rozstrzygnięciem nie jest
+  i wraca do kolejki.
+- **SINGLE/SELECTED pobiera od nowa, MISSING uzupełnia braki.** Zlecenie na wskazane utwory
+  jest świadomym poleceniem DJ-a („pobierz jeszcze raz, bo LRCLIB mógł już dostać tekst"),
+  a przebieg masowy ma być tani. Rozstrzyga o tym zakres joba, nie osobny endpoint.
+- **Jeden utwór na wywołanie modelu**, w odróżnieniu od analizy batchowanej po pięć (M1.5):
+  tekst ma kilka tysięcy znaków, więc partia rozsadziłaby okno kontekstu, a jeden błąd
+  parsowania kosztowałby całą piątkę. Wejście dłuższe niż `llm.lyrics.max-chars` (6000)
+  jest przycinane z jawnym znacznikiem — taniej niż wywołanie odrzucone przez limit modelu.
+- **Własne pola audytu** (`model_used`, `prompt_version` w `track_lyrics`): tłumaczenie może
+  powstać innym modelem i inną wersją promptu niż opis z grupy AI. Zakres `OUTDATED` (D28)
+  **zostaje przy samej grupie AI** — porównuje `track_catalog.model_used`, więc przeliczanie
+  tłumaczeń tą drogą byłoby obietnicą bez pokrycia; odświeżenie tekstu robi się zakresem
+  SELECTED.
+- **Szacunek kosztu rozdziela obie grupy** (D28): utwór w grupie AI to ~140/120 tokenów,
+  utwór z tekstem ~1400/1600 — wartości orientacyjne, do zmierzenia na realnym przebiegu
+  tak samo jak stawki AI po M1.9. UI pokazuje „płatnych X (w tym Y z tekstem)", żeby
+  zlecenie na całą bibliotekę nie wyglądało na tak samo tanie jak opisy.
+- **Praw autorskich nie obchodzimy:** teksty pobiera na własny użytek narzędzie jednego
+  DJ-a (D2), zostają w jego lokalnej bazie i nie są nigdzie publikowane. W repozytorium
+  nie ma żadnego tekstu utworu — fikstury testów i stub E2E używają treści wymyślonych
+  na potrzeby testu.

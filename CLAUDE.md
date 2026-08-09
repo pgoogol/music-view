@@ -31,7 +31,8 @@ na `master` i każdy PR; osobny job odpala test E2E na dwóch aplikacjach
 
 - **Java 21**, Spring Boot 3.x, build wyłącznie Mavenem (wrapper `./mvnw` w repo).
 - Pakiet bazowy **`com.pgoogol`** (D1); moduły jako podpakiety:
-  `catalog`, `library`, `playlist`, `ingestion`, `enrichment`, `api`, `common`.
+  `catalog`, `library`, `playlist`, `ingestion`, `enrichment`, `api`, `common`
+  (klienci źródeł mieszkają w podpakietach `enrichment`, np. `enrichment.lyrics` — D32).
   Kod domenowy trzymaj w module, do którego należy; kontrolery REST, DTO i mappery
   w `api`; elementy współdzielone (np. rate limiting) w `common`.
 - Rozdział danych (D3): `track_catalog` = dane deterministyczne utworu,
@@ -46,6 +47,8 @@ na `master` i każdy PR; osobny job odpala test E2E na dwóch aplikacjach
   odpowiedziach (WireMock). Nowa logika = nowe testy w tym samym kamieniu.
 - Klienci zewnętrznych API izolowani w dedykowanych klasach (`SpotifyClient` itd.)
   z limiterem i retry+backoff z `common/ratelimit`; MusicBrainz twardo 1 req/s.
+- **Żadnych tekstów utworów w repo** (D32) — teksty pobiera LRCLIB do lokalnej bazy
+  DJ-a; fikstury testów i stub E2E używają treści wymyślonych na potrzeby testu.
 
 ## Rulesety szczegółowe (D16)
 
@@ -66,8 +69,8 @@ rozstrzygają DECYZJE.md i PLAN.md.
   (jest w `.gitignore`); w repo utrzymujemy wyłącznie `.env.example` z pustymi
   wartościami.
 - Zmienne: `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `LLM_PROVIDER`,
-  `LLM_API_KEY`, `MB_USER_AGENT` (User-Agent z kontaktem — to nie sekret,
-  ale konfiguracja środowiskowa).
+  `LLM_API_KEY`, `MB_USER_AGENT` i `LRCLIB_USER_AGENT` (User-Agent z kontaktem —
+  to nie sekret, ale konfiguracja środowiskowa; LRCLIB nie ma klucza API).
 - Klucz, który pojawił się jawnie (czat, log, commit) → traktuj jako spalony,
   zgłoś potrzebę rotacji.
 - Brak auth w samej aplikacji (narzędzie lokalne, D2/D14) — nie dodawać systemu kont.

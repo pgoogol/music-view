@@ -14,6 +14,7 @@ erDiagram
     TRACK_CATALOG ||--o{ LIBRARY_ENTRY : "referencjonowany"
     TRACK_CATALOG ||--o{ PLAYLIST_TRACK : "umieszczony w"
     TRACK_CATALOG ||--o| AUDIO_FEATURES : "cechy audio (AB)"
+    TRACK_CATALOG ||--o| TRACK_LYRICS : "tekst + tłumaczenie (D32)"
     PLAYLIST ||--o{ PLAYLIST_TRACK : "zawiera"
 
     TRACK_CATALOG {
@@ -41,6 +42,20 @@ erDiagram
         timestamp enriched_at
         string model_used
         int enrich_version
+    }
+
+    TRACK_LYRICS {
+        string spotify_id PK
+        string status "translated|fetched|not_found|instrumental"
+        bigint lrclib_id
+        string source_language
+        text original_lyrics
+        text translation_pl
+        text interpretation_pl
+        timestamp fetched_at
+        timestamp translated_at
+        string model_used
+        int prompt_version
     }
 
     AUDIO_FEATURES {
@@ -86,6 +101,7 @@ erDiagram
 | Playlists | `POST/DELETE /api/playlists/{id}/tracks*`, `PUT /api/playlists/{id}/tracks` (kolejność) | 2 |
 | Enrichment | `POST /api/enrich` (scope+fields), `GET /api/enrich/jobs[/{id}]`, `POST /api/enrich/jobs/{id}/restart`, `GET /api/enrich/missing-count` | 1 |
 | Catalog | `GET /api/catalog/tracks/{spotifyId}`, `GET /api/catalog/tracks` (search+filtry) | 1 |
+| Catalog | `GET /api/catalog/tracks/{spotifyId}/lyrics` (tekst + tłumaczenie, D32) | 6 |
 | Library | `GET/POST /api/library/tracks`, `PATCH/DELETE /api/library/tracks/{spotifyId}` | 1 |
 | Playlists | CRUD `/api/playlists*`, `POST /api/playlists/{id}/export-to-spotify` | 2 |
 | Auth Spotify | `GET /api/auth/spotify/login`, `GET /api/auth/spotify/callback`, `GET /api/auth/spotify/status` | 2 |
@@ -483,6 +499,51 @@ automatycznie, nie ręcznie.
 sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok przepływu
 przestaje działać.
 
+
+---
+
+# ETAP 6 — Teksty utworów (w toku)
+
+**Cel etapu:** warstwa AI przestaje być wyłącznie opisywaczem metadanych i zaczyna
+pracować na treści utworu — tłumaczy tekst na polski i go interpretuje. Dotychczasowa
+analiza DJ-ska zostaje bez zmian (D32): to ona karmi sloty wieczoru, generator setu
+i korektę half-time.
+
+| Kamień | Zakres | Zależy od | Stan |
+|---|---|---|---|
+| **M6.1** Teksty, tłumaczenie i interpretacja | Klient LRCLIB, tabela `track_lyrics` (V7), grupa pól `LYRICS` w jobie, prompt tłumacza, endpoint tekstu, sekcja w szufladzie utworu (D32) | M1.6, M1.8 | ✅ |
+
+## M6.1 Teksty, tłumaczenie i interpretacja *(po M1.6)*
+
+**Cel:** DJ otwiera utwór i czyta, o czym on właściwie jest — po polsku, także gdy
+oryginał jest po hiszpańsku.
+
+- `LrcLibClient` w `enrichment.lyrics` — dokładne dopasowanie `/api/get`
+  (wykonawca + tytuł + album + czas trwania) z fallbackiem na `/api/search`; znaczniki
+  czasu z tekstu zsynchronizowanego zdejmowane w kliencie, limiter i retry z `common/ratelimit`
+- Migracja **V7**: tabela `track_lyrics` (klucz = `spotify_id`, jak `manual_metrics`),
+  `status` jako negatywny cache — `NOT_FOUND` i `INSTRUMENTAL` nie wracają do kolejki (D32)
+- **Grupa pól `LYRICS`** obok METADATA/AUDIO/AI: pobranie tekstu → tłumaczenie
+  i interpretacja modelem z konfiguracji (D15), **jeden utwór na wywołanie** (tekst to
+  kilka tysięcy znaków), wejście przycinane do `llm.lyrics.max-chars`
+- Zakres `SINGLE`/`SELECTED` pobiera tekst **od nowa**, `MISSING` uzupełnia wyłącznie braki;
+  `OUTDATED` zostaje przy samej grupie AI (D28/D32)
+- Szacunek kosztu rozdziela grupy: ~140/120 tokenów na opis AI, ~1400/1600 na tłumaczenie —
+  UI pokazuje „płatnych X (w tym Y z tekstem)"
+- `GET /api/catalog/tracks/{spotifyId}/lyrics` (204 = jeszcze nie pobierano; `NOT_FOUND`
+  wraca jako treść, bo to odpowiedź, nie luka) i sekcja „Tekst i tłumaczenie" w szufladzie
+  utworu z przyciskiem pobrania na miejscu
+- Pokrycie grupy widoczne tam, gdzie pozostałe: paski w zakładce Wzbogacanie
+  i licznik „z tekstem" w Przeglądzie
+
+**DoD:** dla utworu z biblioteki jedno kliknięcie w szufladzie daje tekst, tłumaczenie
+i interpretację; utwór bez tekstu w LRCLIB mówi to wprost i nie jest pytany drugi raz przy
+kolejnym przebiegu MISSING; `./mvnw verify` i `npm test && npm run build` zielone,
+test E2E przechodzi przez sekcję tekstu na stubie.
+
+**Poza zakresem (D32):** wyszukiwanie informacji o utworze w internecie — odrzucone
+świadomie, wróci jako osobna decyzja, jeśli okaże się potrzebne.
+
 ---
 
 # Zależności między kamieniami
@@ -531,6 +592,8 @@ więc zostaje na koniec.
 | Limity/zmiany API Spotify (por. martwe preview_url) | tryby B/C/D | izolacja w `SpotifyClient`; tryb A (CSV) zawsze działa jako fallback |
 | Filtry metryk działają tylko dla części biblioteki (M4.1) | pusty wynik wygląda jak awaria | licznik „X z Y utworów ma metryki" przy filtrach; Camelot liczony z `musical_key`, więc obejmuje też utwory z dumpa AB (D25) |
 | Jakość setu z generatora jest subiektywna (M4.2) | „nie tak bym to ułożył" | generator zwraca propozycję do ręcznej korekty, nie zapisuje playlisty; DoD mówi o ograniczeniach i kształcie krzywej, nie o „dobrym secie" (D26) |
+| Koszt tłumaczeń (M6.1): utwór z tekstem to ~10× tokenów utworu z opisem | rachunek za bibliotekę rośnie skokowo | osobna grupa pól do odznaczenia, przycinanie wejścia (`llm.lyrics.max-chars`), rozdzielony szacunek przed startem, twardy limit `llm.max-tracks-per-job` (D32) |
+| Pokrycie LRCLIB nieznane dla polskiego repertuaru (M6.1) | część biblioteki bez tekstu | potwierdzony brak zapisywany raz (negatywny cache), fallback z `/api/get` na `/api/search`; realne pokrycie do zmierzenia na własnej bibliotece |
 | Test E2E jako źródło fałszywych alarmów (M5.3) | czerwone CI przestaje coś znaczyć | jeden przepływ zamiast siatki przypadków, klienci zewnętrzni na WireMocku — bez zależności od Spotify i klucza LLM (D30) |
 
 **Pomiar kosztu LLM (M1.5):** mechanizm gotowy — `LlmSmokeTest` raportuje tokeny

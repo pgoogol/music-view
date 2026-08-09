@@ -19,6 +19,7 @@ public record LibraryOverview(
     long metadataMissing,
     long audioMissing,
     long aiMissing,
+    long lyricsMissing,
     List<Bucket> genres,
     List<Bucket> tempoClasses,
     List<Bucket> energies,

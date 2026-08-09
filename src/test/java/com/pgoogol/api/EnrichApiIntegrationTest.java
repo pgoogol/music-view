@@ -115,13 +115,14 @@ class EnrichApiIntegrationTest {
     void missingCount_whenCalled_returnsCountsPerFieldGroup() throws Exception {
 
         // given
-        given(enrichmentService.missingCount()).willReturn(new MissingFieldsCount(10, 20, 30));
+        given(enrichmentService.missingCount()).willReturn(new MissingFieldsCount(10, 20, 30, 40));
 
         // when + then
         mockMvc.perform(get("/api/enrich/missing-count"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.metadata").value(10))
             .andExpect(jsonPath("$.audio").value(20))
-            .andExpect(jsonPath("$.ai").value(30));
+            .andExpect(jsonPath("$.ai").value(30))
+            .andExpect(jsonPath("$.lyrics").value(40));
     }
 }

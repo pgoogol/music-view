@@ -90,7 +90,8 @@ public class LibraryOverviewRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public LibraryOverview load(long metadataMissing, long audioMissing, long aiMissing) {
+    public LibraryOverview load(long metadataMissing, long audioMissing, long aiMissing,
+                                long lyricsMissing) {
 
         Map<String, Object> counts = jdbcTemplate.queryForMap(COUNTS);
         Map<String, List<Bucket>> distributions = distributions();
@@ -101,6 +102,7 @@ public class LibraryOverviewRepository {
             metadataMissing,
             audioMissing,
             aiMissing,
+            lyricsMissing,
             distributions.getOrDefault("genre", List.of()),
             distributions.getOrDefault("tempo", List.of()),
             distributions.getOrDefault("energy", List.of()),

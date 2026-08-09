@@ -47,6 +47,12 @@ llm:
   cost:
     input-per-1m: ${LLM_COST_INPUT_PER_1M:}
     output-per-1m: ${LLM_COST_OUTPUT_PER_1M:}
+  # tłumaczenie i interpretacja tekstów (D32) — własna wersja promptu, bo tekst
+  # tłumaczy się z innych powodów niż opisuje utwór; max-chars przycina wejście,
+  # zanim odrzuci je limit modelu (jeden utwór na wywołanie, bez batchowania)
+  lyrics:
+    prompt-version: v1
+    max-chars: ${LLM_LYRICS_MAX_CHARS:6000}
 
 clients:
   spotify:
@@ -65,3 +71,9 @@ clients:
   deezer:
     base-url: https://api.deezer.com
     requests-per-second: 10
+  # teksty utworów (D32) — publiczne API bez klucza; user-agent to nie sekret,
+  # tylko identyfikacja klienta, o którą prosi serwis (jak MB_USER_AGENT)
+  lrclib:
+    base-url: https://lrclib.net
+    requests-per-second: 2
+    user-agent: ${LRCLIB_USER_AGENT:music-view/0.1 (https://github.com/pgoogol/music-view)}

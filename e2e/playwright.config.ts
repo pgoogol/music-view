@@ -70,6 +70,7 @@ export default defineConfig({
         LLM_COST_INPUT_PER_1M: '1.00',
         LLM_COST_OUTPUT_PER_1M: '5.00',
         CLIENTS_DEEZER_BASEURL: `http://127.0.0.1:${STUB_PORT}`,
+        CLIENTS_LRCLIB_BASEURL: `http://127.0.0.1:${STUB_PORT}`,
         CLIENTS_MUSICBRAINZ_BASEURL: `http://127.0.0.1:${STUB_PORT}`,
         CLIENTS_SPOTIFY_BASEURL: `http://127.0.0.1:${STUB_PORT}`,
         CLIENTS_SPOTIFY_AUTHURL: `http://127.0.0.1:${STUB_PORT}`,

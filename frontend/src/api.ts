@@ -76,6 +76,22 @@ export interface TrackMetricsResponse {
   importedAt: string | null
 }
 
+/** Tekst utworu z LRCLIB wraz z tłumaczeniem i interpretacją (D32). */
+export interface TrackLyricsResponse {
+  spotifyId: string
+  /** TRANSLATED | FETCHED | NOT_FOUND | INSTRUMENTAL — dwa ostatnie to odpowiedź, nie brak. */
+  status: string
+  sourceLanguage: string | null
+  originalLyrics: string | null
+  translationPl: string | null
+  interpretationPl: string | null
+  lrclibId: number | null
+  fetchedAt: string | null
+  translatedAt: string | null
+  modelUsed: string | null
+  promptVersion: number | null
+}
+
 export interface RowErrorResponse {
   line: number
   reason: string
@@ -190,6 +206,7 @@ export interface LibraryOverviewResponse {
   metadataMissing: number
   audioMissing: number
   aiMissing: number
+  lyricsMissing: number
   genres: BucketResponse[]
   tempoClasses: BucketResponse[]
   energies: BucketResponse[]
@@ -243,8 +260,10 @@ export interface MetricsCoverageResponse {
 /** Szacunek zlecenia wzbogacania (M5.1/D28) — nic nie uruchamia. */
 export interface EnrichmentEstimateResponse {
   trackCount: number
-  /** Utwory, za które realnie zapłacimy — tylko grupa AI. */
+  /** Utwory z opisem AI — płatne. */
   aiTracks: number
+  /** Utwory z tłumaczeniem tekstu — też płatne, ale wielokrotnie drożej za utwór (D32). */
+  lyricsTracks: number
   /** null = brak stawek w konfiguracji, nie zero. */
   estimatedCost: number | null
   limit: number
@@ -255,6 +274,7 @@ export interface MissingCountResponse {
   metadata: number
   audio: number
   ai: number
+  lyrics: number
 }
 
 /** Biała lista sortowania po stronie API (M3.1, enum CatalogSort). */
@@ -401,6 +421,11 @@ export const api = {
   /** 204 z backendu (utwór bez metryk) wraca jako undefined — patrz `request`. */
   getTrackMetrics(spotifyId: string): Promise<TrackMetricsResponse | undefined> {
     return request(`/api/catalog/tracks/${encodeURIComponent(spotifyId)}/metrics`)
+  },
+
+  /** 204 = utwór nie przeszedł jeszcze grupy LYRICS; NOT_FOUND wraca jako treść (D32). */
+  getTrackLyrics(spotifyId: string): Promise<TrackLyricsResponse | undefined> {
+    return request(`/api/catalog/tracks/${encodeURIComponent(spotifyId)}/lyrics`)
   },
 
   ingestPlaylist(url: string): Promise<IngestPlaylistResponse> {

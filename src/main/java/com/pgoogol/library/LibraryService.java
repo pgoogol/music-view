@@ -55,7 +55,7 @@ public class LibraryService {
 
         TrackCatalogRepository.MissingCounts missing = trackCatalogRepository.countMissingByGroup();
         return libraryOverviewRepository.load(
-            missing.getMetadata(), missing.getAudio(), missing.getAi());
+            missing.getMetadata(), missing.getAudio(), missing.getAi(), missing.getLyrics());
     }
 
     @Transactional(readOnly = true)

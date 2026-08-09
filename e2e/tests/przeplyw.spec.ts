@@ -94,6 +94,11 @@ test.describe('przepływ DJ-a', () => {
     await page.getByTestId('search-input').fill('vivir')
     await page.getByText('Vivir Mi Vida').first().click()
     await expect(page.getByTestId('track-details')).toContainText('salsa dura')
+    // tekst z LRCLIB wraz z tłumaczeniem i interpretacją (D32) — ta sama droga co opis
+    await expect(page.getByTestId('lyrics-interpretation')).toContainText(
+      'Testowa interpretacja tekstu utworu.',
+    )
+    await expect(page.getByTestId('lyrics-translation')).toContainText('Pierwszy wers po polsku')
     await closeDrawer(page)
 
     // --- set: nowy set i utwory z zaznaczenia

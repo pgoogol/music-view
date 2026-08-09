@@ -10,6 +10,7 @@ const overview = {
   metadataMissing: 4,
   audioMissing: 380,
   aiMissing: 90,
+  lyricsMissing: 120,
   genres: [
     { label: 'LATIN', count: 1500 },
     { label: 'BEZ GATUNKU', count: 100 },

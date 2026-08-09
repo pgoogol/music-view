@@ -26,7 +26,7 @@ import static org.mockito.Mockito.times;
 class TrackAnalysisServiceTest {
 
     private static final LlmProperties PROPERTIES = new LlmProperties(
-        "openai", null, "test-key", "test-model", "v1", 5, 100, 2048, 0.2, 500, null);
+        "openai", null, "test-key", "test-model", "v1", 5, 100, 2048, 0.2, 500, null, null);
 
     @Mock
     private LlmClient llmClient;

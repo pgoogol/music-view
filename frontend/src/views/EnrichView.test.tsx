@@ -19,12 +19,19 @@ function lastEstimateBody(): Record<string, unknown> {
 }
 
 beforeEach(() => {
-  estimate = { trackCount: 340, aiTracks: 340, estimatedCost: 0.2516, limit: 500, withinLimit: true }
+  estimate = {
+    trackCount: 340,
+    aiTracks: 340,
+    lyricsTracks: 0,
+    estimatedCost: 0.2516,
+    limit: 500,
+    withinLimit: true,
+  }
   fetchMock = vi.fn().mockImplementation((url: string) => {
     const target = String(url)
     if (target.includes('/api/enrich/estimate')) return Promise.resolve(jsonResponse(estimate))
     if (target.includes('/api/enrich/missing-count')) {
-      return Promise.resolve(jsonResponse({ metadata: 4, audio: 380, ai: 340 }))
+      return Promise.resolve(jsonResponse({ metadata: 4, audio: 380, ai: 340, lyrics: 2100 }))
     }
     if (target.includes('/api/enrich/jobs')) return Promise.resolve(jsonResponse([]))
     return Promise.resolve(jsonResponse(aPage([], { totalElements: 2500 })))
@@ -58,7 +65,14 @@ describe('EnrichView — szacunek przed startem (M5.1)', () => {
 
   it('zlecenie ponad limit blokuje przycisk startu', async () => {
 
-    estimate = { trackCount: 2500, aiTracks: 2500, estimatedCost: 1.85, limit: 500, withinLimit: false }
+    estimate = {
+      trackCount: 2500,
+      aiTracks: 2500,
+      lyricsTracks: 0,
+      estimatedCost: 1.85,
+      limit: 500,
+      withinLimit: false,
+    }
 
     renderWithToasts(<EnrichView selectedIds={new Set()} onJobFinished={vi.fn()} />)
 

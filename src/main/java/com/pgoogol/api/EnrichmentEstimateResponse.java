@@ -6,7 +6,9 @@ import java.math.BigDecimal;
  * Szacunek zlecenia wzbogacania (M5.1/D28) — kontrakt
  * {@code POST /api/enrich/estimate}. Nic nie uruchamia.
  *
- * @param aiTracks      utwory, za które realnie zapłacimy (tylko grupa AI)
+ * @param aiTracks      utwory z opisem AI — płatne (D11)
+ * @param lyricsTracks  utwory z tłumaczeniem tekstu — też płatne, ale liczone
+ *                      osobno, bo utwór kosztuje tam wielokrotnie więcej (D32)
  * @param estimatedCost {@code null} = brak stawek w konfiguracji, nie zero
  * @param withinLimit   {@code false} oznacza, że {@code POST /api/enrich}
  *                      odrzuci to zlecenie
@@ -14,6 +16,7 @@ import java.math.BigDecimal;
 public record EnrichmentEstimateResponse(
     long trackCount,
     long aiTracks,
+    long lyricsTracks,
     BigDecimal estimatedCost,
     int limit,
     boolean withinLimit) {

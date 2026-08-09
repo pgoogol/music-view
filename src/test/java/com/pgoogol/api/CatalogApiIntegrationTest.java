@@ -3,11 +3,14 @@ package com.pgoogol.api;
 import com.pgoogol.TestcontainersConfiguration;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.LyricsStatus;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
+import com.pgoogol.catalog.TrackLyrics;
+import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.library.LibraryEntry;
 import com.pgoogol.library.LibraryEntryRepository;
 import com.pgoogol.library.LibrarySource;
@@ -48,6 +51,9 @@ class CatalogApiIntegrationTest {
     private ManualMetricsRepository manualMetricsRepository;
 
     @Autowired
+    private TrackLyricsRepository trackLyricsRepository;
+
+    @Autowired
     private PlatformTransactionManager transactionManager;
 
     @BeforeEach
@@ -69,6 +75,7 @@ class CatalogApiIntegrationTest {
     void cleanDatabase() {
 
         manualMetricsRepository.deleteAll();
+        trackLyricsRepository.deleteAll();
         libraryEntryRepository.deleteAll();
         trackCatalogRepository.deleteAll();
     }
@@ -83,6 +90,49 @@ class CatalogApiIntegrationTest {
             .andExpect(jsonPath("$.bpm").value(184))
             .andExpect(jsonPath("$.bpmSource").value("DEEZER"))
             .andExpect(jsonPath("$.tempoClass").value("VERY_FAST"));
+    }
+
+    @Test
+    void getTrackLyrics_whenTranslationExists_returnsTextWithAudit() throws Exception {
+
+        // given — tekst wymyślony na potrzeby testu (D32)
+        TrackLyrics lyrics = new TrackLyrics("sp-vivir", LyricsStatus.TRANSLATED);
+        lyrics.setSourceLanguage("hiszpański");
+        lyrics.setOriginalLyrics("Pierwszy wers testowego tekstu");
+        lyrics.setTranslationPl("Tłumaczenie testowe");
+        lyrics.setInterpretationPl("Interpretacja testowa.");
+        lyrics.setModelUsed("test-model");
+        lyrics.setPromptVersion(1);
+        trackLyricsRepository.save(lyrics);
+
+        // when + then
+        mockMvc.perform(get("/api/catalog/tracks/sp-vivir/lyrics"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("TRANSLATED"))
+            .andExpect(jsonPath("$.sourceLanguage").value("hiszpański"))
+            .andExpect(jsonPath("$.translationPl").value("Tłumaczenie testowe"))
+            .andExpect(jsonPath("$.interpretationPl").value("Interpretacja testowa."))
+            .andExpect(jsonPath("$.modelUsed").value("test-model"));
+    }
+
+    @Test
+    void getTrackLyrics_whenTrackHasNoLyricsYet_returns204() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks/sp-carnaval/lyrics"))
+            .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void getTrackLyrics_whenLrcLibKnowsNothing_returnsAnswerNotEmptyBody() throws Exception {
+
+        // given — potwierdzony brak to odpowiedź, nie luka: front ma co pokazać
+        trackLyricsRepository.save(new TrackLyrics("sp-bohemian", LyricsStatus.NOT_FOUND));
+
+        // when + then
+        mockMvc.perform(get("/api/catalog/tracks/sp-bohemian/lyrics"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("NOT_FOUND"))
+            .andExpect(jsonPath("$.translationPl").doesNotExist());
     }
 
     @Test

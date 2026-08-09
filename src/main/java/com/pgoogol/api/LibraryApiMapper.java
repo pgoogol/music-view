@@ -24,6 +24,7 @@ public class LibraryApiMapper {
             overview.metadataMissing(),
             overview.audioMissing(),
             overview.aiMissing(),
+            overview.lyricsMissing(),
             buckets(overview.genres()),
             buckets(overview.tempoClasses()),
             buckets(overview.energies()),

@@ -59,6 +59,19 @@ public class CatalogController {
             .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    @GetMapping("/tracks/{spotifyId}/lyrics")
+    @Operation(summary = "Tekst utworu z tłumaczeniem i interpretacją (D32)",
+        description = "Tekst pochodzi z LRCLIB, tłumaczenie i interpretacja z modelu "
+            + "wskazanego w konfiguracji (D15). 204, gdy utwór nie przeszedł jeszcze grupy "
+            + "pól LYRICS; status NOT_FOUND/INSTRUMENTAL to odpowiedź LRCLIB, nie brak danych.")
+    public ResponseEntity<TrackLyricsResponse> getTrackLyrics(@PathVariable String spotifyId) {
+
+        return catalogService.findLyrics(spotifyId)
+            .map(mapper::toResponse)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
     @GetMapping("/metrics-coverage")
     @Operation(summary = "Ile utworów katalogu ma metryki z pliku (D24)",
         description = "Kontekst dla filtrów valenceMin/valenceMax/instrumentalMin/livenessMax — "

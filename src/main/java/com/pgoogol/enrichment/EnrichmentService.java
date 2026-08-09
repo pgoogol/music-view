@@ -106,16 +106,19 @@ public class EnrichmentService {
             case MISSING -> trackCatalogRepository.countMissingForFields(
                 fields.contains(FieldGroup.METADATA),
                 fields.contains(FieldGroup.AUDIO),
-                fields.contains(FieldGroup.AI));
+                fields.contains(FieldGroup.AI),
+                fields.contains(FieldGroup.LYRICS));
             case OUTDATED -> trackCatalogRepository.countOutdated(
                 requiredModel(), llmProperties.promptVersionNumber().orElse(null));
         };
         long aiTracks = fields.contains(FieldGroup.AI) ? trackCount : 0;
+        long lyricsTracks = fields.contains(FieldGroup.LYRICS) ? trackCount : 0;
         int limit = llmProperties.maxTracksPerJob();
         return new EnrichmentEstimate(
             trackCount,
             aiTracks,
-            costEstimator.estimate(aiTracks).orElse(null),
+            lyricsTracks,
+            costEstimator.estimate(aiTracks, lyricsTracks).orElse(null),
             limit,
             trackCount <= limit);
     }
@@ -150,7 +153,8 @@ public class EnrichmentService {
 
         TrackCatalogRepository.MissingCounts counts =
             trackCatalogRepository.countMissingByGroup();
-        return new MissingFieldsCount(counts.getMetadata(), counts.getAudio(), counts.getAi());
+        return new MissingFieldsCount(
+            counts.getMetadata(), counts.getAudio(), counts.getAi(), counts.getLyrics());
     }
 
     private void requireWithinLimit(EnrichmentScope scope, EnrichmentEstimate estimate) {

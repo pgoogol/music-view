@@ -3,6 +3,7 @@ package com.pgoogol.api;
 import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.TrackCatalog;
+import com.pgoogol.catalog.TrackLyrics;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -28,6 +29,22 @@ public class CatalogApiMapper {
             metrics.getTimeSignature(),
             metrics.getSource(),
             metrics.getImportedAt());
+    }
+
+    public TrackLyricsResponse toResponse(TrackLyrics lyrics) {
+
+        return new TrackLyricsResponse(
+            lyrics.getSpotifyId(),
+            lyrics.getStatus().name(),
+            lyrics.getSourceLanguage(),
+            lyrics.getOriginalLyrics(),
+            lyrics.getTranslationPl(),
+            lyrics.getInterpretationPl(),
+            lyrics.getLrclibId(),
+            lyrics.getFetchedAt(),
+            lyrics.getTranslatedAt(),
+            lyrics.getModelUsed(),
+            lyrics.getPromptVersion());
     }
 
     public TrackResponse toResponse(TrackCatalog track) {

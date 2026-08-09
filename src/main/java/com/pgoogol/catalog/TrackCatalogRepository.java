@@ -39,22 +39,32 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
      * (D27) — wcześniej były to trzy osobne {@code count}-y odpalane przy każdym
      * wejściu na zakładkę Wzbogacanie.
      */
+    /**
+     * Tekst „rozstrzygnięty" (D32): przetłumaczony albo z potwierdzoną
+     * odpowiedzią LRCLIB, że tłumaczyć nie ma czego. Reszta — także brak
+     * wiersza — jest brakiem w grupie LYRICS.
+     */
+    String LYRICS_RESOLVED = "tl.status in ('TRANSLATED', 'NOT_FOUND', 'INSTRUMENTAL')";
+
     @Query(value = """
         select
-          count(*) filter (where isrc is null or year is null or duration_ms is null)
+          count(*) filter (where t.isrc is null or t.year is null or t.duration_ms is null)
             as metadata,
-          count(*) filter (where bpm is null or musical_key is null
-                              or danceability is null or tempo_class is null)
+          count(*) filter (where t.bpm is null or t.musical_key is null
+                              or t.danceability is null or t.tempo_class is null)
             as audio,
-          count(*) filter (where style is null or genre_family is null
-                              or lyrics_theme is null or description_pl is null
-                              or energy is null)
-            as ai
-        from track_catalog
+          count(*) filter (where t.style is null or t.genre_family is null
+                              or t.lyrics_theme is null or t.description_pl is null
+                              or t.energy is null)
+            as ai,
+          count(*) filter (where tl.spotify_id is null or not (""" + LYRICS_RESOLVED + """
+          )) as lyrics
+        from track_catalog t
+        left join track_lyrics tl on tl.spotify_id = t.spotify_id
         """, nativeQuery = true)
     MissingCounts countMissingByGroup();
 
-    /** Projekcja pod {@link #countMissingByGroup()} — trzy liczby, jeden wiersz. */
+    /** Projekcja pod {@link #countMissingByGroup()} — cztery liczby, jeden wiersz. */
     interface MissingCounts {
 
         long getMetadata();
@@ -62,6 +72,8 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
         long getAudio();
 
         long getAi();
+
+        long getLyrics();
     }
 
     /**
@@ -70,19 +82,25 @@ public interface TrackCatalogRepository extends JpaRepository<TrackCatalog, Stri
      * bo job bierze utwór, któremu brakuje czegokolwiek z zaznaczonych grup.
      */
     @Query(value = """
-        select count(*) from track_catalog
+        select count(*)
+          from track_catalog t
+          left join track_lyrics tl on tl.spotify_id = t.spotify_id
          where (cast(:metadata as boolean)
-                and (isrc is null or year is null or duration_ms is null))
+                and (t.isrc is null or t.year is null or t.duration_ms is null))
             or (cast(:audio as boolean)
-                and (bpm is null or musical_key is null
-                     or danceability is null or tempo_class is null))
+                and (t.bpm is null or t.musical_key is null
+                     or t.danceability is null or t.tempo_class is null))
             or (cast(:ai as boolean)
-                and (style is null or genre_family is null or lyrics_theme is null
-                     or description_pl is null or energy is null))
+                and (t.style is null or t.genre_family is null or t.lyrics_theme is null
+                     or t.description_pl is null or t.energy is null))
+            or (cast(:lyrics as boolean)
+                and (tl.spotify_id is null or not (""" + LYRICS_RESOLVED + """
+                )))
         """, nativeQuery = true)
     long countMissingForFields(@Param("metadata") boolean metadata,
                                @Param("audio") boolean audio,
-                               @Param("ai") boolean ai);
+                               @Param("ai") boolean ai,
+                               @Param("lyrics") boolean lyrics);
 
     /**
      * Utwory opisane innym modelem albo inną wersją promptu niż bieżąca

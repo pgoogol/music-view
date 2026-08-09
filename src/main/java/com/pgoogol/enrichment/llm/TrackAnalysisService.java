@@ -98,7 +98,7 @@ public class TrackAnalysisService {
 
         Map<String, TrackCatalog> byId = batch.stream()
             .collect(Collectors.toMap(TrackCatalog::getSpotifyId, Function.identity()));
-        JsonNode root = readJson(content);
+        JsonNode root = LlmResponses.readJson(objectMapper, content);
         if (!root.isArray()) {
             throw new ExternalServiceException("LLM_RESPONSE_INVALID",
                 "Odpowiedź LLM nie jest tablicą JSON");
@@ -112,30 +112,6 @@ public class TrackAnalysisService {
         return analyses;
     }
 
-    private JsonNode readJson(String content) {
-
-        try {
-            return objectMapper.readTree(stripMarkdownFences(content));
-        } catch (JsonProcessingException ex) {
-            throw new ExternalServiceException("LLM_RESPONSE_INVALID",
-                "Odpowiedź LLM nie jest poprawnym JSON-em", ex);
-        }
-    }
-
-    private String stripMarkdownFences(String content) {
-
-        String trimmed = content.strip();
-        if (!trimmed.startsWith("```")) {
-            return trimmed;
-        }
-        int firstLineEnd = trimmed.indexOf('\n');
-        int closingFence = trimmed.lastIndexOf("```");
-        if (firstLineEnd < 0 || closingFence <= firstLineEnd) {
-            return trimmed;
-        }
-        return trimmed.substring(firstLineEnd + 1, closingFence).strip();
-    }
-
     private Optional<TrackAnalysis> toAnalysis(JsonNode node, Map<String, TrackCatalog> byId) {
 
         String spotifyId = node.path("spotify_id").asText(null);
@@ -146,12 +122,12 @@ public class TrackAnalysisService {
         GenreFamily genreFamily = parseGenreFamily(node.path("genre_family").asText(null), spotifyId);
         return Optional.of(new TrackAnalysis(
             spotifyId,
-            textOrNull(node, "style"),
+            LlmResponses.textOrNull(node, "style"),
             genreFamily,
-            textOrNull(node, "lyrics_theme"),
-            textOrNull(node, "description_pl"),
-            textOrNull(node, "energy"),
-            textOrNull(node, "confidence"),
+            LlmResponses.textOrNull(node, "lyrics_theme"),
+            LlmResponses.textOrNull(node, "description_pl"),
+            LlmResponses.textOrNull(node, "energy"),
+            LlmResponses.textOrNull(node, "confidence"),
             bpmEstimate(node, genreFamily)));
     }
 
@@ -176,12 +152,6 @@ public class TrackAnalysisService {
             log.warn("LLM zwrócił nieznane genre_family '{}' dla {} — przyjmuję OTHER", raw, spotifyId);
             return GenreFamily.OTHER;
         }
-    }
-
-    private String textOrNull(JsonNode node, String field) {
-
-        String value = node.path(field).asText(null);
-        return Objects.isNull(value) || value.isBlank() ? null : value.strip();
     }
 
     private record InputTrack(@JsonProperty("spotify_id") String spotifyId,

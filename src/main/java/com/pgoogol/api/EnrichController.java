@@ -35,7 +35,8 @@ public class EnrichController {
     @Operation(summary = "Zlecenie wzbogacania (asynchroniczne)",
         description = "scope: SINGLE/SELECTED (z spotifyIds, max 100), MISSING (wg braków) "
             + "albo OUTDATED (utwory opisane starszym modelem/promptem — wyłącznie grupa AI, D28); "
-            + "fields: podzbiór METADATA/AUDIO/AI. Zlecenie ponad llm.max-tracks-per-job "
+            + "fields: podzbiór METADATA/AUDIO/AI/LYRICS. SINGLE i SELECTED pobierają tekst "
+            + "od nowa (D32), MISSING uzupełnia wyłącznie braki. Zlecenie ponad llm.max-tracks-per-job "
             + "kończy się 400 ENRICH_TOO_MANY_TRACKS — sprawdź wcześniej /api/enrich/estimate.")
     public Map<String, Long> startEnrichment(@Valid @RequestBody EnrichRequest request) {
 
@@ -54,8 +55,8 @@ public class EnrichController {
         EnrichmentEstimate estimate = enrichmentService.estimate(
             request.scope(), request.fields(), request.spotifyIdsOrEmpty());
         return new EnrichmentEstimateResponse(
-            estimate.trackCount(), estimate.aiTracks(), estimate.estimatedCost(),
-            estimate.limit(), estimate.withinLimit());
+            estimate.trackCount(), estimate.aiTracks(), estimate.lyricsTracks(),
+            estimate.estimatedCost(), estimate.limit(), estimate.withinLimit());
     }
 
     @GetMapping("/jobs")

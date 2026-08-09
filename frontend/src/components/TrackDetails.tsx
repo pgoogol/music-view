@@ -1,10 +1,18 @@
 // Szuflada szczegółów utworu (M1.8, rozbudowa M3.1): okładka, link do Spotify,
 // fakty katalogu oraz edycja danych prywatnych DJ-a (D3) — gwiazdki, chipsy
 // tagów i slot z listy wartości enuma DjSlot zamiast wolnego tekstu.
+// Od M6.1 (D32) także tekst utworu z LRCLIB wraz z tłumaczeniem i interpretacją.
 
-import { useEffect, useState } from 'react'
-import { ApiError, api, type LibraryEntryResponse, type TrackMetricsResponse } from '../api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  ApiError,
+  api,
+  type LibraryEntryResponse,
+  type TrackLyricsResponse,
+  type TrackMetricsResponse,
+} from '../api'
 import { useHashRoute } from '../hooks/useHashRoute'
+import Collapsible from './Collapsible'
 import StarRating from './StarRating'
 import TagChips from './TagChips'
 import { useToast } from './Toasts'
@@ -27,12 +35,28 @@ interface Props {
   onChanged: () => void
 }
 
+const ACTIVE_JOB_STATUSES = new Set(['STARTING', 'STARTED', 'STOPPING'])
+const LYRICS_POLL_INTERVAL_MS = 1500
+/** Pobranie tekstu i tłumaczenie jednego utworu mieści się w ~pół minuty. */
+const LYRICS_POLL_ATTEMPTS = 40
+
+/** Statusy z {@code LyricsStatus} (D32) — dwa ostatnie to odpowiedź, nie brak danych. */
+const LYRICS_STATUS_LABELS: Record<string, string> = {
+  TRANSLATED: 'przetłumaczony',
+  FETCHED: 'tekst pobrany, brak tłumaczenia',
+  NOT_FOUND: 'LRCLIB nie zna tekstu tego nagrania',
+  INSTRUMENTAL: 'nagranie instrumentalne — bez tekstu',
+}
+
 export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
 
   const { notify, reportError } = useToast()
   const { setParams } = useHashRoute()
   const [entry, setEntry] = useState<LibraryEntryResponse | null>(null)
   const [metrics, setMetrics] = useState<TrackMetricsResponse | null>(null)
+  const [lyrics, setLyrics] = useState<TrackLyricsResponse | null>(null)
+  const [fetchingLyrics, setFetchingLyrics] = useState(false)
+  const lyricsPollTimer = useRef<number | null>(null)
   const [djNotes, setDjNotes] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [rating, setRating] = useState(0)
@@ -75,6 +99,68 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
       current = false
     }
   }, [spotifyId])
+
+  const loadLyrics = useCallback(
+    () => api.getTrackLyrics(spotifyId).then((loaded) => loaded ?? null),
+    [spotifyId],
+  )
+
+  // Tekst jest dodatkiem jak metryki — jego brak ani błąd nie mogą zepsuć szuflady.
+  useEffect(() => {
+    let current = true
+    loadLyrics()
+      .then((loaded) => {
+        if (current) setLyrics(loaded)
+      })
+      .catch(() => setLyrics(null))
+    return () => {
+      current = false
+      if (lyricsPollTimer.current !== null) window.clearTimeout(lyricsPollTimer.current)
+    }
+  }, [loadLyrics])
+
+  /**
+   * Pobranie tekstu to zwykłe zlecenie wzbogacania o zakresie SINGLE — nie ma
+   * osobnej ścieżki zapisu obok joba (D32). Odpytujemy o status, bo job jest
+   * asynchroniczny, a DJ stoi nad szufladą i czeka na wynik.
+   */
+  const pollLyricsJob = useCallback(
+    (executionId: number, attemptsLeft: number) => {
+      api
+        .jobStatus(executionId)
+        .then(async (status) => {
+          if (ACTIVE_JOB_STATUSES.has(status.status) && attemptsLeft > 0) {
+            lyricsPollTimer.current = window.setTimeout(
+              () => pollLyricsJob(executionId, attemptsLeft - 1),
+              LYRICS_POLL_INTERVAL_MS,
+            )
+            return
+          }
+          setFetchingLyrics(false)
+          if (status.status !== 'COMPLETED') {
+            notify(`Pobieranie tekstu: ${status.status}`, 'error')
+            return
+          }
+          setLyrics(await loadLyrics())
+        })
+        .catch((error) => {
+          setFetchingLyrics(false)
+          reportError(error, 'Utracono kontakt z jobem tekstu')
+        })
+    },
+    [loadLyrics, notify, reportError],
+  )
+
+  const fetchLyrics = async () => {
+    setFetchingLyrics(true)
+    try {
+      const { executionId } = await api.startEnrichment('SINGLE', ['LYRICS'], [spotifyId])
+      pollLyricsJob(executionId, LYRICS_POLL_ATTEMPTS)
+    } catch (error) {
+      setFetchingLyrics(false)
+      reportError(error, 'Nie udało się zlecić pobrania tekstu')
+    }
+  }
 
   /**
    * Konflikt (D29): ktoś — albo Ty w drugiej karcie — zmienił ten wpis. Przeładowujemy
@@ -252,6 +338,58 @@ export default function TrackDetails({ spotifyId, onClose, onChanged }: Props) {
                 </dl>
               </>
             )}
+
+            <h3>Tekst i tłumaczenie</h3>
+            <div data-testid="track-lyrics">
+              {lyrics && (
+                <p className="muted">
+                  {LYRICS_STATUS_LABELS[lyrics.status] ?? lyrics.status}
+                  {lyrics.sourceLanguage ? ` · oryginał: ${lyrics.sourceLanguage}` : ''}
+                  {lyrics.translatedAt
+                    ? ` · ${formatDateTime(lyrics.translatedAt)} (${lyrics.modelUsed ?? '?'}, v${lyrics.promptVersion ?? '?'})`
+                    : ''}
+                </p>
+              )}
+              {!lyrics && (
+                <p className="muted">
+                  Tekst nie był jeszcze pobierany. Źródło: LRCLIB, tłumaczenie i interpretacja
+                  z modelu z konfiguracji.
+                </p>
+              )}
+
+              {lyrics?.interpretationPl && (
+                <>
+                  <h4>Interpretacja</h4>
+                  <p data-testid="lyrics-interpretation">{lyrics.interpretationPl}</p>
+                </>
+              )}
+
+              {lyrics?.translationPl && (
+                <Collapsible title="Tłumaczenie (polski)" testId="lyrics-translation">
+                  <pre className="lyrics-text">{lyrics.translationPl}</pre>
+                </Collapsible>
+              )}
+
+              {lyrics?.originalLyrics && (
+                <Collapsible
+                  title="Tekst oryginalny"
+                  defaultOpen={false}
+                  testId="lyrics-original"
+                >
+                  <pre className="lyrics-text">{lyrics.originalLyrics}</pre>
+                </Collapsible>
+              )}
+
+              <div className="row">
+                <button onClick={fetchLyrics} disabled={fetchingLyrics} data-testid="lyrics-fetch">
+                  {fetchingLyrics
+                    ? 'Pobieram i tłumaczę…'
+                    : lyrics
+                      ? 'Pobierz tekst od nowa'
+                      : 'Pobierz tekst i przetłumacz'}
+                </button>
+              </div>
+            </div>
 
             <h3>Dane DJ-a</h3>
             <label className="field">

@@ -504,6 +504,16 @@ tbody tr.selected {
 }
 .track-facts dd { margin: 0; }
 
+/* Tekst utworu i tłumaczenie (D32): podział na wersy i zwrotki jest tu treścią,
+   więc łamiemy długie linie, ale nie zwijamy pustych — stąd pre-wrap. */
+.lyrics-text {
+  margin: 0;
+  padding: var(--space-2) 0;
+  font: 13px/1.7 inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .field {
   display: block;
   margin: var(--space-3) 0;

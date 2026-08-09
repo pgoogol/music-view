@@ -54,6 +54,9 @@ export default function OverviewView({ refreshKey }: Props) {
   }
 
   const enriched = overview.catalogTracks - overview.aiMissing
+  // „z tekstem" znaczy tu „rozstrzygnięty" (D32): przetłumaczony albo z potwierdzoną
+  // odpowiedzią LRCLIB, że tekstu nie ma — jedno i drugie zdejmuje utwór z kolejki
+  const withLyrics = overview.catalogTracks - overview.lyricsMissing
 
   return (
     <div className="overview-layout" data-testid="overview">
@@ -76,11 +79,15 @@ export default function OverviewView({ refreshKey }: Props) {
             <dt>Opisane przez AI</dt>
             <dd>{enriched}</dd>
           </div>
+          <div>
+            <dt>Z tekstem</dt>
+            <dd>{withLyrics}</dd>
+          </div>
         </dl>
         <p className="muted">
           Do uzupełnienia: metadane {overview.metadataMissing}, cechy audio{' '}
-          {overview.audioMissing}, analiza AI {overview.aiMissing} — zlecisz to w zakładce
-          Wzbogacanie.
+          {overview.audioMissing}, analiza AI {overview.aiMissing}, teksty{' '}
+          {overview.lyricsMissing} — zlecisz to w zakładce Wzbogacanie.
         </p>
       </section>
 

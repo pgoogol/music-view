@@ -12,6 +12,7 @@ import com.pgoogol.enrichment.llm.LlmProperties;
 import com.pgoogol.enrichment.llm.TrackAnalysis;
 import com.pgoogol.enrichment.llm.TrackAnalysisResult;
 import com.pgoogol.enrichment.llm.TrackAnalysisService;
+import com.pgoogol.enrichment.lyrics.LyricsEnricher;
 import com.pgoogol.enrichment.metrics.ManualMetricsApplier;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzClient;
 import com.pgoogol.enrichment.spotify.SpotifyClient;
@@ -28,9 +29,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Wzbogaca partię utworów w kolejności METADATA → AUDIO → AI (D11) — serce
- * processora joba M1.6. Pracuje na partii wielkości chunka (5), dzięki czemu
- * wywołania Spotify i LLM idą batchem. Mutuje encje; zapis należy do writera.
+ * Wzbogaca partię utworów w kolejności METADATA → AUDIO → AI → LYRICS (D11,
+ * D32) — serce processora joba M1.6. Pracuje na partii wielkości chunka (5),
+ * dzięki czemu wywołania Spotify i LLM idą batchem. Mutuje encje katalogu;
+ * ich zapis należy do writera (teksty mają własną tabelę i własny zapis).
  */
 @Component
 public class TrackEnricher {
@@ -43,6 +45,7 @@ public class TrackEnricher {
     private final ManualMetricsApplier manualMetricsApplier;
     private final BpmResolver bpmResolver;
     private final TrackAnalysisService trackAnalysisService;
+    private final LyricsEnricher lyricsEnricher;
     private final TempoClassifier tempoClassifier;
     private final HalfTimeCorrector halfTimeCorrector;
     private final LlmProperties llmProperties;
@@ -51,7 +54,8 @@ public class TrackEnricher {
                          AudioFeaturesRepository audioFeaturesRepository,
                          ManualMetricsRepository manualMetricsRepository,
                          ManualMetricsApplier manualMetricsApplier, BpmResolver bpmResolver,
-                         TrackAnalysisService trackAnalysisService, TempoClassifier tempoClassifier,
+                         TrackAnalysisService trackAnalysisService, LyricsEnricher lyricsEnricher,
+                         TempoClassifier tempoClassifier,
                          HalfTimeCorrector halfTimeCorrector, LlmProperties llmProperties) {
 
         this.spotifyClient = spotifyClient;
@@ -61,12 +65,17 @@ public class TrackEnricher {
         this.manualMetricsApplier = manualMetricsApplier;
         this.bpmResolver = bpmResolver;
         this.trackAnalysisService = trackAnalysisService;
+        this.lyricsEnricher = lyricsEnricher;
         this.tempoClassifier = tempoClassifier;
         this.halfTimeCorrector = halfTimeCorrector;
         this.llmProperties = llmProperties;
     }
 
-    public void enrich(List<TrackCatalog> tracks, Set<FieldGroup> fields) {
+    /**
+     * @param force zlecenie na konkretne utwory (SINGLE/SELECTED) — pobiera
+     *              tekst od nowa zamiast omijać utwory rozstrzygnięte (D32)
+     */
+    public void enrich(List<TrackCatalog> tracks, Set<FieldGroup> fields, boolean force) {
 
         Objects.requireNonNull(tracks, "tracks");
         Objects.requireNonNull(fields, "fields");
@@ -82,6 +91,11 @@ public class TrackEnricher {
         }
         if (fields.contains(FieldGroup.AI)) {
             applyAi(tracks, manualMetrics);
+        }
+        if (fields.contains(FieldGroup.LYRICS)) {
+            // teksty zapisuje własne repozytorium (osobna tabela, D32) — writer
+            // joba utrwala tylko katalog, więc ten zapis nie należy do niego
+            tracks.forEach(track -> lyricsEnricher.enrich(track, force));
         }
         tracks.stream()
             .filter(track -> Objects.nonNull(track.getBpm()))

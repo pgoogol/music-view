@@ -3,13 +3,20 @@ package com.pgoogol.enrichment;
 import com.pgoogol.TestcontainersConfiguration;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.LyricsStatus;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
+import com.pgoogol.catalog.TrackLyrics;
+import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.enrichment.deezer.DeezerClient;
+import com.pgoogol.enrichment.llm.LyricsTranslation;
+import com.pgoogol.enrichment.llm.LyricsTranslationService;
 import com.pgoogol.enrichment.llm.TrackAnalysis;
 import com.pgoogol.enrichment.llm.TrackAnalysisResult;
 import com.pgoogol.enrichment.llm.TrackAnalysisService;
+import com.pgoogol.enrichment.lyrics.LrcLibClient;
+import com.pgoogol.enrichment.lyrics.LrcLibLyrics;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzClient;
 import com.pgoogol.enrichment.spotify.SpotifyClient;
 import com.pgoogol.enrichment.spotify.SpotifyTrackMetadata;
@@ -68,6 +75,15 @@ class EnrichmentJobIntegrationTest {
     @MockitoBean
     private TrackAnalysisService trackAnalysisService;
 
+    @MockitoBean
+    private LrcLibClient lrcLibClient;
+
+    @MockitoBean
+    private LyricsTranslationService lyricsTranslationService;
+
+    @Autowired
+    private TrackLyricsRepository trackLyricsRepository;
+
     private final List<List<String>> analyzedBatches = new CopyOnWriteArrayList<>();
     private final AtomicBoolean failOnSecondChunk = new AtomicBoolean(false);
 
@@ -81,6 +97,11 @@ class EnrichmentJobIntegrationTest {
             return ids.stream().map(this::spotifyMetadata).toList();
         });
         given(musicBrainzClient.lookupMbid(anyString())).willReturn(Optional.empty());
+        // tekst i tłumaczenie są wymyślone na potrzeby testu — klienci mają własne testy
+        given(lrcLibClient.find(anyString(), anyString(), any(), any()))
+            .willReturn(Optional.of(new LrcLibLyrics(1L, false, "Wers testowego tekstu")));
+        given(lyricsTranslationService.translate(any(), anyString())).willReturn(
+            new LyricsTranslation("hiszpański", "Tłumaczenie testowe", "Interpretacja testowa.", 10, 10));
         given(deezerClient.findBpmByIsrc(anyString())).willReturn(Optional.of(new BigDecimal("120")));
         given(trackAnalysisService.analyze(anyList(), anyBoolean())).willAnswer(invocation -> {
             List<TrackCatalog> batch = invocation.getArgument(0);
@@ -101,6 +122,8 @@ class EnrichmentJobIntegrationTest {
 
     @AfterEach
     void cleanDatabase() {
+
+        trackLyricsRepository.deleteAll();
         trackCatalogRepository.deleteAll();
     }
 
@@ -209,6 +232,47 @@ class EnrichmentJobIntegrationTest {
         assertThat(trackCatalogRepository.findById("trk-000"))
             .hasValueSatisfying(track -> assertThat(track.getIsrc()).isNull());
         assertThat(enrichmentService.missingCount().metadata()).isEqualTo(2);
+    }
+
+    @Test
+    void start_whenLyricsGroup_savesTranslationsAndSkipsResolvedTracksNextRun() {
+
+        // given
+        seedSkeletons(3);
+        // utwór z potwierdzonym brakiem tekstu — LRCLIB nie ma o co pytać drugi raz (D32)
+        trackLyricsRepository.save(new TrackLyrics("trk-002", LyricsStatus.NOT_FOUND));
+
+        // when
+        long executionId = enrichmentService.start(
+            EnrichmentScope.MISSING, EnumSet.of(FieldGroup.LYRICS), List.of());
+        awaitStatus(executionId, "COMPLETED");
+
+        // then — job wziął tylko dwa nierozstrzygnięte utwory
+        assertThat(enrichmentService.status(executionId).readCount()).isEqualTo(2);
+        assertThat(trackLyricsRepository.findById("trk-000")).hasValueSatisfying(lyrics -> {
+            assertThat(lyrics.getStatus()).isEqualTo(LyricsStatus.TRANSLATED);
+            assertThat(lyrics.getTranslationPl()).isEqualTo("Tłumaczenie testowe");
+            assertThat(lyrics.getInterpretationPl()).isEqualTo("Interpretacja testowa.");
+            assertThat(lyrics.getModelUsed()).isEqualTo("test-model");
+        });
+        assertThat(enrichmentService.missingCount().lyrics()).isZero();
+    }
+
+    @Test
+    void start_whenSelectedScopeWithLyrics_refetchesEvenResolvedTrack() {
+
+        // given — zlecenie na wskazany utwór to świadome polecenie DJ-a (D32)
+        seedSkeletons(1);
+        trackLyricsRepository.save(new TrackLyrics("trk-000", LyricsStatus.NOT_FOUND));
+
+        // when
+        long executionId = enrichmentService.start(
+            EnrichmentScope.SELECTED, EnumSet.of(FieldGroup.LYRICS), List.of("trk-000"));
+        awaitStatus(executionId, "COMPLETED");
+
+        // then
+        assertThat(trackLyricsRepository.findById("trk-000")).hasValueSatisfying(lyrics ->
+            assertThat(lyrics.getStatus()).isEqualTo(LyricsStatus.TRANSLATED));
     }
 
     private void seedSkeletons(int count) {

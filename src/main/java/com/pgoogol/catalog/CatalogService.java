@@ -18,12 +18,27 @@ public class CatalogService {
 
     private final TrackCatalogRepository trackCatalogRepository;
     private final ManualMetricsRepository manualMetricsRepository;
+    private final TrackLyricsRepository trackLyricsRepository;
 
     public CatalogService(TrackCatalogRepository trackCatalogRepository,
-                          ManualMetricsRepository manualMetricsRepository) {
+                          ManualMetricsRepository manualMetricsRepository,
+                          TrackLyricsRepository trackLyricsRepository) {
 
         this.trackCatalogRepository = trackCatalogRepository;
         this.manualMetricsRepository = manualMetricsRepository;
+        this.trackLyricsRepository = trackLyricsRepository;
+    }
+
+    /**
+     * Tekst utworu z tłumaczeniem (D32) — pusto, gdy utwór nie przeszedł jeszcze
+     * grupy LYRICS. Potwierdzony brak tekstu w LRCLIB pustką nie jest: wraca ze
+     * statusem {@code NOT_FOUND}, bo to odpowiedź, a nie luka.
+     */
+    @Transactional(readOnly = true)
+    public Optional<TrackLyrics> findLyrics(String spotifyId) {
+
+        Objects.requireNonNull(spotifyId, "spotifyId");
+        return trackLyricsRepository.findById(spotifyId);
     }
 
     /** Metryki wgrane ręcznie (D24) — pusto, gdy utworu nie ma albo nie dostał metryk. */
