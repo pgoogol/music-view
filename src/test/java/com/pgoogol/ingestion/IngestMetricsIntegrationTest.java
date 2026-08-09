@@ -30,6 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Pełny stos HTTP dla POST /api/ingest/metrics na realnym Postgresie (D24):
  * dopasowanie po spotify_id i po ISRC, utwór spoza katalogu, wiersze odrzucone
  * oraz projekcja metryk na katalog (BPM z korektą half-time).
+ *
+ * <p>Próbka ma w pierwszym wierszu nieescapowany cudzysłów w nazwie wytwórni —
+ * dokładnie tak, jak zapisują ją eksporty z analizatorów playlist. Ścisły parser
+ * wywracał się na nim i gubił cały plik, więc każdy tutejszy test jest zarazem
+ * testem regresji na ten format.</p>
  */
 @SpringBootTest
 @AutoConfigureMockMvc

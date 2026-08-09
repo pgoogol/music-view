@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class MetricsCsvParserTest {
 
     private final MetricsCsvParser parser = new MetricsCsvParser(
-        new CsvHeaderResolver(), new SpotifyTrackIdParser(), new MetricValueParser(),
-        new GenreFamilyMapper());
+        new CsvReader(), new CsvHeaderResolver(), new SpotifyTrackIdParser(),
+        new MetricValueParser(), new GenreFamilyMapper());
 
     @Test
     void parse_whenSampleFile_readsMetricsAndReportsUnusableRows() {
@@ -163,6 +163,49 @@ class MetricsCsvParserTest {
         // then
         assertThat(metrics.danceability()).isEqualByComparingTo(new BigDecimal("0.66"));
         assertThat(metrics.energy()).isEqualByComparingTo(new BigDecimal("0.89"));
+    }
+
+    @Test
+    void parse_whenQuoteInsideFieldNotEscaped_readsRowsInsteadOfFailingWholeFile() {
+
+        // given — eksport analizatora playlist nie escapuje cudzysłowu w nazwie
+        // wytwórni; ścisły parser wywracał się tu na całym pliku
+        InputStream csv = csv("""
+            Spotify Track Id,BPM,Label,ISRC
+            2c7nzxJYmPtkimDdrhcfJx,96,"Héctor Acosta "El Torito"",ES71G2337397
+            1BwrMGGhPA6GarWIYaFrW8,104,"UMLE - Machete",USUL10110340
+            """);
+
+        // when
+        MetricsParseResult result = parser.parse(csv);
+
+        // then — felerny wiersz wchodzi normalnie, kolejne też
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.rows()).extracting(ParsedMetrics::spotifyId)
+            .containsExactly("2c7nzxJYmPtkimDdrhcfJx", "1BwrMGGhPA6GarWIYaFrW8");
+        assertThat(result.rows()).extracting(row -> row.metrics().bpm())
+            .containsExactly(new BigDecimal("96.00"), new BigDecimal("104.00"));
+    }
+
+    @Test
+    void parse_whenBrokenQuotingShiftsColumns_reportsRowErrorAndReadsTheRest() {
+
+        // given — cudzysłów z przecinkiem w środku pola rozjeżdża kolumny wiersza,
+        // więc identyfikator utworu przestaje być czytelny
+        InputStream csv = csv("""
+            Label,Spotify Track Id,BPM
+            "Wytwórnia "Bum, Bum" S.A.",2c7nzxJYmPtkimDdrhcfJx,96
+            "UMLE - Machete",1BwrMGGhPA6GarWIYaFrW8,104
+            """);
+
+        // when
+        MetricsParseResult result = parser.parse(csv);
+
+        // then
+        assertThat(result.errors()).singleElement()
+            .satisfies(error -> assertThat(error.line()).isEqualTo(1));
+        assertThat(result.rows()).singleElement()
+            .satisfies(row -> assertThat(row.spotifyId()).isEqualTo("1BwrMGGhPA6GarWIYaFrW8"));
     }
 
     private InputStream sample() {
