@@ -45,7 +45,10 @@ public class IngestController {
     }
 
     @PostMapping(value = "/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Import CSV (Exportify) do biblioteki")
+    @Operation(summary = "Import CSV do biblioteki",
+        description = "Eksport z Exportify, z analizatora playlist albo plik własny — "
+            + "utwór rozpoznajemy po kolumnie z URI, linkiem lub samym Spotify Track Id, "
+            + "a tytuł i wykonawcę po nagłówkach w kilku wariantach nazw.")
     public IngestFileResponse ingestFile(@RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {

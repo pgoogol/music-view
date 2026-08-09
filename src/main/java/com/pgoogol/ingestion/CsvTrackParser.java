@@ -1,16 +1,13 @@
 package com.pgoogol.ingestion;
 
 import com.pgoogol.common.ValidationException;
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -18,30 +15,28 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Parser CSV z eksportu Exportify / pliku własnego (M1.2). Wymagane kolumny:
- * Spotify URI, tytuł, wykonawca (nagłówki rozpoznawane elastycznie); album
- * opcjonalny. Wiersze niepoprawne trafiają do {@link RowError}, nie przerywają importu.
+ * Parser CSV z eksportu Exportify / analizatora playlist / pliku własnego (M1.2).
+ * Wymagane kolumny: identyfikator utworu (URI, link albo samo Spotify Track Id),
+ * tytuł, wykonawca — nagłówki rozpoznawane elastycznie; album opcjonalny.
+ * Wiersze niepoprawne trafiają do {@link RowError}, nie przerywają importu.
  */
 @Component
 public class CsvTrackParser {
 
-    private static final CSVFormat CSV_FORMAT = CSVFormat.DEFAULT.builder()
-        .setHeader()
-        .setSkipHeaderRecord(true)
-        .setIgnoreEmptyLines(true)
-        .setTrim(true)
-        .build();
-
-    private static final List<String> URI_COLUMNS = List.of("track uri", "spotify uri", "uri");
-    private static final List<String> TITLE_COLUMNS = List.of("track name", "track", "title");
+    private static final List<String> URI_COLUMNS =
+        List.of("track uri", "spotify uri", "uri", "spotify track id", "spotify id", "track id");
+    private static final List<String> TITLE_COLUMNS = List.of("track name", "track", "title", "song");
     private static final List<String> ARTIST_COLUMNS = List.of("artist name(s)", "artist name", "artist");
     private static final List<String> ALBUM_COLUMNS = List.of("album name", "album");
 
+    private final CsvReader csvReader;
     private final SpotifyTrackIdParser trackIdParser;
     private final CsvHeaderResolver headerResolver;
 
-    public CsvTrackParser(SpotifyTrackIdParser trackIdParser, CsvHeaderResolver headerResolver) {
+    public CsvTrackParser(CsvReader csvReader, SpotifyTrackIdParser trackIdParser,
+                          CsvHeaderResolver headerResolver) {
 
+        this.csvReader = csvReader;
         this.trackIdParser = trackIdParser;
         this.headerResolver = headerResolver;
     }
@@ -49,18 +44,17 @@ public class CsvTrackParser {
     public CsvParseResult parse(InputStream input) {
 
         Objects.requireNonNull(input, "input");
-        try (CSVParser csvParser = CSVParser.parse(
-                new InputStreamReader(input, StandardCharsets.UTF_8), CSV_FORMAT)) {
+        try (CSVParser csvParser = csvReader.open(input)) {
 
             Map<String, Integer> headers = headerResolver.normalize(csvParser);
-            int uriColumn = headerResolver.require(headers, URI_COLUMNS, "Spotify URI");
+            int uriColumn = headerResolver.require(headers, URI_COLUMNS, "Spotify URI albo Track Id");
             int titleColumn = headerResolver.require(headers, TITLE_COLUMNS, "tytuł utworu");
             int artistColumn = headerResolver.require(headers, ARTIST_COLUMNS, "wykonawca");
             Optional<Integer> albumColumn = headerResolver.find(headers, ALBUM_COLUMNS);
 
             List<ParsedTrack> tracks = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
-            csvParser.forEach(row ->
+            csvReader.forEachRow(csvParser, row ->
                 parseRow(row, uriColumn, titleColumn, artistColumn, albumColumn, tracks, errors));
             return new CsvParseResult(List.copyOf(tracks), List.copyOf(errors));
         } catch (IOException | UncheckedIOException ex) {

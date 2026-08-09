@@ -3,17 +3,14 @@ package com.pgoogol.ingestion;
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.GenreFamilyMapper;
 import com.pgoogol.common.ValidationException;
-import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -30,13 +27,6 @@ import java.util.Optional;
  */
 @Component
 public class MetricsCsvParser {
-
-    private static final CSVFormat CSV_FORMAT = CSVFormat.DEFAULT.builder()
-        .setHeader()
-        .setSkipHeaderRecord(true)
-        .setIgnoreEmptyLines(true)
-        .setTrim(true)
-        .build();
 
     private static final List<String> ID_COLUMNS =
         List.of("spotify track id", "spotify id", "track id", "track uri", "spotify uri", "uri");
@@ -65,14 +55,17 @@ public class MetricsCsvParser {
         ACOUSTIC_COLUMNS, INSTRUMENTAL_COLUMNS, SPEECH_COLUMNS, LIVE_COLUMNS, LOUDNESS_COLUMNS,
         TIME_SIGNATURE_COLUMNS);
 
+    private final CsvReader csvReader;
     private final CsvHeaderResolver headerResolver;
     private final SpotifyTrackIdParser trackIdParser;
     private final MetricValueParser valueParser;
     private final GenreFamilyMapper genreFamilyMapper;
 
-    public MetricsCsvParser(CsvHeaderResolver headerResolver, SpotifyTrackIdParser trackIdParser,
-                            MetricValueParser valueParser, GenreFamilyMapper genreFamilyMapper) {
+    public MetricsCsvParser(CsvReader csvReader, CsvHeaderResolver headerResolver,
+                            SpotifyTrackIdParser trackIdParser, MetricValueParser valueParser,
+                            GenreFamilyMapper genreFamilyMapper) {
 
+        this.csvReader = csvReader;
         this.headerResolver = headerResolver;
         this.trackIdParser = trackIdParser;
         this.valueParser = valueParser;
@@ -82,8 +75,7 @@ public class MetricsCsvParser {
     public MetricsParseResult parse(InputStream input) {
 
         Objects.requireNonNull(input, "input");
-        try (CSVParser csvParser = CSVParser.parse(
-                new InputStreamReader(input, StandardCharsets.UTF_8), CSV_FORMAT)) {
+        try (CSVParser csvParser = csvReader.open(input)) {
 
             Map<String, Integer> headers = headerResolver.normalize(csvParser);
             requireIdentity(headers);
@@ -91,7 +83,7 @@ public class MetricsCsvParser {
 
             List<ParsedMetrics> rows = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
-            csvParser.forEach(row -> parseRow(row, headers, rows, errors));
+            csvReader.forEachRow(csvParser, row -> parseRow(row, headers, rows, errors));
             return new MetricsParseResult(List.copyOf(rows), List.copyOf(errors));
         } catch (IOException | UncheckedIOException ex) {
             throw new ValidationException("CSV_UNREADABLE", "Nie udało się odczytać pliku CSV");

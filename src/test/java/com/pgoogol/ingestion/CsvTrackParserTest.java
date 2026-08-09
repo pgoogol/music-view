@@ -12,7 +12,8 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 class CsvTrackParserTest {
 
-    private final CsvTrackParser parser = new CsvTrackParser(new SpotifyTrackIdParser(), new CsvHeaderResolver());
+    private final CsvTrackParser parser = new CsvTrackParser(
+        new CsvReader(), new SpotifyTrackIdParser(), new CsvHeaderResolver());
 
     @Test
     void parse_whenExportifyStyleCsvGiven_returnsParsedTracks() {
@@ -123,6 +124,44 @@ class CsvTrackParserTest {
         // then
         assertThat(result.tracks()).hasSize(1);
         assertThat(result.errors()).isEmpty();
+    }
+
+    @Test
+    void parse_whenAnalyzerExportHeaders_readsSongAndBareTrackId() {
+
+        // given — eksport z analizatora playlist: „Song" zamiast „Track Name",
+        // identyfikator gołym Track Id zamiast URI
+        InputStream csv = toStream("""
+            #,Song,Artist,BPM,Album,Spotify Track Id,ISRC
+            1,La Lámpara,Alain Pérez,96,La Lámpara,2c7nzxJYmPtkimDdrhcfJx,ES71G2337397
+            """);
+
+        // when
+        CsvParseResult result = parser.parse(csv);
+
+        // then
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.tracks()).containsExactly(
+            new ParsedTrack("2c7nzxJYmPtkimDdrhcfJx", "La Lámpara", "Alain Pérez", "La Lámpara"));
+    }
+
+    @Test
+    void parse_whenQuoteInsideFieldNotEscaped_readsRowsInsteadOfFailingWholeFile() {
+
+        // given — nieescapowany cudzysłów w nazwie wytwórni przerywał odczyt pliku
+        InputStream csv = toStream("""
+            Track URI,Track Name,Artist Name(s),Label
+            spotify:track:4uLU6hMCjMI75M1A2tKUQC,Pa' Que Me Perdones,Héctor Acosta,"Héctor Acosta "El Torito""
+            spotify:track:1zHlj4dQ8ZAtrayhuDDmkY,Danza Kuduro,Don Omar,Yanis
+            """);
+
+        // when
+        CsvParseResult result = parser.parse(csv);
+
+        // then
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.tracks()).extracting(ParsedTrack::spotifyId)
+            .containsExactly("4uLU6hMCjMI75M1A2tKUQC", "1zHlj4dQ8ZAtrayhuDDmkY");
     }
 
     private InputStream toStream(String csv) {

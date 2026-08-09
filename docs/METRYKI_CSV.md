@@ -48,6 +48,23 @@ utwór i **co najmniej jedna** metryka, inaczej import kończy się błędem `CS
 0–1 jako ułamek (`0.89` → `0.890`). Przecinek dziesiętny, znak `%` i jednostki są
 tolerowane. Wartość spoza sensownego zakresu (np. BPM `0`) jest traktowana jak brak danych.
 
+## Felerne cudzysłowy w eksporcie
+
+Eksporty z analizatorów playlist potrafią nie escapować cudzysłowu w środku pola:
+
+```csv
+…,2Bfee9jgWY8dYWkqlVVq2P,"Héctor Acosta "El Torito"",USBMS2200028,no
+```
+
+Taki wiersz jest formalnie niepoprawnym CSV. Parser czyta go mimo to i **nie przerywa
+importu** — wcześniej pojedyncze takie pole kończyło się błędem `CSV_UNREADABLE` na całym
+pliku (999 poprawnych wierszy przepadało przez jedną nazwę wytwórni). Jeśli felerny
+cudzysłów obejmuje przecinek, kolumny tego jednego wiersza się rozjeżdżają — wiersz
+trafia wtedy do raportu jako odrzucony, reszta pliku wchodzi normalnie.
+
+Gdy odczyt pliku naprawdę padnie, błąd `CSV_UNREADABLE` podaje numer wiersza, na którym
+się urwał.
+
 Kolumny z metadanymi (`Song`, `Artist`, `Album`, `Popularity`, `Duration`, `Label`,
 `Explicit`, `Added At`, …) są **pomijane** — metadane pochodzą ze Spotify, a warstwa
 opisowa (styl, o czym utwór, opis) z LLM-a (D11).
