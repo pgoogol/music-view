@@ -72,7 +72,8 @@ z kolejnością — ponowny import ją aktualizuje, nie duplikuje. **M2.2 (konto
 Spotify)**: OAuth Authorization Code + PKCE (D4/D20) — `GET /api/auth/spotify/login`
 → ekran zgody → `/callback`; tokeny wyłącznie w bazie (nigdy w odpowiedziach API
 ani w logach), odświeżane leniwie; `POST /api/ingest/my-playlists` wciąga wszystkie
-własne playlisty (tryb C). **M2.3 (sety)**: CRUD `/api/playlists*`, skład
+własne playlisty (tryb C) — playlista, która padnie po drodze, nie przerywa
+przebiegu i wraca w `failed` z powodem (D31). **M2.3 (sety)**: CRUD `/api/playlists*`, skład
 i kolejność utworów (drag&drop we froncie), slot wieczoru liczony z bpm + energy +
 genre_family (D9/D21) z override'em DJ-a. **M2.4 (eksport)**:
 `POST /api/playlists/{id}/export-to-spotify` — pierwszy eksport zakłada prywatną
@@ -105,7 +106,8 @@ CSV zniknął z UI (endpoint `POST /api/ingest/file` został w API).
 
 **M3.3 (metryki z pliku CSV)** — Spotify wyłączył `audio-features` (27.11.2024),
 więc cechy audio można tymczasowo wgrać ręcznie: `POST /api/ingest/metrics`
-(multipart CSV) albo panel „Metryki utworów (CSV)" w zakładce Import. Wiersze
+(multipart CSV, pole `file` można powtórzyć — plików wgrywa się kilka naraz, D31)
+albo panel „Metryki utworów (CSV)" w zakładce Import. Wiersze
 dopasowywane po `Spotify Track Id`, awaryjnie po ISRC; utwory spoza katalogu
 trafiają do raportu, nie do biblioteki. Wartości lądują surowo w `manual_metrics`
 i są rzutowane na katalog: BPM (z korektą half-time, `bpm_source=MANUAL`), tonacja,

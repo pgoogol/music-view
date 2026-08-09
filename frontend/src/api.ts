@@ -76,11 +76,29 @@ export interface TrackMetricsResponse {
   importedAt: string | null
 }
 
+export interface RowErrorResponse {
+  line: number
+  reason: string
+}
+
+/** Raport jednego pliku partii; `error` niepuste = plik odpadł w całości. */
+export interface MetricsFileReportResponse {
+  file: string
+  applied: number
+  matchedByIsrc: number
+  skipped: RowErrorResponse[]
+  failed: RowErrorResponse[]
+  errorCode: string | null
+  error: string | null
+}
+
+/** Liczby na wierzchu są sumą partii; numery wierszy mają sens tylko przy pliku. */
 export interface IngestMetricsResponse {
   applied: number
   matchedByIsrc: number
-  skipped: { line: number; reason: string }[]
-  failed: { line: number; reason: string }[]
+  skippedRows: number
+  failedRows: number
+  files: MetricsFileReportResponse[]
 }
 
 export interface IngestPlaylistResponse {
@@ -91,6 +109,12 @@ export interface IngestPlaylistResponse {
   imported: number
   alreadyExisted: number
   skipped: { position: number; reason: string }[]
+}
+
+/** Tryb C: playlista, która padła, nie przerywa importu — wraca w `failed`. */
+export interface IngestMyPlaylistsResponse {
+  imported: IngestPlaylistResponse[]
+  failed: { spotifyPlaylistId: string; name: string; errorCode: string; reason: string }[]
 }
 
 export interface EnrichJobResponse {
@@ -368,9 +392,9 @@ export const api = {
     return request('/api/ingest/file', { method: 'POST', body: form })
   },
 
-  ingestMetrics(file: File): Promise<IngestMetricsResponse> {
+  ingestMetrics(files: File[]): Promise<IngestMetricsResponse> {
     const form = new FormData()
-    form.append('file', file)
+    files.forEach((file) => form.append('file', file))
     return request('/api/ingest/metrics', { method: 'POST', body: form })
   },
 
@@ -383,7 +407,7 @@ export const api = {
     return request('/api/ingest/playlist', jsonInit('POST', { url }))
   },
 
-  ingestMyPlaylists(): Promise<IngestPlaylistResponse[]> {
+  ingestMyPlaylists(): Promise<IngestMyPlaylistsResponse> {
     return request('/api/ingest/my-playlists', { method: 'POST' })
   },
 

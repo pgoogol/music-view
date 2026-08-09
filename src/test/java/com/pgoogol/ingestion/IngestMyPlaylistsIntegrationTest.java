@@ -2,6 +2,7 @@ package com.pgoogol.ingestion;
 
 import com.pgoogol.TestcontainersConfiguration;
 import com.pgoogol.catalog.TrackCatalogRepository;
+import com.pgoogol.common.ExternalServiceException;
 import com.pgoogol.enrichment.spotify.SpotifyAccount;
 import com.pgoogol.enrichment.spotify.SpotifyAccountRepository;
 import com.pgoogol.enrichment.spotify.SpotifyPlaylist;
@@ -93,9 +94,10 @@ class IngestMyPlaylistsIntegrationTest {
         // when + then
         mockMvc.perform(post("/api/ingest/my-playlists"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.length()").value(1))
-            .andExpect(jsonPath("$[0].name").value("Wesela 2026"))
-            .andExpect(jsonPath("$[0].imported").value(2));
+            .andExpect(jsonPath("$.imported.length()").value(1))
+            .andExpect(jsonPath("$.imported[0].name").value("Wesela 2026"))
+            .andExpect(jsonPath("$.imported[0].imported").value(2))
+            .andExpect(jsonPath("$.failed.length()").value(0));
 
         assertThat(playlistRepository.findBySpotifyPlaylistId("pl-obserwowana")).isEmpty();
         assertThat(libraryEntryRepository.findByTrackSpotifyId("sp-vivir"))
@@ -113,6 +115,33 @@ class IngestMyPlaylistsIntegrationTest {
         mockMvc.perform(post("/api/ingest/my-playlists"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("SPOTIFY_NOT_CONNECTED"));
+    }
+
+    @Test
+    void ingestMyPlaylists_whenOnePlaylistFails_finishesTheRestAndReportsTheFailure()
+        throws Exception {
+
+        // given — druga własna playlista pada na pobraniu utworów
+        given(playlistClient.getMyPlaylists()).willReturn(List.of(
+            new SpotifyPlaylist("pl-wesela", "Wesela 2026", OWNER_ID, "DJ pgoogol", 2),
+            new SpotifyPlaylist("pl-bachata", "Bachata", OWNER_ID, "DJ pgoogol", 1)));
+        given(playlistClient.getPlaylistItems("pl-bachata")).willThrow(
+            new ExternalServiceException("SPOTIFY_UNAVAILABLE", "Spotify nie odpowiedziało"));
+
+        // when + then
+        mockMvc.perform(post("/api/ingest/my-playlists"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.imported.length()").value(1))
+            .andExpect(jsonPath("$.imported[0].name").value("Wesela 2026"))
+            .andExpect(jsonPath("$.failed.length()").value(1))
+            .andExpect(jsonPath("$.failed[0].name").value("Bachata"))
+            .andExpect(jsonPath("$.failed[0].spotifyPlaylistId").value("pl-bachata"))
+            .andExpect(jsonPath("$.failed[0].errorCode").value("SPOTIFY_UNAVAILABLE"))
+            .andExpect(jsonPath("$.failed[0].reason").value("Spotify nie odpowiedziało"));
+
+        // playlista sprzed awarii została domknięta w bazie
+        assertThat(playlistRepository.findBySpotifyPlaylistId("pl-wesela")).isPresent();
+        assertThat(playlistRepository.findBySpotifyPlaylistId("pl-bachata")).isEmpty();
     }
 
     private SpotifyPlaylistItem track(int position, String spotifyId, String title, String artist) {

@@ -18,9 +18,11 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -79,9 +81,12 @@ class IngestMetricsIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.applied").value(2))
             .andExpect(jsonPath("$.matchedByIsrc").value(1))
-            .andExpect(jsonPath("$.skipped.length()").value(1))
-            .andExpect(jsonPath("$.skipped[0].line").value(3))
-            .andExpect(jsonPath("$.failed.length()").value(2));
+            .andExpect(jsonPath("$.skippedRows").value(1))
+            .andExpect(jsonPath("$.failedRows").value(2))
+            .andExpect(jsonPath("$.files.length()").value(1))
+            .andExpect(jsonPath("$.files[0].file").value("metryki-sample.csv"))
+            .andExpect(jsonPath("$.files[0].skipped[0].line").value(3))
+            .andExpect(jsonPath("$.files[0].failed.length()").value(2));
 
         assertThat(manualMetricsRepository.count()).isEqualTo(2);
     }
@@ -171,6 +176,57 @@ class IngestMetricsIntegrationTest {
     }
 
     @Test
+    void ingestMetrics_whenSeveralFilesUploaded_appliesAllAndReportsEachSeparately() throws Exception {
+
+        // given — eksport analizatora idzie per playlista, więc plików bywa kilkanaście
+        MockMultipartFile lampara = csv("lampara.csv", """
+            Spotify Track Id,BPM,Camelot
+            %s,96,6A
+            """.formatted(LAMPARA));
+        MockMultipartFile carnaval = csv("carnaval.csv", """
+            Spotify Track Id,BPM,Camelot
+            %s,104,5A
+            """.formatted(CARNAVAL));
+
+        // when + then
+        mockMvc.perform(multipart("/api/ingest/metrics").file(lampara).file(carnaval))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.applied").value(2))
+            .andExpect(jsonPath("$.files.length()").value(2))
+            .andExpect(jsonPath("$.files[0].file").value("lampara.csv"))
+            .andExpect(jsonPath("$.files[0].applied").value(1))
+            .andExpect(jsonPath("$.files[1].file").value("carnaval.csv"))
+            .andExpect(jsonPath("$.files[1].applied").value(1));
+
+        assertThat(manualMetricsRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void ingestMetrics_whenOneFileIsBroken_importsTheRestAndReportsWhichFailed() throws Exception {
+
+        // given — plik bez kolumny identyfikującej utwór odpada w całości
+        MockMultipartFile broken = csv("bez-id.csv", """
+            Song,BPM
+            La Lámpara,96
+            """);
+        MockMultipartFile good = csv("lampara.csv", """
+            Spotify Track Id,BPM,Camelot
+            %s,96,6A
+            """.formatted(LAMPARA));
+
+        // when + then
+        mockMvc.perform(multipart("/api/ingest/metrics").file(broken).file(good))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.applied").value(1))
+            .andExpect(jsonPath("$.files[0].file").value("bez-id.csv"))
+            .andExpect(jsonPath("$.files[0].errorCode").value("CSV_MISSING_COLUMNS"))
+            .andExpect(jsonPath("$.files[0].error").value(containsString("Spotify Track Id albo ISRC")))
+            .andExpect(jsonPath("$.files[1].applied").value(1));
+
+        assertThat(manualMetricsRepository.count()).isEqualTo(1);
+    }
+
+    @Test
     void ingestMetrics_whenFileEmpty_returnsBadRequestWithErrorCode() throws Exception {
 
         // given
@@ -212,5 +268,11 @@ class IngestMetricsIntegrationTest {
         ClassPathResource resource = new ClassPathResource("test-data/metryki-sample.csv");
         return new MockMultipartFile("file", "metryki-sample.csv", "text/csv",
             resource.getInputStream());
+    }
+
+    private MockMultipartFile csv(String name, String content) {
+
+        return new MockMultipartFile("file", name, "text/csv",
+            content.getBytes(StandardCharsets.UTF_8));
     }
 }
