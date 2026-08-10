@@ -48,11 +48,15 @@ llm:
     input-per-1m: ${LLM_COST_INPUT_PER_1M:}
     output-per-1m: ${LLM_COST_OUTPUT_PER_1M:}
   # tłumaczenie i interpretacja tekstów (D32) — własna wersja promptu, bo tekst
-  # tłumaczy się z innych powodów niż opisuje utwór; max-chars przycina wejście,
-  # zanim odrzuci je limit modelu (jeden utwór na wywołanie, bez batchowania)
+  # tłumaczy się z innych powodów niż opisuje utwór; jeden utwór na wywołanie.
+  # max-chars (wejście) i max-tokens (sufit odpowiedzi) muszą razem zmieścić się
+  # w oknie kontekstu modelu i w pamięci karty — na lokalnym modelu zbyt duże
+  # wartości kończą się odpowiedzią 4xx silnika (np. „out of device memory"),
+  # nie lepszym tłumaczeniem. Przy 8 GB VRAM zacznij od 2500 / 1500.
   lyrics:
     prompt-version: v1
     max-chars: ${LLM_LYRICS_MAX_CHARS:6000}
+    max-tokens: ${LLM_LYRICS_MAX_TOKENS:3000}
 
 clients:
   spotify:

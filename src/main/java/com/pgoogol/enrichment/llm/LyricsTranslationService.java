@@ -48,8 +48,10 @@ public class LyricsTranslationService {
 
         Objects.requireNonNull(track, "track");
         Objects.requireNonNull(lyrics, "lyrics");
-        LlmCompletion completion = llmClient.complete(
-            new LlmPrompt(prompt.system(), prompt.user(describe(track), truncate(lyrics))));
+        LlmCompletion completion = llmClient.complete(new LlmPrompt(
+            prompt.system(),
+            prompt.user(describe(track), truncate(lyrics)),
+            properties.lyrics().maxTokens()));
         JsonNode root = LlmResponses.readJson(objectMapper, completion.content());
         if (!root.isObject()) {
             throw new ExternalServiceException("LLM_RESPONSE_INVALID",

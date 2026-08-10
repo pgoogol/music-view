@@ -6,6 +6,7 @@ import com.pgoogol.catalog.TrackCatalogFixtures;
 import com.pgoogol.catalog.TrackLyrics;
 import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.enrichment.llm.LlmProperties;
+import com.pgoogol.enrichment.llm.LlmRequestRejectedException;
 import com.pgoogol.enrichment.llm.LyricsTranslation;
 import com.pgoogol.enrichment.llm.LyricsTranslationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
@@ -41,7 +43,7 @@ class LyricsEnricherTest {
     void setUp() {
 
         LlmProperties properties = new LlmProperties("openai", null, "klucz", "test-model",
-            "v1", 5, 2, 2048, 0.2, 500, null, new LlmProperties.Lyrics("v2", 6000));
+            "v1", 5, 2, 2048, 0.2, 500, null, new LlmProperties.Lyrics("v2", 6000, 3000));
         enricher = new LyricsEnricher(lrcLibClient, translationService, repository, properties);
         given(repository.findById(anyString())).willReturn(Optional.empty());
     }
@@ -168,6 +170,43 @@ class LyricsEnricherTest {
 
         // then — FETCHED nie jest rozstrzygnięty, więc utwór wróci przy kolejnym przebiegu
         assertThat(saved().getStatus()).isEqualTo(LyricsStatus.FETCHED);
+    }
+
+    @Test
+    void enrich_whenModelRejectsThisRequest_keepsTextAndLetsJobGoOn() {
+
+        // given — lokalny silnik bez wolnej pamięci karty odrzuca to jedno żądanie;
+        // przebieg po całej bibliotece nie może się przez to wywrócić (D31/D32)
+        given(lrcLibClient.find(anyString(), anyString(), any(), any()))
+            .willReturn(Optional.of(new LrcLibLyrics(42L, false, LYRICS)));
+        given(translationService.translate(any(), any())).willThrow(
+            new LlmRequestRejectedException("LLM_REQUEST_REJECTED", "brak pamięci karty", true));
+
+        // when
+        enricher.enrich(track(), false);
+
+        // then — tekst zostaje, tłumaczenie wraca do kolejki przy kolejnym przebiegu
+        TrackLyrics saved = saved();
+        assertThat(saved.getStatus()).isEqualTo(LyricsStatus.FETCHED);
+        assertThat(saved.getOriginalLyrics()).isEqualTo(LYRICS);
+        assertThat(saved.isResolved()).isFalse();
+    }
+
+    @Test
+    void enrich_whenProviderConfigurationIsWrong_failsLoudly() {
+
+        // given — zły klucz albo zły model to nie jest problem tego utworu; pomijanie
+        // po cichu przerobiłoby bibliotekę na serię nieudanych wywołań
+        given(lrcLibClient.find(anyString(), anyString(), any(), any()))
+            .willReturn(Optional.of(new LrcLibLyrics(42L, false, LYRICS)));
+        given(translationService.translate(any(), any())).willThrow(
+            new LlmRequestRejectedException("LLM_NOT_AUTHORIZED", "zły klucz", false));
+        TrackCatalog track = track();
+
+        // when + then
+        assertThatThrownBy(() -> enricher.enrich(track, false))
+            .isInstanceOf(LlmRequestRejectedException.class);
+        verify(repository, never()).save(any());
     }
 
     @Test

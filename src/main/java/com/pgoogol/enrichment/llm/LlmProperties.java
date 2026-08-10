@@ -53,14 +53,21 @@ public record LlmProperties(
 
     /**
      * Tłumaczenie tekstów utworów (M6.1/D32) — własna wersja promptu, bo tekst
-     * tłumaczy się z innych powodów niż opisuje utwór, i własny limit długości
-     * wejścia: tekst piosenki bywa dłuższy niż cała partia metadanych.
+     * tłumaczy się z innych powodów niż opisuje utwór, i własne limity: wejściem
+     * jest cały tekst, a wyjściem tłumaczenie tej samej długości plus
+     * interpretacja, więc jedno wywołanie zajmuje w modelu wielokrotnie więcej
+     * miejsca niż opis z metadanych.
+     *
+     * <p>Obie wartości są jednocześnie regulacją pod lokalny model: wejście plus
+     * sufit odpowiedzi muszą zmieścić się w oknie kontekstu i w pamięci karty.
+     * Za duże kończą się odpowiedzią 4xx silnika, nie lepszym tłumaczeniem.</p>
      */
     public record Lyrics(
         @DefaultValue("v1") String promptVersion,
-        @DefaultValue("6000") int maxChars) {
+        @DefaultValue("6000") int maxChars,
+        @DefaultValue("3000") int maxTokens) {
 
-        static final Lyrics DEFAULTS = new Lyrics("v1", 6000);
+        static final Lyrics DEFAULTS = new Lyrics("v1", 6000, 3000);
 
         /** Wersja promptu jako liczba do {@code track_lyrics.prompt_version}. */
         public Optional<Integer> promptVersionNumber() {

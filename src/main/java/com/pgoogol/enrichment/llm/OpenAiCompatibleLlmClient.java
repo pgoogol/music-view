@@ -46,7 +46,7 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             properties.model(),
             List.of(new ChatMessage("system", prompt.system()), new ChatMessage("user", prompt.user())),
             properties.temperature(),
-            properties.maxTokens());
+            prompt.maxTokensOr(properties.maxTokens()));
         ChatResponse response = guard.execute(() -> {
             try {
                 return restClient.post()
@@ -58,6 +58,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
             } catch (HttpClientErrorException.TooManyRequests ex) {
                 throw new RateLimitedException("LLM_RATE_LIMITED",
                     "Provider LLM ograniczył liczbę zapytań", retryAfter(ex));
+            } catch (HttpClientErrorException ex) {
+                throw LlmErrors.rejected(ex);
             } catch (HttpServerErrorException | ResourceAccessException ex) {
                 throw new ExternalServiceException("LLM_UNAVAILABLE", "Provider LLM niedostępny", ex);
             }

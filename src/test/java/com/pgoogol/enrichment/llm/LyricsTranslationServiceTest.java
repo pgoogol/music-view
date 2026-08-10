@@ -103,6 +103,22 @@ class LyricsTranslationServiceTest {
     }
 
     @Test
+    void translate_whenCalled_sendsLyricsOwnTokenCeiling() {
+
+        // given — sufit odpowiedzi dla tłumaczenia jest inny niż dla opisu utworu (D32)
+        given(llmClient.complete(any())).willReturn(new LlmCompletion(
+            "{\"translation_pl\": \"Tłumaczenie\"}", 10, 10));
+        ArgumentCaptor<LlmPrompt> prompt = ArgumentCaptor.forClass(LlmPrompt.class);
+
+        // when
+        service().translate(track(), LYRICS);
+
+        // then
+        verify(llmClient).complete(prompt.capture());
+        assertThat(prompt.getValue().maxTokens()).isEqualTo(1500);
+    }
+
+    @Test
     void translate_whenResponseIsNotJsonObject_failsLoudly() {
 
         // given
@@ -123,7 +139,7 @@ class LyricsTranslationServiceTest {
     private LyricsTranslationService service(int maxChars) {
 
         LlmProperties properties = new LlmProperties("openai", null, "klucz", "test-model",
-            "v1", 5, 2, 2048, 0.2, 500, null, new LlmProperties.Lyrics("v1", maxChars));
+            "v1", 5, 2, 2048, 0.2, 500, null, new LlmProperties.Lyrics("v1", maxChars, 1500));
         return new LyricsTranslationService(
             llmClient, new LyricsTranslationPrompt(properties), objectMapper, properties);
     }

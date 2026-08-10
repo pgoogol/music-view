@@ -667,6 +667,18 @@ utworom bez wgranych metryk (D24).
   utwór z tekstem ~1400/1600 — wartości orientacyjne, do zmierzenia na realnym przebiegu
   tak samo jak stawki AI po M1.9. UI pokazuje „płatnych X (w tym Y z tekstem)", żeby
   zlecenie na całą bibliotekę nie wyglądało na tak samo tanie jak opisy.
+- **Odrzucone żądanie modelu nie wywraca przebiegu.** Odpowiedź 4xx providera jest typowana
+  (`LlmRequestRejectedException`) i **nie jest ponawiana** — po ponowieniu zostanie odrzucona
+  tak samo. Rozdzielone są dwie sytuacje: 400/413/422 dotyczą tego jednego żądania (tekst za
+  długi na okno kontekstu, lokalny silnik bez wolnej pamięci karty), więc utwór zostaje ze
+  statusem `FETCHED` i wraca do kolejki, a job idzie dalej (ta sama zasada co D31); 401/403
+  to zła konfiguracja providera i job pada głośno, bo pomijanie utworów po cichu przerobiłoby
+  bibliotekę na serię nieudanych wywołań. Treść odpowiedzi providera wchodzi do komunikatu —
+  lokalne silniki chowają w niej realną przyczynę, a samo „400 Bad Request" w logu nic nie mówi.
+- **`llm.lyrics.max-tokens` osobno od `llm.max-tokens`:** sufit odpowiedzi zajmuje pamięć
+  modelu tak samo jak wejście, a tłumaczenie potrzebuje go wielokrotnie więcej niż opis
+  z metadanych. Obie wartości (`max-chars` i `max-tokens`) są zarazem regulacją pod lokalny
+  model — muszą zmieścić się w oknie kontekstu i w VRAM-ie.
 - **Praw autorskich nie obchodzimy:** teksty pobiera na własny użytek narzędzie jednego
   DJ-a (D2), zostają w jego lokalnej bazie i nie są nigdzie publikowane. W repozytorium
   nie ma żadnego tekstu utworu — fikstury testów i stub E2E używają treści wymyślonych

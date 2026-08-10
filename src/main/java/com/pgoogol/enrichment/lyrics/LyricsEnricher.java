@@ -5,6 +5,7 @@ import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackLyrics;
 import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.enrichment.llm.LlmProperties;
+import com.pgoogol.enrichment.llm.LlmRequestRejectedException;
 import com.pgoogol.enrichment.llm.LyricsTranslation;
 import com.pgoogol.enrichment.llm.LyricsTranslationService;
 import org.slf4j.Logger;
@@ -64,8 +65,33 @@ public class LyricsEnricher {
             repository.save(lyrics);
             return;
         }
-        translate(track, lyrics, original);
+        translateOrKeepText(track, lyrics, original);
         repository.save(lyrics);
+    }
+
+    /**
+     * Jeden utwór nie do przetłumaczenia nie może wywrócić przebiegu po całej
+     * bibliotece (ta sama zasada co przy imporcie hurtem — D31). Tekst zostaje
+     * zapisany ze statusem {@code FETCHED}, więc kolejny przebieg spróbuje samego
+     * tłumaczenia, bez ponownego pytania LRCLIB.
+     *
+     * <p>Dotyczy wyłącznie żądań odrzuconych „co do sztuki" (za długi tekst,
+     * brak pamięci na karcie). Zła konfiguracja providera leci dalej i wywraca
+     * job — inaczej przebieg po 2500 utworach zakończyłby się sukcesem, nie
+     * tłumacząc niczego.</p>
+     */
+    private void translateOrKeepText(TrackCatalog track, TrackLyrics lyrics, String original) {
+
+        try {
+            translate(track, lyrics, original);
+        } catch (LlmRequestRejectedException ex) {
+            if (!ex.isRequestSpecific()) {
+                throw ex;
+            }
+            log.warn("Model odrzucił tłumaczenie utworu {} ({} znaków tekstu) — tekst zostaje "
+                    + "do ponowienia. {}", track.getSpotifyId(), original.length(), ex.getMessage());
+            lyrics.setStatus(LyricsStatus.FETCHED);
+        }
     }
 
     /**

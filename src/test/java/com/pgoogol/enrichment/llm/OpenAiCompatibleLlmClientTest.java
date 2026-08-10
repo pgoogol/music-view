@@ -6,6 +6,8 @@ import com.pgoogol.common.ExternalServiceException;
 import org.junit.jupiter.api.Test;
 import com.pgoogol.WireMockRestClients;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalToJson;
 import static com.github.tomakehurst.wiremock.client.WireMock.okJson;
@@ -68,6 +70,69 @@ class OpenAiCompatibleLlmClientTest {
         // then
         assertThat(thrown).isInstanceOf(ExternalServiceException.class)
             .hasMessageContaining("pustą odpowiedź");
+    }
+
+    @Test
+    void complete_whenProviderRejectsRequest_failsWithProviderMessageAndNoRetry(
+            WireMockRuntimeInfo wireMock) {
+
+        // given — lokalne silniki (llama.cpp/LM Studio) chowają realną przyczynę
+        // w treści odpowiedzi 400; samo „400 Bad Request" w logu jest bezużyteczne
+        stubFor(post(urlPathEqualTo("/v1/chat/completions"))
+            .willReturn(aResponse().withStatus(400)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"error\":\"decode() failed: vk::Device::allocateMemory: "
+                    + "ErrorOutOfDeviceMemory\"}")));
+        LlmClient client = new OpenAiCompatibleLlmClient(WireMockRestClients.builder(), properties(wireMock));
+
+        // when
+        Throwable thrown = catchThrowable(() -> client.complete(new LlmPrompt("s", "u")));
+
+        // then
+        assertThat(thrown).isInstanceOf(LlmRequestRejectedException.class)
+            .hasMessageContaining("ErrorOutOfDeviceMemory")
+            .hasMessageContaining("llm.lyrics.max-chars");
+        assertThat(((LlmRequestRejectedException) thrown).isRequestSpecific()).isTrue();
+        // odrzucone żądanie po ponowieniu zostanie odrzucone tak samo
+        verify(1, postRequestedFor(urlPathEqualTo("/v1/chat/completions")));
+    }
+
+    @Test
+    void complete_whenProviderRejectsCredentials_marksFailureAsConfiguration(
+            WireMockRuntimeInfo wireMock) {
+
+        // given — zły klucz to nie jest problem tego jednego utworu
+        stubFor(post(urlPathEqualTo("/v1/chat/completions"))
+            .willReturn(aResponse().withStatus(401)
+                .withHeader("Content-Type", "application/json")
+                .withBody("{\"error\":\"invalid api key\"}")));
+        LlmClient client = new OpenAiCompatibleLlmClient(WireMockRestClients.builder(), properties(wireMock));
+
+        // when
+        Throwable thrown = catchThrowable(() -> client.complete(new LlmPrompt("s", "u")));
+
+        // then
+        assertThat(thrown).isInstanceOf(LlmRequestRejectedException.class)
+            .hasMessageContaining("LLM_API_KEY");
+        assertThat(((LlmRequestRejectedException) thrown).isRequestSpecific()).isFalse();
+    }
+
+    @Test
+    void complete_whenPromptSetsMaxTokens_sendsItInsteadOfGlobalLimit(WireMockRuntimeInfo wireMock) {
+
+        // given — tłumaczenie tekstu ma własny sufit odpowiedzi (D32)
+        stubFor(post(urlPathEqualTo("/v1/chat/completions")).willReturn(okJson("""
+            {"choices": [{"message": {"role": "assistant", "content": "ok"}}],
+             "usage": {"prompt_tokens": 1, "completion_tokens": 1}}
+            """)));
+        LlmClient client = new OpenAiCompatibleLlmClient(WireMockRestClients.builder(), properties(wireMock));
+
+        // when
+        client.complete(new LlmPrompt("s", "u", 1500));
+
+        // then
+        verify(postRequestedFor(urlPathEqualTo("/v1/chat/completions"))
+            .withRequestBody(containing("\"max_tokens\":1500")));
     }
 
     private LlmProperties properties(WireMockRuntimeInfo wireMock) {
