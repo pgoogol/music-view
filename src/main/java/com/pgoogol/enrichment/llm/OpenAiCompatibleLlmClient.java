@@ -69,17 +69,20 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
 
     private LlmCompletion toCompletion(ChatResponse response) {
 
-        String content = Optional.ofNullable(response)
+        Choice choice = Optional.ofNullable(response)
             .map(ChatResponse::choices)
             .orElse(List.of())
             .stream()
             .findFirst()
-            .map(Choice::message)
+            .orElseThrow(() -> new ExternalServiceException("LLM_RESPONSE_EMPTY",
+                "Provider LLM zwrócił pustą odpowiedź"));
+        String content = Optional.ofNullable(choice.message())
             .map(ChatMessage::content)
             .orElseThrow(() -> new ExternalServiceException("LLM_RESPONSE_EMPTY",
                 "Provider LLM zwrócił pustą odpowiedź"));
         Usage usage = Objects.requireNonNullElse(response.usage(), new Usage(0, 0));
-        return new LlmCompletion(content, usage.promptTokens(), usage.completionTokens());
+        return new LlmCompletion(content, usage.promptTokens(), usage.completionTokens(),
+            Objects.equals(choice.finishReason(), "length"));
     }
 
     private Duration retryAfter(HttpClientErrorException.TooManyRequests ex) {
@@ -108,7 +111,8 @@ public class OpenAiCompatibleLlmClient implements LlmClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record Choice(ChatMessage message) {
+    private record Choice(ChatMessage message,
+                          @JsonProperty("finish_reason") String finishReason) {
 
     }
 

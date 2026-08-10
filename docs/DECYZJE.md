@@ -675,6 +675,21 @@ utworom bez wgranych metryk (D24).
   to zła konfiguracja providera i job pada głośno, bo pomijanie utworów po cichu przerobiłoby
   bibliotekę na serię nieudanych wywołań. Treść odpowiedzi providera wchodzi do komunikatu —
   lokalne silniki chowają w niej realną przyczynę, a samo „400 Bad Request" w logu nic nie mówi.
+- **Odpowiedź tłumaczenia w sekcjach, nie w JSON-ie (prompt v2).** Kilkanaście zwrotek
+  z podziałem na wersy wewnątrz łańcucha JSON to dokładnie to zadanie, na którym modele
+  7–13B się wykładają: nieucieknięte cudzysłowy, gubione `\n`, brak zamknięcia na końcu.
+  Sekcje (`JEZYK:`, `### TLUMACZENIE ###`, `### INTERPRETACJA ###`) przeżywają wszystkie te
+  potknięcia, bo nie mają składni do złamania. Analiza AI (M1.5) **zostaje przy JSON-ie** —
+  tam wyjściem jest kilka krótkich pól, a nie wielolinijkowy tekst.
+- **Parser odpowiedzi jest tolerancyjny, nie pobłażliwy** (`LyricsResponseParser`): czyta
+  sekcje, a gdy ich nie ma — wyławia obiekt JSON z prozy w rodzaju „oto tłumaczenie"
+  (obsługa promptu v1 i modeli, które JSON trzymają). Gdy tłumaczenia nie ma w żadnej
+  postaci, mówi to wprost i wskazuje ustawienie do poprawienia.
+- **Ucięcie na limicie tokenów jest rozpoznawane, nie zgadywane:** klienci czytają
+  `finish_reason: length` (OpenAI) i `stop_reason: max_tokens` (Anthropic). Ucięte
+  tłumaczenie **nie jest zapisywane** — połowa tekstu ze statusem „gotowe" byłaby gorsza
+  niż jego brak, więc utwór zostaje ze statusem `FETCHED` i wraca do kolejki po podniesieniu
+  limitu.
 - **`llm.lyrics.max-tokens` osobno od `llm.max-tokens`:** sufit odpowiedzi zajmuje pamięć
   modelu tak samo jak wejście, a tłumaczenie potrzebuje go wielokrotnie więcej niż opis
   z metadanych. Obie wartości (`max-chars` i `max-tokens`) są zarazem regulacją pod lokalny

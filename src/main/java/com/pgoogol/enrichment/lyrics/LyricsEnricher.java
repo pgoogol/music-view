@@ -6,6 +6,7 @@ import com.pgoogol.catalog.TrackLyrics;
 import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.enrichment.llm.LlmProperties;
 import com.pgoogol.enrichment.llm.LlmRequestRejectedException;
+import com.pgoogol.enrichment.llm.LlmResponseInvalidException;
 import com.pgoogol.enrichment.llm.LyricsTranslation;
 import com.pgoogol.enrichment.llm.LyricsTranslationService;
 import org.slf4j.Logger;
@@ -75,10 +76,11 @@ public class LyricsEnricher {
      * zapisany ze statusem {@code FETCHED}, więc kolejny przebieg spróbuje samego
      * tłumaczenia, bez ponownego pytania LRCLIB.
      *
-     * <p>Dotyczy wyłącznie żądań odrzuconych „co do sztuki" (za długi tekst,
-     * brak pamięci na karcie). Zła konfiguracja providera leci dalej i wywraca
-     * job — inaczej przebieg po 2500 utworach zakończyłby się sukcesem, nie
-     * tłumacząc niczego.</p>
+     * <p>Dotyczy żądań odrzuconych „co do sztuki" (za długi tekst, brak pamięci
+     * na karcie) oraz odpowiedzi, z których nie da się wyczytać tłumaczenia
+     * (ucięcie na limicie tokenów, własny format zamiast tego z promptu). Zła
+     * konfiguracja providera leci dalej i wywraca job — inaczej przebieg po 2500
+     * utworach zakończyłby się sukcesem, nie tłumacząc niczego.</p>
      */
     private void translateOrKeepText(TrackCatalog track, TrackLyrics lyrics, String original) {
 
@@ -88,10 +90,20 @@ public class LyricsEnricher {
             if (!ex.isRequestSpecific()) {
                 throw ex;
             }
-            log.warn("Model odrzucił tłumaczenie utworu {} ({} znaków tekstu) — tekst zostaje "
-                    + "do ponowienia. {}", track.getSpotifyId(), original.length(), ex.getMessage());
-            lyrics.setStatus(LyricsStatus.FETCHED);
+            keepTextForRetry(track, lyrics, original, ex.getMessage());
+        } catch (LlmResponseInvalidException ex) {
+            // model odpowiedział, ale nie da się z tego zrobić tłumaczenia:
+            // ucięta odpowiedź albo własny format zamiast tego z promptu
+            keepTextForRetry(track, lyrics, original, ex.getMessage());
         }
+    }
+
+    private void keepTextForRetry(TrackCatalog track, TrackLyrics lyrics, String original,
+                                  String reason) {
+
+        log.warn("Nie udało się przetłumaczyć utworu {} ({} znaków tekstu) — tekst zostaje "
+            + "do ponowienia. {}", track.getSpotifyId(), original.length(), reason);
+        lyrics.setStatus(LyricsStatus.FETCHED);
     }
 
     /**

@@ -63,11 +63,11 @@ public record LlmProperties(
      * Za duże kończą się odpowiedzią 4xx silnika, nie lepszym tłumaczeniem.</p>
      */
     public record Lyrics(
-        @DefaultValue("v1") String promptVersion,
+        @DefaultValue("v2") String promptVersion,
         @DefaultValue("6000") int maxChars,
         @DefaultValue("3000") int maxTokens) {
 
-        static final Lyrics DEFAULTS = new Lyrics("v1", 6000, 3000);
+        static final Lyrics DEFAULTS = new Lyrics("v2", 6000, 3000);
 
         /** Wersja promptu jako liczba do {@code track_lyrics.prompt_version}. */
         public Optional<Integer> promptVersionNumber() {

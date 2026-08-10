@@ -530,8 +530,10 @@ oryginał jest po hiszpańsku.
   `OUTDATED` zostaje przy samej grupie AI (D28/D32)
 - Szacunek kosztu rozdziela grupy: ~140/120 tokenów na opis AI, ~1400/1600 na tłumaczenie —
   UI pokazuje „płatnych X (w tym Y z tekstem)"
-- Odrzucone żądanie modelu (4xx) pomija utwór i zostawia tekst do ponowienia zamiast
-  wywracać cały przebieg; limity `llm.lyrics.max-chars` i `llm.lyrics.max-tokens` stroi się
+- Odpowiedź w sekcjach zamiast JSON-a (prompt v2) i tolerancyjny parser — mały model lokalny
+  gubi cudzysłowy i znaki nowej linii w długim łańcuchu JSON
+- Odrzucone żądanie modelu (4xx) i odpowiedź nie do użycia (ucięta, nie w formacie) pomijają
+  utwór i zostawiają tekst do ponowienia zamiast wywracać cały przebieg; limity `llm.lyrics.max-chars` i `llm.lyrics.max-tokens` stroi się
   pod okno kontekstu modelu (D32)
 - `GET /api/catalog/tracks/{spotifyId}/lyrics` (204 = jeszcze nie pobierano; `NOT_FOUND`
   wraca jako treść, bo to odpowiedź, nie luka) i sekcja „Tekst i tłumaczenie" w szufladzie
@@ -597,6 +599,7 @@ więc zostaje na koniec.
 | Jakość setu z generatora jest subiektywna (M4.2) | „nie tak bym to ułożył" | generator zwraca propozycję do ręcznej korekty, nie zapisuje playlisty; DoD mówi o ograniczeniach i kształcie krzywej, nie o „dobrym secie" (D26) |
 | Koszt tłumaczeń (M6.1): utwór z tekstem to ~10× tokenów utworu z opisem | rachunek za bibliotekę rośnie skokowo | osobna grupa pól do odznaczenia, przycinanie wejścia (`llm.lyrics.max-chars`), rozdzielony szacunek przed startem, twardy limit `llm.max-tracks-per-job` (D32) |
 | Lokalny model nie mieści tekstu w oknie kontekstu / VRAM-ie (M6.1) | 4xx z silnika w trakcie przebiegu | `llm.lyrics.max-chars` i `llm.lyrics.max-tokens` do zestrojenia z modelem; odrzucone żądanie pomija utwór (status `FETCHED`) zamiast wywracać job, treść odpowiedzi silnika trafia do logu (D32) |
+| Mały model lokalny nie trzyma formatu odpowiedzi (M6.1) | brak tłumaczeń mimo udanych wywołań | prompt v2 w sekcjach zamiast JSON-a, tolerancyjny parser (sekcje → JSON z prozy), rozpoznane ucięcie na limicie tokenów; utwór wraca do kolejki zamiast zapisywać połowę tłumaczenia (D32) |
 | Pokrycie LRCLIB nieznane dla polskiego repertuaru (M6.1) | część biblioteki bez tekstu | potwierdzony brak zapisywany raz (negatywny cache), fallback z `/api/get` na `/api/search`; realne pokrycie do zmierzenia na własnej bibliotece |
 | Test E2E jako źródło fałszywych alarmów (M5.3) | czerwone CI przestaje coś znaczyć | jeden przepływ zamiast siatki przypadków, klienci zewnętrzni na WireMocku — bez zależności od Spotify i klucza LLM (D30) |
 

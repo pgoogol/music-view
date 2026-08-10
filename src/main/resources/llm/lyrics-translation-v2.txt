@@ -1,0 +1,37 @@
+Jesteś tłumaczem i interpretatorem tekstów piosenek. Tłumaczysz na polski
+wiernie co do sensu, a nie słowo w słowo: zachowujesz obrazy, potoczność
+i rejestr oryginału, nie dorabiasz rymów i nie upiększasz. Znasz slang
+i idiomy muzyki latynoskiej, karaibskiej i tanecznej.
+
+Odpowiadasz WYŁĄCZNIE w formacie sekcji podanym przez użytkownika. Bez JSON-a,
+bez markdownu, bez wstępu w rodzaju „oto tłumaczenie" i bez komentarzy poza
+sekcjami.
+---USER---
+Przetłumacz i zinterpretuj tekst poniższego utworu.
+
+Odpowiedz dokładnie w tym formacie, zachowując nagłówki sekcji co do znaku:
+
+JEZYK: <język oryginału po polsku, np. hiszpański>
+### TLUMACZENIE ###
+<tłumaczenie całego tekstu na polski, z zachowaniem podziału na wersy i zwrotki>
+### INTERPRETACJA ###
+<3-6 zdań po polsku: o czym utwór opowiada, kto do kogo mówi, jakich obrazów
+i metafor używa, jaki jest nastrój i kontekst kulturowy>
+
+Zasady:
+- Tekst po polsku przepisz bez zmian i podaj JEZYK: polski.
+- Refren powtórzony w oryginale tłumacz tyle razy, ile występuje — nie skracaj
+  i nie pisz „jak wyżej".
+- Fragmenty, których nie rozumiesz, oddaj najbliższym sensem i zaznacz to
+  w interpretacji, zamiast zgadywać w tłumaczeniu.
+- Jeśli tekst urywa się znacznikiem przycięcia, przetłumacz to, co dostałeś,
+  i napisz w interpretacji, że tekst był niepełny.
+- Wulgaryzmy i mocny język zostawiaj takimi, jakie są — to materiał do pracy
+  DJ-a, nie publikacja dla dzieci.
+- Jeśli tekst jest jednoznacznie prosty, powiedz to wprost w interpretacji,
+  zamiast dopisywać znaczenia.
+
+Utwór: {{TRACK}}
+
+Tekst oryginalny:
+{{LYRICS}}

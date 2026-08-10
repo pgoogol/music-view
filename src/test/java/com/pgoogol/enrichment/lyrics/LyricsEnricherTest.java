@@ -7,6 +7,7 @@ import com.pgoogol.catalog.TrackLyrics;
 import com.pgoogol.catalog.TrackLyricsRepository;
 import com.pgoogol.enrichment.llm.LlmProperties;
 import com.pgoogol.enrichment.llm.LlmRequestRejectedException;
+import com.pgoogol.enrichment.llm.LlmResponseInvalidException;
 import com.pgoogol.enrichment.llm.LyricsTranslation;
 import com.pgoogol.enrichment.llm.LyricsTranslationService;
 import org.junit.jupiter.api.BeforeEach;
@@ -190,6 +191,25 @@ class LyricsEnricherTest {
         assertThat(saved.getStatus()).isEqualTo(LyricsStatus.FETCHED);
         assertThat(saved.getOriginalLyrics()).isEqualTo(LYRICS);
         assertThat(saved.isResolved()).isFalse();
+    }
+
+    @Test
+    void enrich_whenResponseIsUnusable_keepsTextAndLetsJobGoOn() {
+
+        // given — model odpowiedział, ale nie da się z tego wyczytać tłumaczenia
+        // (ucięcie na limicie tokenów albo własny format zamiast tego z promptu)
+        given(lrcLibClient.find(anyString(), anyString(), any(), any()))
+            .willReturn(Optional.of(new LrcLibLyrics(42L, false, LYRICS)));
+        given(translationService.translate(any(), any())).willThrow(
+            new LlmResponseInvalidException("model uciął odpowiedź", true));
+
+        // when
+        enricher.enrich(track(), false);
+
+        // then
+        TrackLyrics saved = saved();
+        assertThat(saved.getStatus()).isEqualTo(LyricsStatus.FETCHED);
+        assertThat(saved.getOriginalLyrics()).isEqualTo(LYRICS);
     }
 
     @Test

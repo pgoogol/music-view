@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pgoogol.common.ExternalServiceException;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Wspólne czytanie strukturalnych odpowiedzi LLM-a. Modele lubią opakować JSON
@@ -25,6 +26,27 @@ final class LlmResponses {
         } catch (JsonProcessingException ex) {
             throw new ExternalServiceException("LLM_RESPONSE_INVALID",
                 "Odpowiedź LLM nie jest poprawnym JSON-em", ex);
+        }
+    }
+
+    /**
+     * Wyławia pierwszy kompletny obiekt JSON z odpowiedzi — modele lubią
+     * poprzedzić go zdaniem w rodzaju „oto tłumaczenie" albo dopisać komentarz
+     * na końcu. Pusto, gdy w treści nie ma nic, co dałoby się sparsować.
+     */
+    static Optional<JsonNode> findJsonObject(ObjectMapper objectMapper, String content) {
+
+        String text = stripMarkdownFences(Objects.requireNonNullElse(content, ""));
+        int start = text.indexOf('{');
+        int end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return Optional.empty();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(text.substring(start, end + 1));
+            return node.isObject() ? Optional.of(node) : Optional.empty();
+        } catch (JsonProcessingException ex) {
+            return Optional.empty();
         }
     }
 

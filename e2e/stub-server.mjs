@@ -57,9 +57,11 @@ const server = createServer((request, response) => {
     if (url.startsWith('/v1/chat/completions')) {
       const body = raw ? JSON.parse(raw) : {}
       const promptText = (body.messages ?? []).map((message) => message.content ?? '').join('\n')
-      if (promptText.includes('translation_pl')) {
+      if (promptText.includes('TLUMACZENIE')) {
         return send(200, {
-          choices: [{ message: { role: 'assistant', content: JSON.stringify(translationResponse()) } }],
+          choices: [
+            { message: { role: 'assistant', content: translationResponse() }, finish_reason: 'stop' },
+          ],
           usage: { prompt_tokens: 1400, completion_tokens: 1600 },
         })
       }

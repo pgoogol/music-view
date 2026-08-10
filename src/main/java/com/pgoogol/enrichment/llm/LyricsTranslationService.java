@@ -1,9 +1,6 @@
 package com.pgoogol.enrichment.llm;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pgoogol.catalog.TrackCatalog;
-import com.pgoogol.common.ExternalServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -19,6 +16,9 @@ import java.util.stream.Stream;
  * pięć: tekst to kilka tysięcy znaków, więc partia rozsadziłaby okno kontekstu
  * i pierwszy błąd parsowania kosztowałby całą piątkę zamiast jednego utworu.</p>
  *
+ * <p>Odpowiedź czyta {@link LyricsResponseParser} — tolerancyjnie, bo prompt
+ * tłumaczenia bywa obsługiwany przez mały model lokalny (D32).</p>
+ *
  * <p>Tekst dłuższy niż {@code llm.lyrics.max-chars} jest przycinany z jawnym
  * znacznikiem — lepiej przetłumaczyć zwrotki, które się zmieściły, i powiedzieć
  * to wprost, niż zapłacić za wywołanie odrzucone przez limit modelu.</p>
@@ -32,15 +32,15 @@ public class LyricsTranslationService {
 
     private final LlmClient llmClient;
     private final LyricsTranslationPrompt prompt;
-    private final ObjectMapper objectMapper;
+    private final LyricsResponseParser parser;
     private final LlmProperties properties;
 
     public LyricsTranslationService(LlmClient llmClient, LyricsTranslationPrompt prompt,
-                                    ObjectMapper objectMapper, LlmProperties properties) {
+                                    LyricsResponseParser parser, LlmProperties properties) {
 
         this.llmClient = llmClient;
         this.prompt = prompt;
-        this.objectMapper = objectMapper;
+        this.parser = parser;
         this.properties = properties;
     }
 
@@ -52,18 +52,22 @@ public class LyricsTranslationService {
             prompt.system(),
             prompt.user(describe(track), truncate(lyrics)),
             properties.lyrics().maxTokens()));
-        JsonNode root = LlmResponses.readJson(objectMapper, completion.content());
-        if (!root.isObject()) {
-            throw new ExternalServiceException("LLM_RESPONSE_INVALID",
-                "Odpowiedź LLM dla tekstu utworu nie jest obiektem JSON");
+        LyricsResponseParser.ParsedTranslation parsed =
+            parser.parse(completion.content(), completion.truncated());
+        if (completion.truncated()) {
+            // tłumaczenie urwane w połowie utworu jest gorsze niż jego brak:
+            // utwór ma wrócić do kolejki po podniesieniu limitu, a nie udawać gotowy
+            throw new LlmResponseInvalidException(
+                "Model uciął tłumaczenie na limicie tokenów — podnieś llm.lyrics.max-tokens "
+                    + "albo zmniejsz llm.lyrics.max-chars", true);
         }
         log.debug("Przetłumaczono tekst utworu {}: tokeny={}wej/{}wyj (prompt {})",
             track.getSpotifyId(), completion.inputTokens(), completion.outputTokens(),
             prompt.version());
         return new LyricsTranslation(
-            LlmResponses.textOrNull(root, "source_language"),
-            LlmResponses.textOrNull(root, "translation_pl"),
-            LlmResponses.textOrNull(root, "interpretation_pl"),
+            parsed.sourceLanguage(),
+            parsed.translationPl(),
+            parsed.interpretationPl(),
             completion.inputTokens(),
             completion.outputTokens());
     }

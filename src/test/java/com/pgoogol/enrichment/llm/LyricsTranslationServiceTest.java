@@ -3,7 +3,6 @@ package com.pgoogol.enrichment.llm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogFixtures;
-import com.pgoogol.common.ExternalServiceException;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -30,9 +29,12 @@ class LyricsTranslationServiceTest {
 
         // given
         given(llmClient.complete(any())).willReturn(new LlmCompletion("""
-            {"source_language": "hiszpański",
-             "translation_pl": "Pierwszy wers po polsku\\nDrugi wers po polsku",
-             "interpretation_pl": "Utwór o świętowaniu mimo trudności."}
+            JEZYK: hiszpański
+            ### TLUMACZENIE ###
+            Pierwszy wers po polsku
+            Drugi wers po polsku
+            ### INTERPRETACJA ###
+            Utwór o świętowaniu mimo trudności.
             """, 1200, 1500));
         LyricsTranslationService service = service();
 
@@ -48,9 +50,9 @@ class LyricsTranslationServiceTest {
     }
 
     @Test
-    void translate_whenModelWrapsJsonInMarkdown_stillParses() {
+    void translate_whenModelAnswersInJsonInstead_stillParses() {
 
-        // given — modele lubią ogrodzić JSON blokiem kodu mimo instrukcji w prompcie
+        // given — starszy prompt (v1) i modele, które trzymają JSON bez problemu
         given(llmClient.complete(any())).willReturn(new LlmCompletion("""
             ```json
             {"source_language": "angielski", "translation_pl": "Tłumaczenie", "interpretation_pl": "Opis."}
@@ -69,7 +71,7 @@ class LyricsTranslationServiceTest {
 
         // given — sam tytuł bywa u różnych wykonawców innym utworem
         given(llmClient.complete(any())).willReturn(new LlmCompletion(
-            "{\"translation_pl\": \"Tłumaczenie\"}", 10, 10));
+            "### TLUMACZENIE ###\nTłumaczenie", 10, 10));
         ArgumentCaptor<LlmPrompt> prompt = ArgumentCaptor.forClass(LlmPrompt.class);
 
         // when
@@ -88,7 +90,7 @@ class LyricsTranslationServiceTest {
 
         // given — przycięcie jest tańsze niż wywołanie odrzucone przez limit modelu
         given(llmClient.complete(any())).willReturn(new LlmCompletion(
-            "{\"translation_pl\": \"Tłumaczenie\"}", 10, 10));
+            "### TLUMACZENIE ###\nTłumaczenie", 10, 10));
         String tooLong = "wers testowego tekstu\n".repeat(500);
         ArgumentCaptor<LlmPrompt> prompt = ArgumentCaptor.forClass(LlmPrompt.class);
 
@@ -107,7 +109,7 @@ class LyricsTranslationServiceTest {
 
         // given — sufit odpowiedzi dla tłumaczenia jest inny niż dla opisu utworu (D32)
         given(llmClient.complete(any())).willReturn(new LlmCompletion(
-            "{\"translation_pl\": \"Tłumaczenie\"}", 10, 10));
+            "### TLUMACZENIE ###\nTłumaczenie", 10, 10));
         ArgumentCaptor<LlmPrompt> prompt = ArgumentCaptor.forClass(LlmPrompt.class);
 
         // when
@@ -119,17 +121,34 @@ class LyricsTranslationServiceTest {
     }
 
     @Test
-    void translate_whenResponseIsNotJsonObject_failsLoudly() {
+    void translate_whenResponseHasNoTranslation_failsWithFormatHint() {
 
-        // given
-        given(llmClient.complete(any())).willReturn(new LlmCompletion("[\"nie obiekt\"]", 10, 10));
+        // given — model odpowiedział po swojemu, zamiast trzymać się promptu
+        given(llmClient.complete(any())).willReturn(
+            new LlmCompletion("Nie mogę pomóc w tym zadaniu.", 10, 10));
         LyricsTranslationService service = service();
         TrackCatalog track = track();
 
         // when + then
         assertThatThrownBy(() -> service.translate(track, LYRICS))
-            .isInstanceOf(ExternalServiceException.class)
-            .hasMessageContaining("nie jest obiektem JSON");
+            .isInstanceOf(LlmResponseInvalidException.class)
+            .hasMessageContaining("prompt-version");
+    }
+
+    @Test
+    void translate_whenProviderCutResponseOnTokenLimit_refusesHalfTranslation() {
+
+        // given — sufit tokenów przerwał generowanie; połowa tłumaczenia zapisana
+        // jako gotowa byłaby gorsza niż jego brak (utwór ma wrócić do kolejki)
+        given(llmClient.complete(any())).willReturn(new LlmCompletion(
+            "### TLUMACZENIE ###\nPierwszy wers po pol", 10, 1500, true));
+        LyricsTranslationService service = service();
+        TrackCatalog track = track();
+
+        // when + then
+        assertThatThrownBy(() -> service.translate(track, LYRICS))
+            .isInstanceOf(LlmResponseInvalidException.class)
+            .hasMessageContaining("llm.lyrics.max-tokens");
     }
 
     private LyricsTranslationService service() {
@@ -141,7 +160,8 @@ class LyricsTranslationServiceTest {
         LlmProperties properties = new LlmProperties("openai", null, "klucz", "test-model",
             "v1", 5, 2, 2048, 0.2, 500, null, new LlmProperties.Lyrics("v1", maxChars, 1500));
         return new LyricsTranslationService(
-            llmClient, new LyricsTranslationPrompt(properties), objectMapper, properties);
+            llmClient, new LyricsTranslationPrompt(properties),
+            new LyricsResponseParser(objectMapper), properties);
     }
 
     private TrackCatalog track() {

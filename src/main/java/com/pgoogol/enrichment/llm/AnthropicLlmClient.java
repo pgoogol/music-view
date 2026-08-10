@@ -82,7 +82,8 @@ public class AnthropicLlmClient implements LlmClient {
             .orElseThrow(() -> new ExternalServiceException("LLM_RESPONSE_EMPTY",
                 "Provider LLM zwrócił pustą odpowiedź"));
         Usage usage = Objects.requireNonNullElse(response.usage(), new Usage(0, 0));
-        return new LlmCompletion(content, usage.inputTokens(), usage.outputTokens());
+        return new LlmCompletion(content, usage.inputTokens(), usage.outputTokens(),
+            Objects.equals(response.stopReason(), "max_tokens"));
     }
 
     private Duration retryAfter(HttpClientErrorException.TooManyRequests ex) {
@@ -107,7 +108,8 @@ public class AnthropicLlmClient implements LlmClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record MessagesResponse(List<ContentBlock> content, Usage usage) {
+    private record MessagesResponse(List<ContentBlock> content, Usage usage,
+                                    @JsonProperty("stop_reason") String stopReason) {
 
     }
 

@@ -54,7 +54,9 @@ llm:
   # wartości kończą się odpowiedzią 4xx silnika (np. „out of device memory"),
   # nie lepszym tłumaczeniem. Przy 8 GB VRAM zacznij od 2500 / 1500.
   lyrics:
-    prompt-version: v1
+    # v2 = odpowiedź w sekcjach zamiast JSON-a; małe modele lokalne gubią
+    # cudzysłowy i znaki nowej linii w długim łańcuchu JSON (D32)
+    prompt-version: v2
     max-chars: ${LLM_LYRICS_MAX_CHARS:6000}
     max-tokens: ${LLM_LYRICS_MAX_TOKENS:3000}
 
