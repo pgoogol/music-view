@@ -316,7 +316,7 @@ z aplikacji.
 # ETAP 4 — Warsztat DJ-a (zaplanowany)
 
 **Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
-zagrać**. Wszystkie trzy kamienie stoją na danych, które już są w bazie — żaden nie
+zagrać**. Wszystkie cztery kamienie stoją na danych, które już są w bazie — żaden nie
 wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
 
 | Kamień | Zakres | Zależy od | Stan |
@@ -324,6 +324,7 @@ wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
 | **M4.1** Zgodność harmoniczna i pełne metryki | Camelot liczony z `musical_key`, filtry harmoniczne w wyszukiwarce, filtry `valence`/`instrumentalness`/`liveness`, ostrzeżenia tonacji/głośności/metrum w secie (D25) | M3.3 | ✅ |
 | **M4.2** Generator setu | `POST /api/sets/propose` — propozycja setu na zadany czas z ograniczeniami (fazy D9, skok BPM, harmonia, odstęp między utworami wykonawcy), podgląd przed zapisem (D26) | M4.1 | ✅ |
 | **M4.3** Przegląd biblioteki | Zakładka „Przegląd": rozkłady gatunków / BPM / energii, udział źródeł BPM, pokrycie pól, top wykonawcy, przyrost biblioteki; agregaty liczy baza (D27) | M3.3 | ✅ |
+| **M4.4** Domykanie setu | `POST /api/sets/{id}/suggest` (kandydaci na jedną lukę) i `POST /api/sets/{id}/fill` (dalszy ciąg wieczoru do zadanego czasu) — te same reguły co generator, podgląd bez zapisu (D32) | M4.2 | ✅ |
 
 ## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
 
@@ -392,6 +393,36 @@ jest operacyjnych, żadna nie pokazuje biblioteki z góry.
 **DoD:** ekran ładuje się bez zauważalnej zwłoki na bibliotece 2500 utworów; każda liczba
 na ekranie daje się odtworzyć zapytaniem w duchu `scripts/coverage_report.sql`; testy
 repozytorium na Testcontainers dla każdego agregatu.
+
+## M4.4 Domykanie setu *(po M4.2)*
+
+**Cel:** generator (M4.2) układa wieczór od zera, a w praktyce set częściej stoi już
+w połowie — „co zagrać po tym" i „dociągnij mi to do czterech godzin".
+
+- `SetRules` w module `playlist` — ograniczenia i ocena kandydata **wspólne** dla
+  generatora i domykania; gdyby dobieranie liczyło inaczej niż generator, DJ dostawałby
+  dwie różne opinie o tej samej bibliotece (D32)
+- `SetGenerator.extend(...)` — utwory z setu zajmują początek osi wieczoru (liczą się do
+  upływu czasu, blokują powtórkę utworu i odstęp wykonawcy), a wynikiem jest sama końcówka.
+  Fazy D9 liczone nad **całym** zamówionym czasem, nie nad resztą: set na 90 min ciągnięty
+  do 240 dostaje środek → szczyt → zamknięcie, nie drugą rozgrzewkę
+- `SetSuggester` — kandydaci na jedną lukę, **bez losowania** (DJ i tak wybiera z listy),
+  z karą za przejście liczoną w obie strony: od utworu przed luką i do utworu za nią
+- `POST /api/sets/{id}/fill` i `POST /api/sets/{id}/suggest` — te same filtry puli co
+  wyszukiwarka, **nic nie zapisują** (D26/D32); skład zmienia DJ istniejącą drogą.
+  Wstawienie w środek to dopisanie na koniec plus `PUT /{id}/tracks` z wersją z odpowiedzi
+  na dopisanie (D29)
+- Front: „dobierz" przy każdym utworze setu i „Dobierz na koniec" pokazują kandydatów
+  z powodami (różnica tempa wobec sąsiada, zgodność tonacji); panel „Uzupełnij set"
+  pokazuje dalszy ciąg do obejrzenia przed dopisaniem
+- **Bez rozszerzania testu E2E** (D30/D32): przepływ to jeden przebieg, a nie siatka
+  przypadków — dołożenie kroku wymagałoby poszerzenia fikstury CSV o utwory spoza setu
+
+**DoD:** „dobierz" przy utworze w środku setu wstawia utwór dokładnie za nim i nie rusza
+reszty kolejności; uzupełnianie setu w połowie wieczoru dokłada szczyt i zamknięcie zamiast
+rozgrzewki, a set już dłuższy od zamówionego czasu dostaje notatkę, nie błąd; testy
+jednostkowe reguł (oba sąsiedzi, odstęp wykonawcy wokół luki, powtarzalność) i integracyjne
+obu endpointów zielone.
 
 ---
 
@@ -507,12 +538,13 @@ Etapy 3–5 (kamienie zaplanowane zaznaczone przerywaną linią):
 flowchart LR
     M33[M3.3<br/>metryki CSV] --> M41[M4.1<br/>harmonia] & M43[M4.3<br/>przegląd]
     M41 --> M42[M4.2<br/>generator setu]
+    M42 --> M44[M4.4<br/>domykanie setu]
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M51,M52,M53 plan
+    class M41,M42,M43,M44,M51,M52,M53 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

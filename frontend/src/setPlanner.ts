@@ -210,6 +210,27 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
 }
 
 /**
+ * Kolejność setu po wstawieniu dobranego utworu (M4.4) na wskazane miejsce.
+ * API dokłada utwór wyłącznie na koniec (`POST /{id}/tracks`), więc wstawienie
+ * w środek to dopisanie i zaraz po nim zmiana kolejności — nowego endpointu
+ * do zapisu nie ma i nie potrzeba (D32).
+ *
+ * @param tracks   skład setu **po** dopisaniu utworu (dobrany jest ostatni)
+ * @param position docelowe miejsce; poza zakresem zostawia utwór na końcu
+ */
+export function insertLastAt(
+  tracks: readonly PlaylistTrackResponse[],
+  position: number,
+): string[] {
+
+  const order = tracks.map((entry) => entry.track.spotifyId)
+  if (position < 0 || position >= order.length) return order
+  const [added] = order.splice(order.length - 1, 1)
+  order.splice(position, 0, added)
+  return order
+}
+
+/**
  * Propozycja kolejności setu wg slotów D9: rozgrzewka → środek → szczyt →
  * zamknięcie, wewnątrz fazy rosnąco po BPM. Przerwy trafiają przed zamknięcie,
  * a utwory bez slotu (niewzbogacone) na sam koniec — DJ decyduje, co z nimi.

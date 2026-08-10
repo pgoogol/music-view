@@ -17,7 +17,7 @@ class SetGeneratorTest {
 
     private static final int TRACK_SECONDS = 210;
 
-    private final SetGenerator generator = new SetGenerator();
+    private final SetGenerator generator = new SetGenerator(new SetRules());
 
     @Test
     @DisplayName("układa set zbliżony do zamówionego czasu")
@@ -70,7 +70,7 @@ class SetGeneratorTest {
         SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(120), 5L);
 
         assertThat(minutesBetweenSameArtist(proposal))
-            .allSatisfy(gap -> assertThat(gap).isGreaterThanOrEqualTo(SetGenerator.ARTIST_GAP_MINUTES));
+            .allSatisfy(gap -> assertThat(gap).isGreaterThanOrEqualTo(SetRules.ARTIST_GAP_MINUTES));
     }
 
     @Test
@@ -176,6 +176,88 @@ class SetGeneratorTest {
 
         assertThat(proposal.tracks()).isEmpty();
         assertThat(proposal.notes()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("uzupełnianie: oddaje sam dalszy ciąg, bez utworów, które już są w secie")
+    void shouldExtendWithoutRepeatingTracksAlreadyOnTheSet() {
+
+        List<SetCandidate> current = existingSet(10);
+
+        SetProposal proposal =
+            generator.extend(bigPool(), current, Duration.ofMinutes(120), 5L);
+
+        List<String> added = idsOf(proposal);
+        assertThat(added).isNotEmpty();
+        assertThat(added).doesNotContainAnyElementsOf(
+            current.stream().map(SetCandidate::spotifyId).toList());
+    }
+
+    @Test
+    @DisplayName("uzupełnianie: pozycje dalszego ciągu zaczynają się na końcu setu")
+    void shouldNumberAddedTracksAfterTheExistingSet() {
+
+        SetProposal proposal =
+            generator.extend(bigPool(), existingSet(10), Duration.ofMinutes(120), 5L);
+
+        assertThat(proposal.tracks().getFirst().position()).isEqualTo(10);
+        assertThat(proposal.tracks().stream().map(SetProposal.ProposedTrack::position))
+            .isSorted();
+    }
+
+    @Test
+    @DisplayName("uzupełnianie nie zaczyna wieczoru od nowa — set w połowie dostaje szczyt, nie rozgrzewkę")
+    void shouldContinueTheEveningCurveInsteadOfRestartingIt() {
+
+        // 20 utworów po 3,5 min = 70 min z zamówionych 120 — to już faza szczytu
+        SetProposal proposal =
+            generator.extend(bigPool(), existingSet(20), Duration.ofMinutes(120), 5L);
+
+        List<DjSlot> slots = proposal.tracks().stream()
+            .map(SetProposal.ProposedTrack::djSlot)
+            .toList();
+
+        assertThat(slots).isNotEmpty();
+        assertThat(slots).doesNotContain(DjSlot.WARMUP, DjSlot.MIDDLE);
+        assertThat(slots).startsWith(DjSlot.PEAK);
+        assertThat(slots).endsWith(DjSlot.CLOSING);
+    }
+
+    @Test
+    @DisplayName("uzupełnianie: set dłuższy od zamówionego czasu dostaje notatkę zamiast utworów")
+    void shouldAddNothingWhenSetIsAlreadyLongEnough() {
+
+        SetProposal proposal =
+            generator.extend(bigPool(), existingSet(40), Duration.ofMinutes(120), 5L);
+
+        assertThat(proposal.tracks()).isEmpty();
+        assertThat(proposal.notes()).isNotEmpty();
+        assertThat(proposal.notes().getFirst()).contains("co najmniej tyle");
+    }
+
+    @Test
+    @DisplayName("uzupełnianie: wykonawca z końcówki setu nie wraca od razu na początku dobranej części")
+    void shouldRespectArtistGapAcrossTheExistingSet() {
+
+        SetCandidate lastOnSet = candidate("sp-na-secie", "Wykonawca 0", 120, DjSlot.PEAK, 5);
+
+        SetProposal proposal =
+            generator.extend(bigPool(), List.of(lastOnSet), Duration.ofMinutes(60), 5L);
+
+        List<String> firstArtists = proposal.tracks().stream()
+            .limit(3)
+            .map(track -> track.track().getArtist())
+            .toList();
+        assertThat(firstArtists).doesNotContain("Wykonawca 0");
+    }
+
+    /** Set, który już stoi — inne identyfikatory i wykonawcy niż pula kandydatów. */
+    private List<SetCandidate> existingSet(int size) {
+
+        return IntStream.range(0, size)
+            .mapToObj(index -> candidate(
+                "na-secie-" + index, "Zespół " + index, 120, DjSlot.MIDDLE, 4))
+            .toList();
     }
 
     private int indexOfFirst(List<DjSlot> slots, DjSlot slot) {

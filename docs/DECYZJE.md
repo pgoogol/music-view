@@ -1,9 +1,9 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji **D1–D30: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+Status wszystkich decyzji **D1–D32: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
 implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
 bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
-Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D30;
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D32;
 odwołania §x wskazują sekcje konceptu.
 
 ---
@@ -620,3 +620,45 @@ playlist (tryb C) i importu metryk z plików CSV (D24).
   playlist powstaje per playlista, więc uzupełnienie biblioteki to kilkanaście plików pod
   rząd. Osobne żądanie na plik działałoby tak samo, ale raport rozjechałby się na
   kilkanaście toastów zamiast jednego podsumowania.
+
+## D32. Domykanie gotowego setu: dobieranie i uzupełnianie (M4.4)
+
+Generator z D26 układa wieczór **od zera**. W praktyce set częściej stoi już w połowie:
+DJ ma trzon z zaznaczonych utworów i pyta „co po tym zagrać" albo „dociągnij mi to do
+czterech godzin". Obie operacje działają na tym, co już w secie jest.
+
+- **Nic nie zapisują — jak generator (D26).** `POST /api/sets/{id}/fill`
+  i `POST /api/sets/{id}/suggest` zwracają podgląd; skład zmienia DJ istniejącą drogą
+  (`POST /api/playlists/{id}/tracks`, `PUT /{id}/tracks`). Nowy endpoint zapisu byłby
+  trzecią drogą do tej samej tabeli, a wersjonowanie agregatu (D29) trzeba by w nim
+  odtworzyć od nowa.
+- **Wstawienie w środek to dopisanie plus zmiana kolejności.** API dokłada utwór wyłącznie
+  na koniec, więc front dopisuje i od razu wysyła nową kolejność z wersją **z odpowiedzi
+  na dopisanie**, nie z widoku sprzed zmiany. Dwa żądania zamiast jednego są tu tańsze niż
+  endpoint „wstaw na pozycję", który dublowałby kontrakt permutacji z D21.
+- **Reguły oceny są jedne dla obu ścieżek** (`SetRules`). Gdyby dobieranie liczyło inaczej
+  niż generator, DJ dostawałby dwie różne opinie o tej samej bibliotece — a to, co
+  podpowiada „dobierz", musi być tym, co generator by wybrał.
+- **Uzupełnianie liczy fazy nad całym zamówionym czasem**, nie nad tym, co zostało. Set na
+  90 minut ciągnięty do czterech godzin ma dostać dalszy ciąg wieczoru (środek → szczyt →
+  zamknięcie), a nie drugą rozgrzewkę. Utwory z setu zajmują początek osi: liczą się do
+  upływu czasu i blokują powtórkę utworu oraz odstęp wykonawcy, ale nie wracają w wyniku.
+  Set już dłuższy od zamówionego dostaje **notatkę, nie błąd** — to stan normalny.
+- **Dobieranie nie losuje.** Generator losuje z piątki najlepszych, bo inaczej po pierwszym
+  uruchomieniu byłby bezużyteczny (D26); tutaj DJ i tak dostaje listę i wybiera sam, więc
+  ziarno nie miałoby czego powtarzać, a ta sama luka pytana dwa razy musi dać tę samą
+  odpowiedź.
+- **Kandydat ma dwóch sąsiadów.** Karę za przejście liczymy i od utworu przed luką, i do
+  utworu za nią — inaczej dokładanie w środek psułoby przejście, które DJ przed chwilą
+  ułożył. Odstęp wykonawcy sprawdzamy w obie strony od momentu wstawienia; utwór dołożony
+  w środek i tak przesuwa resztę wieczoru, więc dokładniejsza arytmetyka nic by nie kupiła.
+- **Fazę dobieramy od sąsiada, nie z krzywej.** Przy pojedynczej luce liczy się miejscowa
+  ciągłość, a nie to, w którym procencie wieczoru ta luka wypada — inaczej dokładanie na
+  koniec każdego, nawet krótkiego setu proponowałoby wyłącznie zamknięcia.
+- **Na zewnątrz idą powody, nie punkty.** Odpowiedź niesie różnicę tempa wobec sąsiada
+  i zgodność tonacji; sama punktacja jest względna i poza kolejnością listy nic nie znaczy.
+  Nieznana tonacja albo brak BPM to `null` — brak danych, nie zderzenie (D25).
+- **Bez rozszerzania testu E2E.** Przepływ z D30 to jeden przebieg, a nie siatka
+  przypadków; domykanie ma testy jednostkowe reguł i integracyjne obu endpointów.
+  Dołożenie kroku do E2E wymagałoby poszerzenia fikstury CSV o utwory spoza setu,
+  czyli przestrojenia asercji całego przebiegu — koszt bez nowego sygnału.

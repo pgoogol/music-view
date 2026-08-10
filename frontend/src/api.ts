@@ -234,6 +234,59 @@ export interface SetProposalResponse {
   tracks: ProposedTrackResponse[]
 }
 
+/** Filtry puli wspólne dla generatora i domykania setu (M4.2/M4.4). */
+export interface SetPoolFilters {
+  search?: string
+  genreFamily?: string
+  bpmMin?: number
+  bpmMax?: number
+  tempoClass?: string
+  energy?: string
+  inLibrary?: boolean
+  ratingMin?: number
+  tag?: string
+  camelot?: string
+  camelotCompatible?: boolean
+}
+
+/** Uzupełnienie gotowego setu (M4.4/D32) — `targetMinutes` liczy CAŁY wieczór. */
+export interface SetFillRequest extends SetPoolFilters {
+  targetMinutes: number
+  seed?: number
+}
+
+export interface SetFillResponse {
+  currentTrackCount: number
+  currentDurationMs: number
+  addedTrackCount: number
+  /** Długość setu po dopisaniu propozycji. */
+  totalDurationMs: number
+  targetDurationMs: number
+  seed: number
+  notes: string[]
+  tracks: ProposedTrackResponse[]
+}
+
+/** Dobranie utworu na jedno miejsce w secie (M4.4/D32); brak `position` = na koniec. */
+export interface SetSuggestionRequest extends SetPoolFilters {
+  position?: number
+  limit?: number
+}
+
+export interface SuggestedTrackResponse {
+  djSlot: string | null
+  /** Różnica tempa wobec sąsiada; `null`, gdy któremuś brakuje BPM. */
+  bpmDelta: number | null
+  /** Zgodność tonacji na kole Camelot; `null` przy nieznanej tonacji (D25). */
+  harmonic: boolean | null
+  track: TrackResponse
+}
+
+export interface SetSuggestionResponse {
+  position: number
+  suggestions: SuggestedTrackResponse[]
+}
+
 /** Pokrycie katalogu metrykami z pliku — kontekst filtrów metryk (M4.1). */
 export interface MetricsCoverageResponse {
   withMetrics: number
@@ -360,6 +413,16 @@ export const api = {
 
   proposeSet(body: SetProposalRequest): Promise<SetProposalResponse> {
     return request('/api/sets/propose', jsonInit('POST', body))
+  },
+
+  /** Dalszy ciąg gotowego setu (M4.4) — nic nie zapisuje, tak jak generator. */
+  fillSet(playlistId: number, body: SetFillRequest): Promise<SetFillResponse> {
+    return request(`/api/sets/${playlistId}/fill`, jsonInit('POST', body))
+  },
+
+  /** Kandydaci na jedno miejsce w secie (M4.4) — bez losowania, uszeregowani. */
+  suggestForSet(playlistId: number, body: SetSuggestionRequest): Promise<SetSuggestionResponse> {
+    return request(`/api/sets/${playlistId}/suggest`, jsonInit('POST', body))
   },
 
   metricsCoverage(): Promise<MetricsCoverageResponse> {

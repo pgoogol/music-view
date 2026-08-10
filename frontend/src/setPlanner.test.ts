@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { aPlaylistTrack } from './test/fixtures'
-import { areKeysCompatible, arrangeBySlot, computeSetStats, findSetWarnings } from './setPlanner'
+import {
+  areKeysCompatible,
+  arrangeBySlot,
+  computeSetStats,
+  findSetWarnings,
+  insertLastAt,
+} from './setPlanner'
 
 describe('computeSetStats', () => {
 
@@ -249,5 +255,29 @@ describe('findSetWarnings — harmonia, głośność i metrum (M4.1)', () => {
 
     expect(kinds).toContain('NO_BPM')
     expect(kinds).toContain('KEY_CLASH')
+  })
+})
+
+describe('insertLastAt', () => {
+
+  const tracks = ['a', 'b', 'c', 'nowy'].map((spotifyId, position) =>
+    aPlaylistTrack({ spotifyId }, 'MIDDLE', position),
+  )
+
+  it('przesuwa dopisany utwór na wskazane miejsce', () => {
+
+    expect(insertLastAt(tracks, 1)).toEqual(['a', 'nowy', 'b', 'c'])
+  })
+
+  it('miejsce zero wstawia na sam początek setu', () => {
+
+    expect(insertLastAt(tracks, 0)).toEqual(['nowy', 'a', 'b', 'c'])
+  })
+
+  it('miejsce na końcu (albo poza setem) zostawia kolejność bez zmian', () => {
+
+    expect(insertLastAt(tracks, 3)).toEqual(['a', 'b', 'c', 'nowy'])
+    expect(insertLastAt(tracks, 9)).toEqual(['a', 'b', 'c', 'nowy'])
+    expect(insertLastAt(tracks, -1)).toEqual(['a', 'b', 'c', 'nowy'])
   })
 })

@@ -1,6 +1,8 @@
 // Planer setów (M2.3, rozbudowa M3.1): lista setów obok składu wieczoru,
 // statystyki i ostrzeżenia, układanie wg slotów D9 oraz kolejność zmieniana
 // przeciąganiem albo strzałkami (drag&drop nie działa z klawiatury).
+// M4.4: domykanie gotowego setu — dobieranie utworu w lukę i uzupełnianie
+// wieczoru do zadanego czasu (D32).
 
 import { useCallback, useEffect, useState } from 'react'
 import {
@@ -8,13 +10,16 @@ import {
   api,
   type PlaylistResponse,
   type PlaylistSummaryResponse,
+  type SuggestedTrackResponse,
 } from '../api'
+import SetFillPanel from '../components/SetFillPanel'
 import SetGeneratorPanel from '../components/SetGeneratorPanel'
 import SetStats from '../components/SetStats'
+import SetSuggestionList from '../components/SetSuggestionList'
 import { useToast } from '../components/Toasts'
 import { useHashRoute } from '../hooks/useHashRoute'
 import { DASH, formatDuration, slotLabel } from '../format'
-import { arrangeBySlot } from '../setPlanner'
+import { arrangeBySlot, insertLastAt } from '../setPlanner'
 
 interface Props {
   selectedIds: ReadonlySet<string>
@@ -32,6 +37,9 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
   const [newName, setNewName] = useState('')
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
+  // miejsce, dla którego dobieramy utwór (M4.4) — null znaczy „nie dobieramy"
+  const [gap, setGap] = useState<number | null>(null)
+  const [suggestions, setSuggestions] = useState<SuggestedTrackResponse[]>([])
 
   const refreshList = useCallback(() => {
     api.listPlaylists().then(setPlaylists).catch((error) => reportError(error, 'Nie udało się pobrać setów'))
@@ -40,6 +48,9 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
   useEffect(refreshList, [refreshList])
 
   useEffect(() => {
+    // podpowiedzi dotyczą konkretnej luki w konkretnym secie — przy zmianie znikają
+    setGap(null)
+    setSuggestions([])
     if (openId === null) {
       setPlaylist(null)
       return
@@ -145,6 +156,61 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
     return run(() => api.reorderPlaylist(playlist.id, order, playlist.version))
   }
 
+  const closeSuggestions = () => {
+    setGap(null)
+    setSuggestions([])
+  }
+
+  /** Dobranie utworu w lukę (M4.4) — podgląd, nic jeszcze nie zapisujemy. */
+  const openSuggestions = async (position: number) => {
+    if (!playlist) return
+    setBusy(true)
+    try {
+      const found = await api.suggestForSet(playlist.id, { position, inLibrary: true })
+      setGap(found.position)
+      setSuggestions(found.suggestions)
+    } catch (error) {
+      closeSuggestions()
+      reportError(error, 'Nie udało się dobrać utworu')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * Zapis idzie istniejącą drogą (D32): API dokłada utwór na koniec, więc
+   * wstawienie w środek to dopisanie i zaraz po nim zmiana kolejności.
+   */
+  const insertSuggestion = async (spotifyId: string, position: number) => {
+    if (!playlist) return
+    await run(async () => {
+      const added = await api.addPlaylistTrack(playlist.id, spotifyId)
+      if (position >= added.tracks.length - 1) return added
+      return api.reorderPlaylist(playlist.id, insertLastAt(added.tracks, position), added.version)
+    }, 'Wstawiono dobrany utwór')
+    closeSuggestions()
+  }
+
+  /** Dopisanie całej propozycji uzupełnienia — utwór po utworze, jak w generatorze. */
+  const appendTracks = async (spotifyIds: string[]) => {
+    if (!playlist) return
+    setBusy(true)
+    try {
+      let updated = playlist
+      for (const spotifyId of spotifyIds) {
+        updated = await api.addPlaylistTrack(playlist.id, spotifyId)
+      }
+      setPlaylist(updated)
+      refreshList()
+      notify(`Dopisano ${spotifyIds.length} utworów do setu`)
+    } catch (error) {
+      reportError(error, 'Nie udało się dopisać utworów do setu')
+      setPlaylist(await api.getPlaylist(playlist.id).catch(() => playlist))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const autoArrange = () => {
     if (!playlist || playlist.tracks.length < 2) return
     return run(
@@ -236,6 +302,13 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
                 Ułóż wg faz wieczoru
               </button>
               <button
+                onClick={() => openSuggestions(playlist.tracks.length)}
+                disabled={busy}
+                data-testid="playlist-suggest-end"
+              >
+                Dobierz na koniec
+              </button>
+              <button
                 onClick={exportToSpotify}
                 disabled={busy || playlist.tracks.length === 0}
                 data-testid="playlist-export"
@@ -255,7 +328,11 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
                   onDragEnd={() => setDragFrom(null)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => dragFrom !== null && move(dragFrom, index)}
-                  className={dragFrom === index ? 'dragging' : undefined}
+                  className={
+                    [dragFrom === index && 'dragging', gap === index + 1 && 'gap-target']
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
                 >
                   <span className="handle" aria-hidden="true">
                     ⠿
@@ -296,6 +373,15 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
                       ↓
                     </button>
                     <button
+                      className="link"
+                      aria-label={`dobierz utwór po: ${entry.track.title ?? entry.track.spotifyId}`}
+                      title="dobierz utwór, który zagra zaraz po tym"
+                      disabled={busy}
+                      onClick={() => openSuggestions(index + 1)}
+                    >
+                      dobierz
+                    </button>
+                    <button
                       className="link danger-link"
                       onClick={() => run(() => api.removePlaylistTrack(playlist.id, entry.track.spotifyId))}
                     >
@@ -310,6 +396,18 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
                 </li>
               )}
             </ol>
+
+            {gap !== null && (
+              <SetSuggestionList
+                position={gap}
+                suggestions={suggestions}
+                busy={busy}
+                onPick={(spotifyId) => insertSuggestion(spotifyId, gap)}
+                onClose={closeSuggestions}
+              />
+            )}
+
+            <SetFillPanel playlistId={playlist.id} disabled={busy} onAppend={appendTracks} />
           </>
         )}
       </section>
