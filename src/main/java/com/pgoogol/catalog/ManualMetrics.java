@@ -2,6 +2,8 @@ package com.pgoogol.catalog;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -67,6 +69,15 @@ public class ManualMetrics {
 
     @Column(name = "time_signature")
     private Integer timeSignature;
+
+    /**
+     * Rodzina gatunkowa z kolumn z gatunkami (D34). Trzymamy ją tutaj, a nie
+     * tylko na katalogu, bo inaczej nie da się odróżnić gatunku z pliku od
+     * estymaty LLM-a — a więc nie da się dać plikowi pierwszeństwa.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "genre_family", length = 32)
+    private GenreFamily genreFamily;
 
     @Column(length = 255)
     private String source;
@@ -186,6 +197,14 @@ public class ManualMetrics {
 
     public void setTimeSignature(Integer timeSignature) {
         this.timeSignature = timeSignature;
+    }
+
+    public GenreFamily getGenreFamily() {
+        return genreFamily;
+    }
+
+    public void setGenreFamily(GenreFamily genreFamily) {
+        this.genreFamily = genreFamily;
     }
 
     public String getSource() {

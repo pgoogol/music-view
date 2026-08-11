@@ -316,8 +316,9 @@ z aplikacji.
 # ETAP 4 — Warsztat DJ-a (zaplanowany)
 
 **Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
-zagrać**. Wszystkie pięć kamieni stoi na danych, które już są w bazie — żaden nie
-wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
+zagrać**. Wszystkie sześć kamieni stoi na danych, które już są w bazie — żaden nie
+wymaga nowego źródła zewnętrznego; jedyna migracja to kolumna dokładająca do metryk
+z pliku informację, której schemat nie przewidział (V7, M4.6).
 
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
@@ -326,6 +327,7 @@ wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
 | **M4.3** Przegląd biblioteki | Zakładka „Przegląd": rozkłady gatunków / BPM / energii, udział źródeł BPM, pokrycie pól, top wykonawcy, przyrost biblioteki; agregaty liczy baza (D27) | M3.3 | ✅ |
 | **M4.4** Domykanie setu | `POST /api/sets/{id}/suggest` (kandydaci na jedną lukę) i `POST /api/sets/{id}/fill` (dalszy ciąg wieczoru do zadanego czasu) — te same reguły co generator, podgląd bez zapisu (D32) | M4.2 | ✅ |
 | **M4.5** Profile wieczoru i tryby układania | `SetCurve` (STANDARD / WEDDING / CLUB / EVEN) w generatorze i uzupełnianiu, cztery tryby układania gotowego setu: fazy D9, tempo, harmonia, energia (D33) | M4.4 | ✅ |
+| **M4.6** Metryki z pliku pierwszym źródłem | Gatunek z pliku obok metryk (V7) i ponad estymatą LLM-a, komplet metryk w składzie setu, falowe tryby układania `WAVE` i `ARC` liczone ze zmierzonej energii (D34) | M3.3, M4.5 | ✅ |
 
 ## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
 
@@ -454,6 +456,35 @@ a `EVEN` rozkłada fazy po równo; każdy tryb układania zwraca permutację sk�
 nie ginie i nie dubluje się); testy jednostkowe każdego trybu i profilu oraz integracyjne
 `curve` w obu endpointach zielone.
 
+## M4.6 Metryki z pliku pierwszym źródłem *(po M3.3 i M4.5)*
+
+**Cel:** to, co DJ wgrał świadomie plikiem, wygrywa z tym, co aplikacja zgadła — i realnie
+służy układaniu setu, a nie tylko podglądowi w szufladzie utworu.
+
+- Migracja **V7**: `manual_metrics.genre_family`. Rodzina gatunkowa była jedyną kolumną
+  CSV, która trafiała prosto na katalog i nigdzie nie zostawała — bez zapisania jej obok
+  metryk nie da się odróżnić pliku od estymaty, a więc nie da się dać plikowi
+  pierwszeństwa (D34)
+- **Plik bije estymatę:** gatunek z pliku nadpisuje wartość w katalogu (do M4.5 tylko
+  wypełniał lukę) i przeżywa wzbogacanie AI, tak jak zmierzona energia od M3.3.
+  Kolumny, których w pliku nie ma, zostają nietknięte — brak danych to nie polecenie
+  skasowania
+- **Komplet metryk w składzie setu:** `PlannedTrack` i `PlaylistTrackResponse` niosą cały
+  rekord `metrics` zamiast płaskich `loudnessDb` i `timeSignature`; falowe układanie
+  potrzebuje zmierzonej energii jako liczby 0..1, a `track.energy` ma trzy wartości (D11)
+- **Dwa nowe tryby układania** (`setPlanner.ts`), których nie da się dostać sortowaniem:
+  `WAVE` (kilka narastań przedzielonych zejściem, każde następne wyżej — utwory rozdawane
+  do fal na przemian) i `ARC` (jedno narastanie do szczytu w połowie i zejście)
+- **Intensywność ma kaskadę jak BPM (D6):** zmierzona energia z pliku → tempo przeskalowane
+  z 60–200 BPM → zgrubna energia katalogu; utwór bez żadnej z tych rzeczy ląduje w środku
+  skali zamiast wypadać z setu
+
+**DoD:** ten sam utwór z gatunkiem w pliku i innym w estymacie ma po wzbogacaniu gatunek
+z pliku; set ułożony falami ma co najmniej jedno zejście w środku, a każda kolejna fala
+sięga wyżej od poprzedniej; łuk stawia najmocniejszy utwór w środku, nie na końcu; oba
+nowe tryby zwracają permutację składu; testy jednostkowe trybów i projekcji oraz
+integracyjne importu i joba wzbogacania zielone.
+
 ---
 
 # ETAP 5 — Dojrzałość narzędzia (zaplanowany)
@@ -569,12 +600,14 @@ flowchart LR
     M33[M3.3<br/>metryki CSV] --> M41[M4.1<br/>harmonia] & M43[M4.3<br/>przegląd]
     M41 --> M42[M4.2<br/>generator setu]
     M42 --> M44[M4.4<br/>domykanie setu] --> M45[M4.5<br/>profile i tryby]
+    M45 --> M46[M4.6<br/>metryki + fale]
+    M33 --> M46
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M44,M45,M51,M52,M53 plan
+    class M41,M42,M43,M44,M45,M46,M51,M52,M53 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

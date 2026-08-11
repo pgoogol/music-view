@@ -3,6 +3,8 @@ package com.pgoogol.enrichment;
 import com.pgoogol.TestcontainersConfiguration;
 import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.ManualMetrics;
+import com.pgoogol.catalog.ManualMetricsRepository;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.catalog.TrackCatalog;
 import com.pgoogol.catalog.TrackCatalogRepository;
@@ -56,6 +58,9 @@ class EnrichmentJobIntegrationTest {
     @Autowired
     private TrackCatalogRepository trackCatalogRepository;
 
+    @Autowired
+    private ManualMetricsRepository manualMetricsRepository;
+
     @MockitoBean
     private SpotifyClient spotifyClient;
 
@@ -101,6 +106,8 @@ class EnrichmentJobIntegrationTest {
 
     @AfterEach
     void cleanDatabase() {
+
+        manualMetricsRepository.deleteAll();
         trackCatalogRepository.deleteAll();
     }
 
@@ -189,6 +196,32 @@ class EnrichmentJobIntegrationTest {
             assertThat(track.getBpm()).isEqualTo(186);
             assertThat(track.getBpmSource()).isEqualTo(BpmSource.DEEZER);
             assertThat(track.getTempoClass()).isEqualTo(TempoClass.VERY_FAST);
+        });
+    }
+
+    @Test
+    void start_whenTrackHasMetricsFromFile_keepsThemInsteadOfLlmEstimate() {
+
+        // given — plik mówi rock i energię 0.15, LLM w stubie twierdzi latin i „high" (D34)
+        seedSkeletons(1);
+        TrackCatalog track = trackCatalogRepository.findById("trk-000").orElseThrow();
+        ManualMetrics metrics = new ManualMetrics(track);
+        metrics.setGenreFamily(GenreFamily.ROCK);
+        metrics.setEnergy(new BigDecimal("0.15"));
+        metrics.setImportedAt(java.time.Instant.now());
+        manualMetricsRepository.save(metrics);
+
+        // when
+        long executionId = enrichmentService.start(
+            EnrichmentScope.MISSING, EnumSet.allOf(FieldGroup.class), List.of());
+        awaitStatus(executionId, "COMPLETED");
+
+        // then — zmierzone zostaje, reszta analizy jest AI-owa
+        assertThat(trackCatalogRepository.findById("trk-000")).hasValueSatisfying(enriched -> {
+            assertThat(enriched.getGenreFamily()).isEqualTo(GenreFamily.ROCK);
+            assertThat(enriched.getEnergy()).isEqualTo("low");
+            assertThat(enriched.getDescriptionPl()).isEqualTo("Opis PL.");
+            assertThat(enriched.getStyle()).isEqualTo("salsa");
         });
     }
 

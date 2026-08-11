@@ -27,6 +27,12 @@ występuje w kilku plikach: wygrywa ostatni.
 Ponowny import **nadpisuje** metryki utworu; wiersz jest liczony raz, nawet jeśli
 powtarza się w pliku.
 
+Wartości z pliku są **pierwszym źródłem** (D34): BPM, tonacja, danceability, energia
+i rodzina gatunkowa nadpisują to, co w katalogu policzyła kaskada (D6) albo zgadł LLM,
+a wzbogacanie AI ich potem nie rusza. Kolumny, których w pliku nie ma, zostają nietknięte
+— brak danych to nie polecenie skasowania. Praktyczna konsekwencja: **błąd w pliku
+poprawia się plikiem**, nie ponownym wzbogacaniem.
+
 ## Kolumny
 
 Nagłówki rozpoznawane bez względu na wielkość liter; kolumn spoza tabeli plik może mieć
@@ -49,7 +55,7 @@ utwór i **co najmniej jedna** metryka, inaczej import kończy się błędem `CS
 | `Live`, `Liveness` | `liveness` | |
 | `Loud (Db)`, `Loudness` | `loudness_db` | zakres −60…10 dB |
 | `Time Signature` | `time_signature` | 1–16 |
-| `Genres`, `Parent Genres` | `genre_family` | mapowane na enum D8 (`latin`, `rock`, `pop`, `disco`, `disco_polo`, `electronic`, `hip_hop`); zapisywane tylko, gdy utwór nie ma jeszcze gatunku — potem i tak ustala go LLM |
+| `Genres`, `Parent Genres` | `genre_family` | mapowane na enum D8 (`latin`, `rock`, `pop`, `disco`, `disco_polo`, `electronic`, `hip_hop`); **nadpisuje** gatunek z estymaty LLM-a i zostaje po wzbogacaniu (D34) |
 
 **Skala cech:** wartość powyżej 1 jest traktowana jak procent (`89` → `0.890`), wartość
 0–1 jako ułamek (`0.89` → `0.890`). Przecinek dziesiętny, znak `%` i jednostki są

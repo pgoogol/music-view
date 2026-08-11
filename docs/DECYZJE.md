@@ -1,9 +1,9 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji **D1–D33: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+Status wszystkich decyzji **D1–D34: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
 implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
 bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
-Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D33;
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D34;
 odwołania §x wskazują sekcje konceptu.
 
 ---
@@ -700,3 +700,44 @@ płynne przejścia".
   wiemy.
 - **Żaden tryb nie gubi i nie dokłada utworów** — kontrakt permutacji z D21 obowiązuje tak
   samo jak przy przeciąganiu; test sprawdza to dla każdego trybu osobno.
+
+## D34. Plik z metrykami jako pierwsze źródło i falowe tryby układania (M4.6)
+
+Dwie strony tej samej sprawy: dane wgrane świadomie z pliku (D24) mają wygrywać z tym,
+co aplikacja zgadła, i mają realnie służyć układaniu setu, a nie tylko podglądowi.
+
+- **Plik bije estymatę, nie tylko wypełnia lukę.** Do M4.5 rodzina gatunkowa z kolumn
+  z gatunkami wchodziła wyłącznie wtedy, gdy utwór nie miał jeszcze gatunku, a najbliższe
+  wzbogacanie AI i tak ją nadpisywało. Teraz jest odwrotnie: gatunek z pliku zostaje,
+  a LLM uzupełnia tylko to, czego w pliku nie było. Kolumna analizatora playlist to tag
+  z realnego opisu nagrania, a `genre_family` z LLM-a to zgadywanka z tytułu i wykonawcy.
+  **Koszt tej zmiany:** felerna kolumna w eksporcie przestaje dawać się naprawić samym
+  wzbogacaniem — trzeba poprawić plik i wgrać go ponownie. Świadomie: wgranie pliku jest
+  decyzją DJ-a, a estymata nie.
+- **Gatunek z pliku zapisujemy obok metryk** (migracja V7, `manual_metrics.genre_family`).
+  Bez tego nie da się odróżnić gatunku z pliku od estymaty, a więc nie da się dać plikowi
+  pierwszeństwa — to jedyna kolumna CSV, która do tej pory trafiała prosto na katalog
+  i nigdzie nie zostawała. Reszta metryk była zapisywana w komplecie od M3.3, a BPM
+  (`BpmSource.MANUAL` na czele kaskady D6) i zmierzona energia już wygrywały.
+- **Do planera setu jadą wszystkie metryki, nie dwie wybrane.** `PlannedTrack`
+  i `PlaylistTrackResponse` niosą cały rekord (`metrics`) zamiast płaskich `loudnessDb`
+  i `timeSignature`. Powód jest konkretny: falowe układanie potrzebuje **zmierzonej
+  energii jako liczby 0..1**, a `track.energy` z katalogu ma trzy wartości
+  (`low/medium/high`, D11) i nie ułoży z nich fali. Kontrakt jest węższy do napisania
+  i szerszy w treści niż dokładanie kolejnych płaskich pól przy każdym nowym trybie.
+- **Intensywność ma kaskadę jak BPM (D6):** zmierzona energia z pliku → tempo
+  przeskalowane z 60–200 BPM → zgrubna energia katalogu. Utwór bez żadnej z tych rzeczy
+  ląduje w środku skali, bo wyrzucenie go z setu byłoby gorsze niż postawienie
+  w przypadkowym miejscu.
+- **Dwa nowe kształty, których nie da się dostać sortowaniem.** `TEMPO` i `ENERGY` rosną
+  monotonicznie przez cały wieczór, a parkiet potrzebuje oddechu między szczytami:
+  - **`WAVE`** — kilka narastań przedzielonych zejściem, każde następne wyżej.
+    Posortowane po intensywności utwory rozdajemy do fal na przemian (jak karty), więc
+    każda fala przechodzi cały zakres od dołu do góry, a kolejna startuje o oczko wyżej.
+    Liczba fal wynika z długości setu (~5 utworów na falę, 2–4 fale) — parametr, którego
+    DJ nie musi ustawiać, bo i tak poprawia wynik ręcznie.
+  - **`ARC`** — jedno narastanie do szczytu w połowie i zejście: co drugi utwór
+    z posortowanej listy idzie na zbocze wznoszące, reszta na opadające (odwrócona).
+- **Układanie zostaje po stronie frontu** (D22/D33) i każdy tryb zwraca **permutację**
+  składu (D21) — także nowe. Test sprawdza to trybowi po trybie, bo cicha utrata utworu
+  przy układaniu jest gorsza od złej kolejności: kolejność widać, brak utworu nie.

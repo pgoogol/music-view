@@ -33,6 +33,8 @@ const ARRANGE_MESSAGES: Record<ArrangeMode, string> = {
   TEMPO: 'Ułożono set wg narastającego tempa',
   HARMONY: 'Ułożono set wg zgodności tonacji',
   ENERGY: 'Ułożono set wg narastającej energii',
+  WAVE: 'Ułożono set falami — każda kolejna wyżej',
+  ARC: 'Ułożono set łukiem — szczyt w środku',
 }
 
 interface Props {

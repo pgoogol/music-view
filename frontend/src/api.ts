@@ -143,9 +143,11 @@ export interface PlaylistTrackResponse {
   position: number
   djSlot: string | null
   djSlotOverride: string | null
-  /** Z metryk wgranych z pliku (D24) — tylko dla ostrzeżeń planera setu (D25). */
-  loudnessDb: number | null
-  timeSignature: number | null
+  /**
+   * Komplet metryk z pliku (D24); `null`, gdy utworu nie było w żadnym wgranym
+   * pliku. Planer liczy z nich ostrzeżenia i falowe tryby układania (D34).
+   */
+  metrics: TrackMetricsResponse | null
   track: TrackResponse
 }
 

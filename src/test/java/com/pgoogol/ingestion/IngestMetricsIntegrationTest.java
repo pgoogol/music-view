@@ -137,9 +137,9 @@ class IngestMetricsIntegrationTest {
     }
 
     @Test
-    void ingestMetrics_whenTrackAlreadyHasGenre_keepsValueFromEnrichment() throws Exception {
+    void ingestMetrics_whenTrackAlreadyHasGenre_overwritesItWithValueFromFile() throws Exception {
 
-        // given — gatunek z LLM-a (D8/D11) jest właścicielem pola, plik go nie rusza
+        // given — gatunek z estymaty LLM-a, plik mówi co innego; plik wygrywa (D34)
         TrackCatalog rockTrack = new TrackCatalog("5aaaaaaaaaaaaaaaaaaaaa", "Cover", "Zespół");
         rockTrack.setGenreFamily(GenreFamily.ROCK);
         trackCatalogRepository.save(rockTrack);
@@ -152,12 +152,25 @@ class IngestMetricsIntegrationTest {
         mockMvc.perform(multipart("/api/ingest/metrics").file(csv))
             .andExpect(status().isOk());
 
-        // then — gatunek bez zmian, więc i BPM zostaje bez korekty half-time
+        // then — gatunek z pliku, a przez to również korekta half-time dla latino
         assertThat(trackCatalogRepository.findById("5aaaaaaaaaaaaaaaaaaaaa"))
             .hasValueSatisfying(track -> {
-                assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.ROCK);
-                assertThat(track.getBpm()).isEqualTo(96);
+                assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.LATIN);
+                assertThat(track.getBpm()).isEqualTo(192);
             });
+    }
+
+    @Test
+    void ingestMetrics_whenGenreComesFromFile_isStoredNextToMetrics() throws Exception {
+
+        // when
+        mockMvc.perform(multipart("/api/ingest/metrics").file(sampleCsv()))
+            .andExpect(status().isOk());
+
+        // then — bez zapisu obok metryk nie dałoby się odróżnić pliku od estymaty (D34)
+        assertThat(manualMetricsRepository.findById(CARNAVAL))
+            .hasValueSatisfying(metrics ->
+                assertThat(metrics.getGenreFamily()).isEqualTo(GenreFamily.LATIN));
     }
 
     @Test

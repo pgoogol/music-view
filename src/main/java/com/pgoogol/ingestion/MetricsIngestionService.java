@@ -86,11 +86,9 @@ public class MetricsIngestionService {
         Map<String, ManualMetrics> working = new LinkedHashMap<>();
         Instant importedAt = Instant.now();
         matched.forEach(row -> row.match().tracks().forEach(track -> {
-            // gatunek przed metrykami — korekta half-time pyta o genre_family
-            applyGenreFamily(track, row.row().genreFamily());
             ManualMetrics metrics = working.computeIfAbsent(track.getSpotifyId(),
                 spotifyId -> existing.getOrDefault(spotifyId, new ManualMetrics(track)));
-            overwrite(metrics, row.row().metrics(), source, importedAt);
+            overwrite(metrics, row.row().metrics(), row.row().genreFamily(), source, importedAt);
             applier.apply(track, metrics);
             warnOnCamelotMismatch(row.row().line(), track, metrics);
         }));
@@ -118,26 +116,20 @@ public class MetricsIngestionService {
     }
 
     /**
-     * Rodzina gatunkowa z pliku tylko wypełnia lukę: bez niej utwór po imporcie nie ma
-     * slotu wieczoru (D9) ani korekty half-time, a na wzbogacenie AI może czekać długo.
-     * Gdy gatunek już jest, plik go nie rusza — właścicielem {@code genre_family}
-     * zostaje LLM (D8/D11), który nadpisze wartość przy najbliższym wzbogacaniu.
-     */
-    private void applyGenreFamily(TrackCatalog track, @Nullable GenreFamily fromFile) {
-
-        if (Objects.isNull(track.getGenreFamily()) && Objects.nonNull(fromFile)) {
-            track.setGenreFamily(fromFile);
-        }
-    }
-
-    /**
      * Plik jest źródłem prawdy dla metryk, więc kolumny, których w nim nie ma,
      * kasują poprzednią wartość — inaczej po zmianie eksportu zostałyby w bazie
      * sieroty nie do wyjaśnienia. Projekcja na katalog nadpisuje tylko to,
      * co niepuste, więc BPM z poprzedniego źródła nie znika bez powodu.
+     *
+     * <p>Rodzina gatunkowa z kolumn z gatunkami jedzie tą samą drogą co reszta
+     * (D34): zapisana obok metryk daje się odróżnić od estymaty LLM-a, więc
+     * wzbogacanie AI jej nie nadpisze.</p>
      */
     private void overwrite(ManualMetrics metrics, TrackMetrics values,
-                           @Nullable String source, Instant importedAt) {
+                           @Nullable GenreFamily genreFamily, @Nullable String source,
+                           Instant importedAt) {
+
+        metrics.setGenreFamily(genreFamily);
 
         metrics.setBpm(values.bpm());
         metrics.setMusicalKey(values.musicalKey());
