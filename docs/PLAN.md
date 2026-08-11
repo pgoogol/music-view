@@ -316,9 +316,10 @@ z aplikacji.
 # ETAP 4 — Warsztat DJ-a (zaplanowany)
 
 **Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
-zagrać**. Wszystkie sześć kamieni stoi na danych, które już są w bazie — żaden nie
-wymaga nowego źródła zewnętrznego; jedyna migracja to kolumna dokładająca do metryk
-z pliku informację, której schemat nie przewidział (V7, M4.6).
+zagrać**. Kamienie stoją na danych, które już są w bazie — żaden nie wymaga nowego
+źródła zewnętrznego; jedyna migracja to kolumna dokładająca do metryk z pliku
+informację, której schemat nie przewidział (V7, M4.6). M4.7 dokłada jedyne w projekcie
+zadanie cykliczne.
 
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
@@ -328,6 +329,7 @@ z pliku informację, której schemat nie przewidział (V7, M4.6).
 | **M4.4** Domykanie setu | `POST /api/sets/{id}/suggest` (kandydaci na jedną lukę) i `POST /api/sets/{id}/fill` (dalszy ciąg wieczoru do zadanego czasu) — te same reguły co generator, podgląd bez zapisu (D32) | M4.2 | ✅ |
 | **M4.5** Profile wieczoru i tryby układania | `SetCurve` (STANDARD / WEDDING / CLUB / EVEN) w generatorze i uzupełnianiu, cztery tryby układania gotowego setu: fazy D9, tempo, harmonia, energia (D33) | M4.4 | ✅ |
 | **M4.6** Metryki z pliku pierwszym źródłem | Gatunek z pliku obok metryk (V7) i ponad estymatą LLM-a, komplet metryk w składzie setu, falowe tryby układania `WAVE` i `ARC` liczone ze zmierzonej energii (D34) | M3.3, M4.5 | ✅ |
+| **M4.7** Odświeżanie playlist w tle | Import trybu C przy starcie aplikacji i cyklicznie (domyślnie co 5 min, `fixedDelay`), status przebiegu w API i w zakładce Playlisty (D35) | M2.2 | ✅ |
 
 ## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
 
@@ -485,6 +487,33 @@ sięga wyżej od poprzedniej; łuk stawia najmocniejszy utwór w środku, nie na
 nowe tryby zwracają permutację składu; testy jednostkowe trybów i projekcji oraz
 integracyjne importu i joba wzbogacania zielone.
 
+## M4.7 Odświeżanie playlist w tle *(po M2.2)*
+
+**Cel:** playlisty zmieniają się poza aplikacją (DJ dorzuca utwór w telefonie), więc
+music-view sam po nie sięga — zamiast czekać na kliknięcie „Importuj moje playlisty".
+
+- `PlaylistRefreshScheduler` w module `ingestion` — ten sam import trybu C (M2.2), tylko
+  bez klikania: przy starcie aplikacji (po `initial-delay`, domyślnie 10 s) i potem
+  co `interval`. `@EnableScheduling` dochodzi w `common/SchedulingConfig`; to jedyne
+  zadanie cykliczne w projekcie (joby wzbogacania startują wyłącznie ręcznie)
+- **`fixedDelay`, nie `fixedRate`** — odstęp liczony od zakończenia poprzedniego
+  przebiegu, więc przebiegi się nie nakładają. Przy kilkudziesięciu playlistach jeden
+  przebieg bywa dłuższy niż domyślne 5 minut (D35)
+- Konfiguracja `ingestion.playlist-refresh.{enabled,interval,initial-delay}`, każda ze
+  zmienną środowiskową; brak połączonego konta Spotify (D20) to normalny stan — zadanie
+  wychodzi po cichu, a nie zasypuje logów
+- `GET /api/ingest/my-playlists/refresh-status` — kiedy poszedł ostatni przebieg i czym
+  się skończył (`NEVER_RUN` / `DISABLED` / `SKIPPED_NOT_CONNECTED` / `REFRESHED` / `FAILED`).
+  Stan w pamięci: po restarcie i tak zaraz leci pierwsze odświeżenie
+- Front: zakładka Playlisty pokazuje jednozdaniowy stan i **przeładowuje listę dopiero
+  po zmianie znacznika** ostatniego przebiegu — bez tego odświeżanie w tle byłoby
+  niewidoczne w otwartej karcie
+
+**DoD:** aplikacja postawiona z połączonym kontem odświeża playlisty bez klikania,
+a bez konta wychodzi po cichu zamiast logować błędy; awaria Spotify nie zatrzymuje
+harmonogramu i wraca w statusie; zakładka Playlisty pokazuje czas ostatniego przebiegu
+i sama pobiera nową listę; testy jednostkowe zadania i etykiety stanu zielone.
+
 ---
 
 # ETAP 5 — Dojrzałość narzędzia (zaplanowany)
@@ -602,12 +631,13 @@ flowchart LR
     M42 --> M44[M4.4<br/>domykanie setu] --> M45[M4.5<br/>profile i tryby]
     M45 --> M46[M4.6<br/>metryki + fale]
     M33 --> M46
+    M22[M2.2<br/>OAuth + tryb C] -.-> M47[M4.7<br/>odświeżanie w tle]
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M44,M45,M46,M51,M52,M53 plan
+    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

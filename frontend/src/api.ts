@@ -130,6 +130,17 @@ export interface EnrichJobResponse {
   exitDescription: string | null
 }
 
+/** Stan automatycznego odświeżania playlist w tle (M4.7/D35). */
+export interface PlaylistRefreshStatusResponse {
+  outcome: 'NEVER_RUN' | 'DISABLED' | 'SKIPPED_NOT_CONNECTED' | 'REFRESHED' | 'FAILED'
+  lastRunAt: string | null
+  refreshedPlaylists: number
+  failedPlaylists: number
+  message: string | null
+  /** Odstęp liczony od zakończenia poprzedniego przebiegu. */
+  intervalSeconds: number
+}
+
 export interface PlaylistSummaryResponse {
   id: number
   name: string
@@ -483,6 +494,10 @@ export const api = {
 
   spotifyAccount(): Promise<SpotifyAccountResponse> {
     return request('/api/auth/spotify/status')
+  },
+
+  playlistRefreshStatus(): Promise<PlaylistRefreshStatusResponse> {
+    return request('/api/ingest/my-playlists/refresh-status')
   },
 
   listPlaylists(): Promise<PlaylistSummaryResponse[]> {

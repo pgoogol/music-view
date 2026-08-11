@@ -1,9 +1,9 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji **D1–D34: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+Status wszystkich decyzji **D1–D35: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
 implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
 bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
-Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D34;
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D35;
 odwołania §x wskazują sekcje konceptu.
 
 ---
@@ -741,3 +741,44 @@ co aplikacja zgadła, i mają realnie służyć układaniu setu, a nie tylko pod
 - **Układanie zostaje po stronie frontu** (D22/D33) i każdy tryb zwraca **permutację**
   składu (D21) — także nowe. Test sprawdza to trybowi po trybie, bo cicha utrata utworu
   przy układaniu jest gorsza od złej kolejności: kolejność widać, brak utworu nie.
+
+## D35. Automatyczne odświeżanie playlist ze Spotify (M4.7)
+
+Playlisty zmieniają się poza aplikacją — DJ dorzuca utwór w telefonie, a music-view
+pokazuje stan sprzed ostatniego kliknięcia „Importuj moje playlisty". Odświeżanie idzie
+więc samo: przy starcie aplikacji i potem co `ingestion.playlist-refresh.interval`
+(domyślnie 5 minut).
+
+- **To ten sam import co tryb C** (M2.2), tylko bez klikania — nie duplikujemy logiki
+  i nie zmieniamy jej zachowania. Awaria pojedynczej playlisty nadal nie przerywa
+  przebiegu (D31), więc odświeżanie w tle dziedziczy tę odporność za darmo.
+- **`fixedDelay`, nie `fixedRate`** — odstęp liczy się od *zakończenia* poprzedniego
+  przebiegu. To nie jest szczegół: import kilkudziesięciu playlist bywa dłuższy niż
+  pięć minut, a przy `fixedRate` przebiegi wchodziłyby sobie na głowę i mnożyły
+  wywołania Spotify. **Uwaga na koszt:** przy dużej bibliotece pięciominutowy odstęp
+  znaczy w praktyce „odświeżaj bez przerwy" — dla takiej biblioteki interwał należy
+  wydłużyć. Domyślne 5 minut zostaje, bo jest tym, o co poproszono, a wyłącznik
+  i interwał są w konfiguracji.
+- **Brak połączonego konta to normalny stan, nie awaria** (D20). Świeża instalacja nie
+  ma przeprowadzonego OAuth; zadanie sprawdza to na wejściu i wychodzi po cichu, zamiast
+  co pięć minut zasypywać logi błędami. Ten sam warunek chroni test E2E, który stawia
+  aplikację bez konta.
+- **Wyjątek nie wychodzi z zadania.** Przebieg leci w tle bez nikogo, kto by go obejrzał,
+  a Spotify potrafi nie odpowiedzieć z powodów, które miną same. Powód ląduje w statusie,
+  żeby UI mógł powiedzieć, że dane są nieświeże, i nie zatrzymuje harmonogramu.
+- **Stan trzymamy w pamięci, nie w bazie.** To informacja o bieżącym uruchomieniu
+  aplikacji — po restarcie i tak zaraz leci pierwsze odświeżenie, więc tabela niosłaby
+  wyłącznie koszt migracji.
+- **Zadanie rejestruje się także przy `enabled: false`** i sprawdza flagę na wejściu.
+  Warunkowy bean byłby czystszy w teorii, ale kontroler musiałby go szukać przez
+  `ObjectProvider`, żeby oddać status „wyłączone" — a to właśnie ten status jest
+  potrzebny użytkownikowi, który się zastanawia, czemu nic się nie odświeża.
+- **Front pyta o status, a nie o playlisty.** `GET /api/ingest/my-playlists/refresh-status`
+  to odczyt z pamięci; widok odpytuje go raz na minutę i przeładowuje listę dopiero, gdy
+  **zmieni się znacznik** ostatniego przebiegu. Pierwsza odpowiedź tylko zapamiętuje stan
+  — inaczej samo wejście na zakładkę pobierałoby listę dwa razy. Bez tego odświeżanie
+  w tle byłoby niewidoczne w otwartej karcie do czasu ręcznego przeładowania.
+- **Testy integracyjne z połączonym kontem wyłączają zadanie** jawnie
+  (`ingestion.playlist-refresh.enabled=false`). Zadanie ruszające w środku testu poszłoby
+  po realne dane do Spotify — a test, który zależy od cudzego serwera, przestaje coś
+  znaczyć (ten sam argument co w D30).
