@@ -313,7 +313,7 @@ class SetApiIntegrationTest {
         String created = mockMvc.perform(post("/api/playlists")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(Map.of("name", name))))
-            .andExpect(status().isOk())
+            .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();
         long playlistId = objectMapper.readTree(created).get("id").asLong();
         for (String spotifyId : spotifyIds) {
