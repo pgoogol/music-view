@@ -7,6 +7,7 @@ import com.pgoogol.catalog.CatalogSearchCriteria.MetricFilter;
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.common.ValidationException;
+import com.pgoogol.playlist.SetCurve;
 import com.pgoogol.playlist.SetFill;
 import com.pgoogol.playlist.SetProposal;
 import com.pgoogol.playlist.SetProposalService;
@@ -40,7 +41,8 @@ public class SetController {
     @PostMapping("/propose")
     @Operation(summary = "Propozycja setu na zadany czas",
         description = "Układa set z utworów spełniających te same filtry co wyszukiwarka: "
-            + "krzywa wieczoru (rozgrzewka 25% / środek 30% / szczyt 30% / zamknięcie 15%), "
+            + "kształt wieczoru wg profilu curve (STANDARD 25/30/30/15, WEDDING 30/30/25/15, "
+            + "CLUB 15/25/45/15, EVEN 25/25/25/25 — udziały faz D9), "
             + "utwór raz w secie, ten sam wykonawca nie częściej niż raz na 30 minut, "
             + "kary za skok BPM, zderzenie tonacji i brak oceny. "
             + "NICZEGO NIE ZAPISUJE (D26) — playlistę zakłada DJ przez /api/playlists. "
@@ -48,7 +50,7 @@ public class SetController {
     public SetProposalResponse propose(@Valid @RequestBody SetProposalRequest request) {
 
         SetProposal proposal = setProposalService.propose(
-            criteria(request), request.targetMinutes(), request.seed());
+            criteria(request), request.targetMinutes(), curve(request.curve()), request.seed());
         return new SetProposalResponse(
             proposal.tracks().size(),
             proposal.totalDurationMs(),
@@ -69,7 +71,8 @@ public class SetController {
                                 @Valid @RequestBody SetFillRequest request) {
 
         SetFill fill = setProposalService.fill(
-            playlistId, criteria(request), request.targetMinutes(), request.seed());
+            playlistId, criteria(request), request.targetMinutes(), curve(request.curve()),
+            request.seed());
         SetProposal proposal = fill.proposal();
         return new SetFillResponse(
             fill.currentTrackCount(),
@@ -103,6 +106,17 @@ public class SetController {
                     suggestion.harmonic(),
                     catalogApiMapper.toResponse(suggestion.track())))
                 .toList());
+    }
+
+    /** Brak profilu w żądaniu to najczęstszy przypadek — domyślny przebieg z D26. */
+    private SetCurve curve(String raw) {
+
+        if (Objects.isNull(raw) || raw.isBlank()) {
+            return SetCurve.STANDARD;
+        }
+        return SetCurve.parse(raw).orElseThrow(() -> new ValidationException("INVALID_SET_CURVE",
+            "Nieprawidłowy profil wieczoru: '%s' (oczekiwano STANDARD, WEDDING, CLUB albo EVEN)"
+                .formatted(raw)));
     }
 
     private SetProposalResponse.ProposedTrackResponse toResponse(SetProposal.ProposedTrack track) {

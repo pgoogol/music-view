@@ -3,7 +3,13 @@
 // POST /api/playlists, więc generator zostaje bezstanowy.
 
 import { useState } from 'react'
-import { api, type SetProposalResponse } from '../api'
+import {
+  SET_CURVES,
+  SET_CURVE_LABELS,
+  api,
+  type SetCurve,
+  type SetProposalResponse,
+} from '../api'
 import { useToast } from './Toasts'
 import { DASH, formatDuration, slotLabel } from '../format'
 
@@ -19,6 +25,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
 
   const { notify, reportError } = useToast()
   const [targetMinutes, setTargetMinutes] = useState(120)
+  const [curve, setCurve] = useState<SetCurve>('STANDARD')
   const [genreFamily, setGenreFamily] = useState('')
   const [ratingMin, setRatingMin] = useState('')
   const [inLibrary, setInLibrary] = useState(true)
@@ -31,6 +38,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
       setProposal(
         await api.proposeSet({
           targetMinutes,
+          curve,
           seed,
           genreFamily: genreFamily || undefined,
           ratingMin: ratingMin ? Number(ratingMin) : undefined,
@@ -85,6 +93,21 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
             {TARGETS.map((value) => (
               <option key={value} value={value}>
                 {value} min
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-group">
+          <span>profil</span>
+          <select
+            value={curve}
+            onChange={(event) => setCurve(event.target.value as SetCurve)}
+            aria-label="profil wieczoru"
+            title="profil zmienia proporcje faz wieczoru, nie ich kolejność"
+          >
+            {SET_CURVES.map((value) => (
+              <option key={value} value={value}>
+                {SET_CURVE_LABELS[value]}
               </option>
             ))}
           </select>

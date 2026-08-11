@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { aPlaylistTrack } from './test/fixtures'
 import {
   areKeysCompatible,
+  arrangeBy,
   arrangeBySlot,
   computeSetStats,
   findSetWarnings,
@@ -279,5 +280,79 @@ describe('insertLastAt', () => {
     expect(insertLastAt(tracks, 3)).toEqual(['a', 'b', 'c', 'nowy'])
     expect(insertLastAt(tracks, 9)).toEqual(['a', 'b', 'c', 'nowy'])
     expect(insertLastAt(tracks, -1)).toEqual(['a', 'b', 'c', 'nowy'])
+  })
+})
+
+describe('arrangeBy', () => {
+
+  it('tryb tempa ustawia utwory rosnąco po BPM, a te bez BPM na końcu', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'szybki', bpm: 140 }, 'PEAK', 0),
+      aPlaylistTrack({ spotifyId: 'brak', bpm: null }, null, 1),
+      aPlaylistTrack({ spotifyId: 'wolny', bpm: 90 }, 'WARMUP', 2),
+    ]
+
+    expect(arrangeBy(tracks, 'TEMPO')).toEqual(['wolny', 'szybki', 'brak'])
+  })
+
+  it('tryb energii prowadzi od niskiej do wysokiej, a w grupie po tempie', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'wysoka', bpm: 130, energy: 'high' }, 'PEAK', 0),
+      aPlaylistTrack({ spotifyId: 'niska', bpm: 95, energy: 'low' }, 'WARMUP', 1),
+      aPlaylistTrack({ spotifyId: 'srednia-szybsza', bpm: 120, energy: 'medium' }, 'MIDDLE', 2),
+      aPlaylistTrack({ spotifyId: 'srednia-wolniejsza', bpm: 110, energy: 'medium' }, 'MIDDLE', 3),
+    ]
+
+    expect(arrangeBy(tracks, 'ENERGY')).toEqual([
+      'niska',
+      'srednia-wolniejsza',
+      'srednia-szybsza',
+      'wysoka',
+    ])
+  })
+
+  it('tryb harmoniczny zostawia otwarcie DJ-a i unika zderzeń tonacji', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'start', bpm: 120, camelot: '8A' }, 'MIDDLE', 0),
+      aPlaylistTrack({ spotifyId: 'zderzenie', bpm: 121, camelot: '2A' }, 'MIDDLE', 1),
+      aPlaylistTrack({ spotifyId: 'zgodny', bpm: 124, camelot: '9A' }, 'MIDDLE', 2),
+    ]
+
+    // 9A jest zgodny z 8A, więc wchodzi przed 2A mimo większego skoku tempa
+    expect(arrangeBy(tracks, 'HARMONY')).toEqual(['start', 'zgodny', 'zderzenie'])
+  })
+
+  it('tryb faz robi to samo co układanie wg slotów D9 z M3.1', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'szczyt', bpm: 130 }, 'PEAK', 0),
+      aPlaylistTrack({ spotifyId: 'rozgrzewka', bpm: 95 }, 'WARMUP', 1),
+    ]
+
+    expect(arrangeBy(tracks, 'PHASES')).toEqual(arrangeBySlot(tracks))
+  })
+
+  it('każdy tryb zwraca permutację składu — kontrakt PUT /tracks (D21)', () => {
+
+    const tracks = [
+      aPlaylistTrack({ spotifyId: 'a', bpm: 120, camelot: '8A', energy: 'high' }, 'PEAK', 0),
+      aPlaylistTrack({ spotifyId: 'b', bpm: null, camelot: null, energy: null }, null, 1),
+      aPlaylistTrack({ spotifyId: 'c', bpm: 100, camelot: '2A', energy: 'low' }, 'WARMUP', 2),
+    ]
+
+    ;(['PHASES', 'TEMPO', 'HARMONY', 'ENERGY'] as const).forEach((mode) => {
+      expect([...arrangeBy(tracks, mode)].sort()).toEqual(['a', 'b', 'c'])
+    })
+  })
+
+  it('set krótszy niż dwa utwory zostaje bez zmian', () => {
+
+    const single = [aPlaylistTrack({ spotifyId: 'jedyny' }, 'PEAK', 0)]
+
+    expect(arrangeBy(single, 'HARMONY')).toEqual(['jedyny'])
+    expect(arrangeBy([], 'TEMPO')).toEqual([])
   })
 })

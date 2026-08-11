@@ -316,7 +316,7 @@ z aplikacji.
 # ETAP 4 — Warsztat DJ-a (zaplanowany)
 
 **Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
-zagrać**. Wszystkie cztery kamienie stoją na danych, które już są w bazie — żaden nie
+zagrać**. Wszystkie pięć kamieni stoi na danych, które już są w bazie — żaden nie
 wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
 
 | Kamień | Zakres | Zależy od | Stan |
@@ -325,6 +325,7 @@ wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
 | **M4.2** Generator setu | `POST /api/sets/propose` — propozycja setu na zadany czas z ograniczeniami (fazy D9, skok BPM, harmonia, odstęp między utworami wykonawcy), podgląd przed zapisem (D26) | M4.1 | ✅ |
 | **M4.3** Przegląd biblioteki | Zakładka „Przegląd": rozkłady gatunków / BPM / energii, udział źródeł BPM, pokrycie pól, top wykonawcy, przyrost biblioteki; agregaty liczy baza (D27) | M3.3 | ✅ |
 | **M4.4** Domykanie setu | `POST /api/sets/{id}/suggest` (kandydaci na jedną lukę) i `POST /api/sets/{id}/fill` (dalszy ciąg wieczoru do zadanego czasu) — te same reguły co generator, podgląd bez zapisu (D32) | M4.2 | ✅ |
+| **M4.5** Profile wieczoru i tryby układania | `SetCurve` (STANDARD / WEDDING / CLUB / EVEN) w generatorze i uzupełnianiu, cztery tryby układania gotowego setu: fazy D9, tempo, harmonia, energia (D33) | M4.4 | ✅ |
 
 ## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
 
@@ -423,6 +424,35 @@ reszty kolejności; uzupełnianie setu w połowie wieczoru dokłada szczyt i zam
 rozgrzewki, a set już dłuższy od zamówionego czasu dostaje notatkę, nie błąd; testy
 jednostkowe reguł (oba sąsiedzi, odstęp wykonawcy wokół luki, powtarzalność) i integracyjne
 obu endpointów zielone.
+
+## M4.5 Profile wieczoru i tryby układania *(po M4.4)*
+
+**Cel:** jedna krzywa i jeden sposób układania nie opisują dwóch różnych imprez. Wesele
+i klub mają inny przebieg, a „ułóż set" znaczy raz „prowadź przez fazy", a raz „chcę
+płynne przejścia".
+
+- `SetCurve` w module `playlist` — profil zmienia **proporcje faz D9, nie ich kolejność**:
+  `STANDARD` 25/30/30/15 (przebieg z D26), `WEDDING` 30/30/25/15 (długa rozgrzewka —
+  goście przy stołach), `CLUB` 15/25/45/15 (parkiet gotowy od początku), `EVEN` 25/25/25/25
+  (bez wyraźnego szczytu). Udziały sumujące się do innej wartości niż 1.0 wywracają start
+  aplikacji, nie cichy przebieg
+- `curve` w `POST /api/sets/propose` i `POST /api/sets/{id}/fill`; brak pola = `STANDARD`
+  (zgodność wstecz z M4.2), nieznana nazwa = `400 INVALID_SET_CURVE` — literówka nie może
+  po cichu dać innego wieczoru (D33)
+- `arrangeBy(tracks, mode)` w `setPlanner.ts` — cztery tryby układania gotowego setu:
+  `PHASES` (fazy D9, domyślny, bez zmian z M3.1), `TEMPO` (narastające BPM, utwory bez
+  tempa na koniec), `HARMONY` (zachłanny łańcuch po kole Camelot — zderzenie tonacji
+  przeważa nad skokiem tempa, otwarcie DJ-a zostaje na miejscu), `ENERGY` (niska → wysoka,
+  w grupie po tempie)
+- Układanie liczy front (D22), backend dostaje gotową permutację przez
+  `PUT /api/playlists/{id}/tracks` — kontrakt z D21 obowiązuje każdy tryb
+- Front: wybór profilu w generatorze i w panelu uzupełniania, wybór trybu obok przycisku
+  „Ułóż" w składzie setu
+
+**DoD:** ten sam seed i ta sama pula z profilem `CLUB` dają dłuższy szczyt niż z `WEDDING`,
+a `EVEN` rozkłada fazy po równo; każdy tryb układania zwraca permutację składu (żaden utwór
+nie ginie i nie dubluje się); testy jednostkowe każdego trybu i profilu oraz integracyjne
+`curve` w obu endpointach zielone.
 
 ---
 
@@ -538,13 +568,13 @@ Etapy 3–5 (kamienie zaplanowane zaznaczone przerywaną linią):
 flowchart LR
     M33[M3.3<br/>metryki CSV] --> M41[M4.1<br/>harmonia] & M43[M4.3<br/>przegląd]
     M41 --> M42[M4.2<br/>generator setu]
-    M42 --> M44[M4.4<br/>domykanie setu]
+    M42 --> M44[M4.4<br/>domykanie setu] --> M45[M4.5<br/>profile i tryby]
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M44,M51,M52,M53 plan
+    class M41,M42,M43,M44,M45,M51,M52,M53 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

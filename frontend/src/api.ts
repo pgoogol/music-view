@@ -201,10 +201,20 @@ export interface LibraryOverviewResponse {
   monthlyGrowth: BucketResponse[]
 }
 
-/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
-export interface SetProposalRequest {
-  targetMinutes: number
-  seed?: number
+/** Profil kształtu wieczoru dla generatora (M4.5/D33) — udziały faz D9. */
+export type SetCurve = 'STANDARD' | 'WEDDING' | 'CLUB' | 'EVEN'
+
+export const SET_CURVES: readonly SetCurve[] = ['STANDARD', 'WEDDING', 'CLUB', 'EVEN']
+
+export const SET_CURVE_LABELS: Record<SetCurve, string> = {
+  STANDARD: 'standardowy',
+  WEDDING: 'wesele',
+  CLUB: 'klub',
+  EVEN: 'równy',
+}
+
+/** Filtry puli wspólne dla generatora i domykania setu (M4.2/M4.4). */
+export interface SetPoolFilters {
   search?: string
   genreFamily?: string
   bpmMin?: number
@@ -216,6 +226,14 @@ export interface SetProposalRequest {
   tag?: string
   camelot?: string
   camelotCompatible?: boolean
+}
+
+/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
+export interface SetProposalRequest extends SetPoolFilters {
+  targetMinutes: number
+  /** Kształt wieczoru (M4.5); brak = `STANDARD`. */
+  curve?: SetCurve
+  seed?: number
 }
 
 export interface ProposedTrackResponse {
@@ -234,24 +252,11 @@ export interface SetProposalResponse {
   tracks: ProposedTrackResponse[]
 }
 
-/** Filtry puli wspólne dla generatora i domykania setu (M4.2/M4.4). */
-export interface SetPoolFilters {
-  search?: string
-  genreFamily?: string
-  bpmMin?: number
-  bpmMax?: number
-  tempoClass?: string
-  energy?: string
-  inLibrary?: boolean
-  ratingMin?: number
-  tag?: string
-  camelot?: string
-  camelotCompatible?: boolean
-}
-
 /** Uzupełnienie gotowego setu (M4.4/D32) — `targetMinutes` liczy CAŁY wieczór. */
 export interface SetFillRequest extends SetPoolFilters {
   targetMinutes: number
+  /** Kształt wieczoru (M4.5); brak = `STANDARD`. */
+  curve?: SetCurve
   seed?: number
 }
 

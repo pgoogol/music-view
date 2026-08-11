@@ -3,7 +3,13 @@
 // POST /api/playlists/{id}/tracks, więc domykanie zostaje bezstanowe.
 
 import { useEffect, useState } from 'react'
-import { api, type SetFillResponse } from '../api'
+import {
+  SET_CURVES,
+  SET_CURVE_LABELS,
+  api,
+  type SetCurve,
+  type SetFillResponse,
+} from '../api'
 import { useToast } from './Toasts'
 import { DASH, formatDuration, slotLabel } from '../format'
 
@@ -21,6 +27,7 @@ export default function SetFillPanel({ playlistId, disabled, onAppend }: Props) 
 
   const { reportError } = useToast()
   const [targetMinutes, setTargetMinutes] = useState(180)
+  const [curve, setCurve] = useState<SetCurve>('STANDARD')
   const [genreFamily, setGenreFamily] = useState('')
   const [ratingMin, setRatingMin] = useState('')
   const [inLibrary, setInLibrary] = useState(true)
@@ -36,6 +43,7 @@ export default function SetFillPanel({ playlistId, disabled, onAppend }: Props) 
       setFill(
         await api.fillSet(playlistId, {
           targetMinutes,
+          curve,
           seed,
           genreFamily: genreFamily || undefined,
           ratingMin: ratingMin ? Number(ratingMin) : undefined,
@@ -80,6 +88,21 @@ export default function SetFillPanel({ playlistId, disabled, onAppend }: Props) 
             {TARGETS.map((value) => (
               <option key={value} value={value}>
                 {value} min
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-group">
+          <span>profil</span>
+          <select
+            value={curve}
+            onChange={(event) => setCurve(event.target.value as SetCurve)}
+            aria-label="profil wieczoru przy uzupełnianiu"
+            title="profil zmienia proporcje faz wieczoru, nie ich kolejność"
+          >
+            {SET_CURVES.map((value) => (
+              <option key={value} value={value}>
+                {SET_CURVE_LABELS[value]}
               </option>
             ))}
           </select>

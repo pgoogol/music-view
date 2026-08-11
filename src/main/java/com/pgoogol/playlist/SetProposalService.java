@@ -65,16 +65,16 @@ public class SetProposalService {
     }
 
     @Transactional(readOnly = true)
-    public SetProposal propose(CatalogSearchCriteria criteria, int targetMinutes,
+    public SetProposal propose(CatalogSearchCriteria criteria, int targetMinutes, SetCurve curve,
                                @Nullable Long seed) {
 
         Objects.requireNonNull(criteria, "criteria");
         validateTarget(targetMinutes);
         List<SetCandidate> candidates = requireCandidates(criteria);
         SetProposal proposal =
-            setGenerator.generate(candidates, Duration.ofMinutes(targetMinutes), seed);
-        log.info("Propozycja setu: {} utworów na {} min z puli {} (seed {})",
-            proposal.tracks().size(), targetMinutes, candidates.size(), proposal.seed());
+            setGenerator.generate(candidates, Duration.ofMinutes(targetMinutes), curve, seed);
+        log.info("Propozycja setu ({}): {} utworów na {} min z puli {} (seed {})",
+            curve, proposal.tracks().size(), targetMinutes, candidates.size(), proposal.seed());
         return proposal;
     }
 
@@ -85,16 +85,16 @@ public class SetProposalService {
      */
     @Transactional(readOnly = true)
     public SetFill fill(Long playlistId, CatalogSearchCriteria criteria, int targetMinutes,
-                        @Nullable Long seed) {
+                        SetCurve curve, @Nullable Long seed) {
 
         Objects.requireNonNull(criteria, "criteria");
         validateTarget(targetMinutes);
         List<SetCandidate> current = currentSet(playlistId);
         List<SetCandidate> candidates = requireCandidates(criteria);
         SetProposal proposal = setGenerator.extend(
-            candidates, current, Duration.ofMinutes(targetMinutes), seed);
-        log.info("Uzupełnienie setu {}: +{} utworów do {} min z puli {} (seed {})",
-            playlistId, proposal.tracks().size(), targetMinutes, candidates.size(),
+            candidates, current, Duration.ofMinutes(targetMinutes), curve, seed);
+        log.info("Uzupełnienie setu {} ({}): +{} utworów do {} min z puli {} (seed {})",
+            playlistId, curve, proposal.tracks().size(), targetMinutes, candidates.size(),
             proposal.seed());
         return new SetFill(current.size(), durationMs(current), proposal);
     }

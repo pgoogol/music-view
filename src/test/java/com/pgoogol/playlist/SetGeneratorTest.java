@@ -17,13 +17,16 @@ class SetGeneratorTest {
 
     private static final int TRACK_SECONDS = 210;
 
+    private static final List<DjSlot> PHASES_IN_ORDER =
+        List.of(DjSlot.WARMUP, DjSlot.MIDDLE, DjSlot.PEAK, DjSlot.CLOSING);
+
     private final SetGenerator generator = new SetGenerator(new SetRules());
 
     @Test
     @DisplayName("układa set zbliżony do zamówionego czasu")
     void shouldFillRequestedDuration() {
 
-        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(60), 1L);
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, 1L);
 
         assertThat(proposal.tracks()).isNotEmpty();
         assertThat(proposal.totalDurationMs())
@@ -35,7 +38,7 @@ class SetGeneratorTest {
     @DisplayName("prowadzi set przez fazy wieczoru w kolejności D9")
     void shouldFollowEveningCurve() {
 
-        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(120), 7L);
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(120), SetCurve.STANDARD, 7L);
 
         List<DjSlot> slots = proposal.tracks().stream()
             .map(SetProposal.ProposedTrack::djSlot)
@@ -54,7 +57,7 @@ class SetGeneratorTest {
     @DisplayName("twarde ograniczenie: żaden utwór nie wchodzi do setu dwa razy")
     void shouldNeverRepeatTrack() {
 
-        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(180), 3L);
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(180), SetCurve.STANDARD, 3L);
 
         List<String> ids = proposal.tracks().stream()
             .map(track -> track.track().getSpotifyId())
@@ -67,7 +70,7 @@ class SetGeneratorTest {
     @DisplayName("twarde ograniczenie: ten sam wykonawca nie wraca przed upływem 30 minut")
     void shouldKeepArtistsApart() {
 
-        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(120), 5L);
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(120), SetCurve.STANDARD, 5L);
 
         assertThat(minutesBetweenSameArtist(proposal))
             .allSatisfy(gap -> assertThat(gap).isGreaterThanOrEqualTo(SetRules.ARTIST_GAP_MINUTES));
@@ -81,7 +84,7 @@ class SetGeneratorTest {
             .mapToObj(index -> candidate("sp-" + index, null, 120, DjSlot.MIDDLE, 3))
             .toList();
 
-        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(60), 11L);
+        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(60), SetCurve.STANDARD, 11L);
 
         assertThat(proposal.tracks()).hasSizeGreaterThan(10);
     }
@@ -90,9 +93,9 @@ class SetGeneratorTest {
     @DisplayName("ten sam seed daje ten sam set, inny — inny")
     void shouldBeReproducibleForTheSameSeed() {
 
-        List<String> first = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), 42L));
-        List<String> same = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), 42L));
-        List<String> other = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), 43L));
+        List<String> first = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, 42L));
+        List<String> same = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, 42L));
+        List<String> other = idsOf(generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, 43L));
 
         assertThat(same).isEqualTo(first);
         assertThat(other).isNotEqualTo(first);
@@ -102,10 +105,10 @@ class SetGeneratorTest {
     @DisplayName("bez seeda oddaje wylosowane ziarno, żeby dało się wrócić do propozycji")
     void shouldReturnGeneratedSeed() {
 
-        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(60), null);
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, null);
 
         List<String> repeated = idsOf(
-            generator.generate(bigPool(), Duration.ofMinutes(60), proposal.seed()));
+            generator.generate(bigPool(), Duration.ofMinutes(60), SetCurve.STANDARD, proposal.seed()));
 
         assertThat(repeated).isEqualTo(idsOf(proposal));
     }
@@ -119,7 +122,7 @@ class SetGeneratorTest {
             candidate("sp-blisko", "Blisko", 124, DjSlot.WARMUP, 5),
             candidate("sp-daleko", "Daleko", 175, DjSlot.WARMUP, 5));
 
-        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(15), 1L);
+        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(15), SetCurve.STANDARD, 1L);
 
         List<Integer> bpms = proposal.tracks().stream()
             .map(track -> track.track().getBpm())
@@ -140,7 +143,7 @@ class SetGeneratorTest {
             candidate("sp-1", "A", 120, DjSlot.MIDDLE, 3),
             candidate("sp-2", "B", 121, DjSlot.MIDDLE, 3));
 
-        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(240), 1L);
+        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(240), SetCurve.STANDARD, 1L);
 
         assertThat(proposal.tracks()).hasSize(2);
         assertThat(proposal.totalDurationMs()).isLessThan(proposal.targetDurationMs());
@@ -161,7 +164,7 @@ class SetGeneratorTest {
             })
             .toList();
 
-        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(30), 2L);
+        SetProposal proposal = generator.generate(pool, Duration.ofMinutes(30), SetCurve.STANDARD, 2L);
 
         assertThat(proposal.tracks()).isNotEmpty();
         assertThat(proposal.totalDurationMs())
@@ -172,10 +175,39 @@ class SetGeneratorTest {
     @DisplayName("pusta pula daje pusty set z notatką, nie wyjątek")
     void shouldHandleEmptyPool() {
 
-        SetProposal proposal = generator.generate(List.of(), Duration.ofMinutes(60), 1L);
+        SetProposal proposal = generator.generate(List.of(), Duration.ofMinutes(60), SetCurve.STANDARD, 1L);
 
         assertThat(proposal.tracks()).isEmpty();
         assertThat(proposal.notes()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("profil wieczoru zmienia proporcje faz: klub dostaje dłuższy szczyt niż wesele")
+    void shouldFollowSelectedCurveProfile() {
+
+        SetProposal club = generator.generate(bigPool(), Duration.ofMinutes(240),
+            SetCurve.CLUB, 13L);
+        SetProposal wedding = generator.generate(bigPool(), Duration.ofMinutes(240),
+            SetCurve.WEDDING, 13L);
+
+        assertThat(count(club, DjSlot.PEAK)).isGreaterThan(count(wedding, DjSlot.PEAK));
+        assertThat(count(wedding, DjSlot.WARMUP)).isGreaterThan(count(club, DjSlot.WARMUP));
+    }
+
+    @Test
+    @DisplayName("profil bez wyraźnego szczytu rozkłada fazy po równo")
+    void shouldSpreadPhasesEvenly() {
+
+        SetProposal proposal = generator.generate(bigPool(), Duration.ofMinutes(240),
+            SetCurve.EVEN, 13L);
+
+        List<Integer> counts = PHASES_IN_ORDER.stream()
+            .map(slot -> count(proposal, slot))
+            .toList();
+
+        // różnica wynika tylko z tego, że utwór nie dzieli się na pół
+        assertThat(java.util.Collections.max(counts) - java.util.Collections.min(counts))
+            .isLessThanOrEqualTo(1);
     }
 
     @Test
@@ -185,7 +217,7 @@ class SetGeneratorTest {
         List<SetCandidate> current = existingSet(10);
 
         SetProposal proposal =
-            generator.extend(bigPool(), current, Duration.ofMinutes(120), 5L);
+            generator.extend(bigPool(), current, Duration.ofMinutes(120), SetCurve.STANDARD, 5L);
 
         List<String> added = idsOf(proposal);
         assertThat(added).isNotEmpty();
@@ -198,7 +230,7 @@ class SetGeneratorTest {
     void shouldNumberAddedTracksAfterTheExistingSet() {
 
         SetProposal proposal =
-            generator.extend(bigPool(), existingSet(10), Duration.ofMinutes(120), 5L);
+            generator.extend(bigPool(), existingSet(10), Duration.ofMinutes(120), SetCurve.STANDARD, 5L);
 
         assertThat(proposal.tracks().getFirst().position()).isEqualTo(10);
         assertThat(proposal.tracks().stream().map(SetProposal.ProposedTrack::position))
@@ -211,7 +243,7 @@ class SetGeneratorTest {
 
         // 20 utworów po 3,5 min = 70 min z zamówionych 120 — to już faza szczytu
         SetProposal proposal =
-            generator.extend(bigPool(), existingSet(20), Duration.ofMinutes(120), 5L);
+            generator.extend(bigPool(), existingSet(20), Duration.ofMinutes(120), SetCurve.STANDARD, 5L);
 
         List<DjSlot> slots = proposal.tracks().stream()
             .map(SetProposal.ProposedTrack::djSlot)
@@ -228,7 +260,7 @@ class SetGeneratorTest {
     void shouldAddNothingWhenSetIsAlreadyLongEnough() {
 
         SetProposal proposal =
-            generator.extend(bigPool(), existingSet(40), Duration.ofMinutes(120), 5L);
+            generator.extend(bigPool(), existingSet(40), Duration.ofMinutes(120), SetCurve.STANDARD, 5L);
 
         assertThat(proposal.tracks()).isEmpty();
         assertThat(proposal.notes()).isNotEmpty();
@@ -242,7 +274,7 @@ class SetGeneratorTest {
         SetCandidate lastOnSet = candidate("sp-na-secie", "Wykonawca 0", 120, DjSlot.PEAK, 5);
 
         SetProposal proposal =
-            generator.extend(bigPool(), List.of(lastOnSet), Duration.ofMinutes(60), 5L);
+            generator.extend(bigPool(), List.of(lastOnSet), Duration.ofMinutes(60), SetCurve.STANDARD, 5L);
 
         List<String> firstArtists = proposal.tracks().stream()
             .limit(3)
@@ -262,6 +294,13 @@ class SetGeneratorTest {
 
     private int indexOfFirst(List<DjSlot> slots, DjSlot slot) {
         return slots.indexOf(slot);
+    }
+
+    private int count(SetProposal proposal, DjSlot slot) {
+
+        return (int) proposal.tracks().stream()
+            .filter(track -> track.djSlot() == slot)
+            .count();
     }
 
     private List<String> idsOf(SetProposal proposal) {

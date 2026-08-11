@@ -162,6 +162,47 @@ class SetApiIntegrationTest {
     }
 
     @Test
+    @DisplayName("profil wieczoru zmienia kształt setu — klub dostaje dłuższy szczyt niż wesele")
+    void propose_appliesSelectedCurveProfile() throws Exception {
+
+        int clubPeak = peakCount(Map.of("targetMinutes", 240, "seed", 3, "curve", "CLUB"));
+        int weddingPeak = peakCount(Map.of("targetMinutes", 240, "seed", 3, "curve", "WEDDING"));
+
+        org.assertj.core.api.Assertions.assertThat(clubPeak).isGreaterThan(weddingPeak);
+    }
+
+    @Test
+    @DisplayName("nieznany profil wieczoru to 400 z kodem, nie cichy powrót do domyślnego")
+    void propose_whenCurveUnknown_returns400WithErrorCode() throws Exception {
+
+        mockMvc.perform(propose(Map.of("targetMinutes", 60, "curve", "dyskoteka")))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_SET_CURVE"));
+    }
+
+    @Test
+    @DisplayName("uzupełnianie też przyjmuje profil wieczoru")
+    void fill_appliesSelectedCurveProfile() throws Exception {
+
+        long playlistId = createSet("Wesele", "sp-00");
+
+        mockMvc.perform(fill(playlistId, Map.of("targetMinutes", 60, "seed", 1, "curve", "CLUB")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.addedTrackCount")
+                .value(org.hamcrest.Matchers.greaterThan(0)));
+    }
+
+    private int peakCount(Map<String, Object> body) throws Exception {
+
+        String response = mockMvc.perform(propose(body))
+            .andExpect(status().isOk())
+            .andReturn().getResponse().getContentAsString();
+        return (int) objectMapper.readTree(response).get("tracks").valueStream()
+            .filter(track -> "PEAK".equals(track.get("djSlot").asText()))
+            .count();
+    }
+
+    @Test
     @DisplayName("uzupełnia gotowy set i nie dopisuje niczego do playlisty (D32)")
     void fill_extendsSetWithoutPersistingAnything() throws Exception {
 

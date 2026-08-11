@@ -67,7 +67,25 @@ beforeEach(() => {
   globalThis.fetch = fetchMock as unknown as typeof fetch
 })
 
-describe('SetsView — domykanie setu (M4.4)', () => {
+describe('SetsView — układanie i domykanie setu', () => {
+
+  it('tryb układania decyduje o kolejności wysłanej do API (M4.5)', async () => {
+
+    renderWithToasts(<SetsView selectedIds={new Set()} onSelectionUsed={vi.fn()} />)
+    await screen.findByTestId('set-list')
+
+    await userEvent.selectOptions(screen.getByTestId('arrange-mode'), 'TEMPO')
+    await userEvent.click(screen.getByTestId('playlist-arrange'))
+
+    await waitFor(() =>
+      expect(callsTo('/tracks').some((call) => (call[1] as RequestInit).method === 'PUT'))
+        .toBe(true),
+    )
+    const reorder = callsTo('/tracks').find((call) => (call[1] as RequestInit).method === 'PUT')
+    // 92 → 96 → 102 BPM, czyli kolejność rosnąca po tempie
+    expect(bodyOf(reorder!).spotifyIds).toEqual(['a', 'b', 'c'])
+    expect(await screen.findByText('Ułożono set wg narastającego tempa')).toBeInTheDocument()
+  })
 
   it('„dobierz" przy utworze pyta o kandydatów na miejsce zaraz po nim', async () => {
 

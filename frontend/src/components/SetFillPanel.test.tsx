@@ -72,15 +72,20 @@ describe('SetFillPanel', () => {
     expect(bodyOf(fillCalls()[1]).seed).toBe(4242)
   })
 
-  it('woła endpoint otwartego setu z długością całego wieczoru', async () => {
+  it('woła endpoint otwartego setu z długością całego wieczoru i profilem', async () => {
     renderWithToasts(<SetFillPanel playlistId={42} disabled={false} onAppend={vi.fn()} />)
 
     await userEvent.selectOptions(screen.getByLabelText('docelowa długość setu'), '240')
+    await userEvent.selectOptions(
+      screen.getByLabelText('profil wieczoru przy uzupełnianiu'),
+      'CLUB',
+    )
     await userEvent.click(screen.getByTestId('fill-set'))
 
     await waitFor(() => expect(fillCalls()).toHaveLength(1))
     expect(String(fillCalls()[0][0])).toContain('/api/sets/42/fill')
     expect(bodyOf(fillCalls()[0]).targetMinutes).toBe(240)
+    expect(bodyOf(fillCalls()[0]).curve).toBe('CLUB')
   })
 
   it('błąd API nie zostawia podglądu na ekranie', async () => {

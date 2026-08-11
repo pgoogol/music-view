@@ -1,9 +1,9 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji **D1–D32: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+Status wszystkich decyzji **D1–D33: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
 implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
 bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
-Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D32;
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D33;
 odwołania §x wskazują sekcje konceptu.
 
 ---
@@ -662,3 +662,41 @@ czterech godzin". Obie operacje działają na tym, co już w secie jest.
   przypadków; domykanie ma testy jednostkowe reguł i integracyjne obu endpointów.
   Dołożenie kroku do E2E wymagałoby poszerzenia fikstury CSV o utwory spoza setu,
   czyli przestrojenia asercji całego przebiegu — koszt bez nowego sygnału.
+
+## D33. Kształt wieczoru i tryby układania setu (M4.5)
+
+Do M4.4 planer miał po jednym sposobie na każdą czynność: generator układał wieczór wg
+krzywej 25/30/30/15 (D26), a gotowy set dawał się ułożyć wyłącznie wg faz D9. Wystarczało,
+dopóki narzędzie układało „jakąś imprezę"; przy trzeciej pod rząd okazało się, że wesele
+i klub to dwa różne przebiegi, a „ułóż" znaczy raz „prowadź przez fazy", a raz „chcę
+płynne przejścia".
+
+- **Profil zmienia proporcje faz, nie ich kolejność.** `SetCurve` to `STANDARD`
+  (25/30/30/15 z D26), `WEDDING` (30/30/25/15 — goście jedzą, szczyt krótszy i wcześniej),
+  `CLUB` (15/25/45/15 — parkiet gorący od początku) i `EVEN` (25/25/25/25 — urodziny,
+  impreza firmowa, granie w tle). Fazy D9 zostają te same i w tej samej kolejności; to
+  jedyne, co realnie różni te imprezy w danych, które mamy.
+- **Wybór z listy, nie suwaki.** Cztery liczby do ustawienia to cztery pytania „ile", na
+  które DJ przed imprezą nie zna odpowiedzi. Profil odpowiada na pytanie, które faktycznie
+  sobie zadaje: „co to za impreza".
+- **Nieznany profil to `400 INVALID_SET_CURVE`, nie ciche zejście do domyślnego.** Brak
+  pola w żądaniu znaczy `STANDARD` (najczęstszy przypadek i zgodność wstecz z M4.2), ale
+  literówka w nazwie musi być widoczna — inaczej DJ dostaje standardowy przebieg
+  w przekonaniu, że układa klub.
+- **Tryby układania liczy front** (`arrangeBy` w `setPlanner.ts`), tak jak ostrzeżenia
+  i statystyki setu (D22). Backend dostaje gotową permutację składu przez
+  `PUT /api/playlists/{id}/tracks` (D21) i nie musi wiedzieć, skąd się wzięła.
+- **Cztery tryby, bo odpowiadają na cztery różne pytania:** `PHASES` (fazy D9, domyślny,
+  bez zmian z M3.1), `TEMPO` (narastające BPM — utwory bez tempa na koniec, bo `null` to
+  brak danych, nie zero), `HARMONY` (łańcuch po kole Camelot) i `ENERGY` (niska → wysoka,
+  w grupie po tempie).
+- **Układanie harmoniczne jest zachłanne i zostawia otwarcie DJ-a.** Pierwszy utwór
+  zostaje na miejscu, każdy kolejny to najtańsze przejście z tego, co zostało; zderzenie
+  tonacji przeważa nad każdym skokiem tempa, bo tego nie da się przemiksować. Optymalna
+  trasa przez kilkadziesiąt utworów to problem komiwojażera — a wynik i tak idzie do
+  ręcznej poprawki, więc dokładność kosztowałaby więcej, niż jest warta.
+- **Nieznane BPM przy układaniu harmonicznym wyceniamy jak spory skok** (40), a nie jak
+  zero. Nie wiemy, czy przejście zagra, więc nie stawiamy go przed przejściem, o którym
+  wiemy.
+- **Żaden tryb nie gubi i nie dokłada utworów** — kontrakt permutacji z D21 obowiązuje tak
+  samo jak przy przeciąganiu; test sprawdza to dla każdego trybu osobno.

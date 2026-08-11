@@ -19,7 +19,21 @@ import SetSuggestionList from '../components/SetSuggestionList'
 import { useToast } from '../components/Toasts'
 import { useHashRoute } from '../hooks/useHashRoute'
 import { DASH, formatDuration, slotLabel } from '../format'
-import { arrangeBySlot, insertLastAt } from '../setPlanner'
+import {
+  ARRANGE_LABELS,
+  ARRANGE_MODES,
+  arrangeBy,
+  insertLastAt,
+  type ArrangeMode,
+} from '../setPlanner'
+
+/** Komunikat po ułożeniu — treść dla trybu faz zostaje z M3.1 (E2E na niej stoi). */
+const ARRANGE_MESSAGES: Record<ArrangeMode, string> = {
+  PHASES: 'Ułożono set wg faz wieczoru (D9)',
+  TEMPO: 'Ułożono set wg narastającego tempa',
+  HARMONY: 'Ułożono set wg zgodności tonacji',
+  ENERGY: 'Ułożono set wg narastającej energii',
+}
 
 interface Props {
   selectedIds: ReadonlySet<string>
@@ -37,6 +51,7 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
   const [newName, setNewName] = useState('')
   const [dragFrom, setDragFrom] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
+  const [arrangeMode, setArrangeMode] = useState<ArrangeMode>('PHASES')
   // miejsce, dla którego dobieramy utwór (M4.4) — null znaczy „nie dobieramy"
   const [gap, setGap] = useState<number | null>(null)
   const [suggestions, setSuggestions] = useState<SuggestedTrackResponse[]>([])
@@ -214,8 +229,13 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
   const autoArrange = () => {
     if (!playlist || playlist.tracks.length < 2) return
     return run(
-      () => api.reorderPlaylist(playlist.id, arrangeBySlot(playlist.tracks), playlist.version),
-      'Ułożono set wg faz wieczoru (D9)',
+      () =>
+        api.reorderPlaylist(
+          playlist.id,
+          arrangeBy(playlist.tracks, arrangeMode),
+          playlist.version,
+        ),
+      ARRANGE_MESSAGES[arrangeMode],
     )
   }
 
@@ -298,8 +318,23 @@ export default function SetsView({ selectedIds, onSelectionUsed }: Props) {
               <button onClick={addSelected} disabled={busy || selectedIds.size === 0} data-testid="playlist-add-selected">
                 Dodaj zaznaczone ({selectedIds.size})
               </button>
+              <label className="filter-group">
+                <span>ułóż</span>
+                <select
+                  value={arrangeMode}
+                  onChange={(event) => setArrangeMode(event.target.value as ArrangeMode)}
+                  aria-label="tryb układania setu"
+                  data-testid="arrange-mode"
+                >
+                  {ARRANGE_MODES.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {ARRANGE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <button onClick={autoArrange} disabled={busy || playlist.tracks.length < 2} data-testid="playlist-arrange">
-                Ułóż wg faz wieczoru
+                Ułóż
               </button>
               <button
                 onClick={() => openSuggestions(playlist.tracks.length)}

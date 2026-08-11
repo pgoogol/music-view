@@ -210,6 +210,97 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
 }
 
 /**
+ * Tryby układania gotowego setu (M4.5, D33). Fazy wieczoru to domyślny sposób
+ * i został z M3.1; reszta odpowiada na pytania, których fazy nie obsługują —
+ * „chcę płynne przejścia", „chcę czyste miksy", „chcę narastającą energię".
+ */
+export type ArrangeMode = 'PHASES' | 'TEMPO' | 'HARMONY' | 'ENERGY'
+
+export const ARRANGE_MODES: readonly ArrangeMode[] = ['PHASES', 'TEMPO', 'HARMONY', 'ENERGY']
+
+export const ARRANGE_LABELS: Record<ArrangeMode, string> = {
+  PHASES: 'wg faz wieczoru',
+  TEMPO: 'wg narastającego tempa',
+  HARMONY: 'wg zgodności tonacji',
+  ENERGY: 'wg narastającej energii',
+}
+
+/** Kolejność energii na wieczór; utwór bez wartości ląduje na końcu grupy. */
+const ENERGY_ORDER: readonly string[] = ['low', 'medium', 'high']
+
+/** Utwór bez BPM idzie na koniec, a nie na początek — `null` to brak danych, nie zero. */
+function bpmOrLast(entry: PlaylistTrackResponse): number {
+  return entry.track.bpm ?? Number.POSITIVE_INFINITY
+}
+
+function energyRank(entry: PlaylistTrackResponse): number {
+  const index = ENERGY_ORDER.indexOf(entry.track.energy ?? '')
+  return index === -1 ? ENERGY_ORDER.length : index
+}
+
+/**
+ * Koszt przejścia między sąsiadami przy układaniu harmonicznym: zderzenie
+ * tonacji przeważa nad każdym skokiem tempa, bo tego nie da się przemiksować.
+ * Nieznane BPM po którejś stronie wyceniamy jak spory skok — nie wiemy, czy
+ * przejście zagra, więc nie stawiamy go przed przejściem, o którym wiemy.
+ */
+function transitionCost(from: PlaylistTrackResponse, to: PlaylistTrackResponse): number {
+  const clash = areKeysCompatible(from.track.camelot, to.track.camelot) ? 0 : 1000
+  const before = from.track.bpm
+  const after = to.track.bpm
+  const jump = before === null || after === null ? 40 : Math.abs(after - before)
+  return clash + jump
+}
+
+/**
+ * Łańcuch harmoniczny: pierwszy utwór zostaje na miejscu (DJ wybrał otwarcie),
+ * a każdy kolejny to najtańsze przejście z tego, co zostało. Zachłannie, bo
+ * przy kilkudziesięciu utworach optymalna trasa to problem komiwojażera,
+ * a DJ i tak poprawia wynik ręcznie.
+ */
+function arrangeByHarmony(tracks: readonly PlaylistTrackResponse[]): string[] {
+
+  const remaining = [...tracks]
+  const chain: PlaylistTrackResponse[] = [remaining.shift()!]
+  while (remaining.length > 0) {
+    const previous = chain[chain.length - 1]
+    let best = 0
+    remaining.forEach((entry, index) => {
+      if (transitionCost(previous, entry) < transitionCost(previous, remaining[best])) best = index
+    })
+    chain.push(remaining.splice(best, 1)[0])
+  }
+  return chain.map((entry) => entry.track.spotifyId)
+}
+
+/**
+ * Propozycja kolejności setu w wybranym trybie. Zwraca listę `spotifyId`
+ * gotową do `PUT /api/playlists/{id}/tracks` — układanie liczy front (D22),
+ * backend dostaje gotową permutację składu (D21).
+ */
+export function arrangeBy(
+  tracks: readonly PlaylistTrackResponse[],
+  mode: ArrangeMode,
+): string[] {
+
+  if (tracks.length < 2) return tracks.map((entry) => entry.track.spotifyId)
+  switch (mode) {
+    case 'PHASES':
+      return arrangeBySlot(tracks)
+    case 'TEMPO':
+      return [...tracks]
+        .sort((left, right) => bpmOrLast(left) - bpmOrLast(right))
+        .map((entry) => entry.track.spotifyId)
+    case 'ENERGY':
+      return [...tracks]
+        .sort((left, right) => energyRank(left) - energyRank(right) || bpmOrLast(left) - bpmOrLast(right))
+        .map((entry) => entry.track.spotifyId)
+    case 'HARMONY':
+      return arrangeByHarmony(tracks)
+  }
+}
+
+/**
  * Kolejność setu po wstawieniu dobranego utworu (M4.4) na wskazane miejsce.
  * API dokłada utwór wyłącznie na koniec (`POST /{id}/tracks`), więc wstawienie
  * w środek to dopisanie i zaraz po nim zmiana kolejności — nowego endpointu

@@ -19,9 +19,9 @@ import java.util.Set;
  * Układa propozycję setu na zadany czas (M4.2, rozstrzygnięcia w D26) oraz
  * dokłada dalszy ciąg do setu, który już stoi (M4.4, D32).
  *
- * <p><b>Krzywa wieczoru jest stała</b> — rozgrzewka 25%, środek 30%, szczyt 30%,
- * zamknięcie 15% czasu. Parametryzacja byłaby opcją dla jednego użytkownika,
- * który i tak poprawia wynik ręcznie; progi są punktem wyjścia, jak w D21.</p>
+ * <p><b>Kształt wieczoru wybiera profil</b> {@link SetCurve} (M4.5, D33):
+ * fazy D9 i ich kolejność są stałe, zmieniają się tylko proporcje — wesele
+ * potrzebuje długiej rozgrzewki, klub długiego szczytu.</p>
  *
  * <p>Ograniczenia twarde i miękkie opisuje {@link SetRules} — tam też siedzi
  * ocena kandydata, wspólna z dobieraniem pojedynczego utworu.</p>
@@ -35,21 +35,15 @@ public class SetGenerator {
 
     static final int SHORTLIST = 5;
 
-    /** Krzywa wieczoru (D26) — udziały sumują się do 1.0. */
-    private static final List<Phase> PHASES = List.of(
-        new Phase(DjSlot.WARMUP, 0.25),
-        new Phase(DjSlot.MIDDLE, 0.30),
-        new Phase(DjSlot.PEAK, 0.30),
-        new Phase(DjSlot.CLOSING, 0.15));
-
     private final SetRules rules;
 
     public SetGenerator(SetRules rules) {
         this.rules = rules;
     }
 
-    public SetProposal generate(List<SetCandidate> candidates, Duration target, @Nullable Long seed) {
-        return extend(candidates, List.of(), target, seed);
+    public SetProposal generate(List<SetCandidate> candidates, Duration target, SetCurve curve,
+                                @Nullable Long seed) {
+        return extend(candidates, List.of(), target, curve, seed);
     }
 
     /**
@@ -63,11 +57,12 @@ public class SetGenerator {
      * wieczoru (środek → szczyt → zamknięcie), a nie drugą rozgrzewkę.</p>
      */
     public SetProposal extend(List<SetCandidate> candidates, List<SetCandidate> prefix,
-                              Duration target, @Nullable Long seed) {
+                              Duration target, SetCurve curve, @Nullable Long seed) {
 
         Objects.requireNonNull(candidates, "candidates");
         Objects.requireNonNull(prefix, "prefix");
         Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(curve, "curve");
         long targetMs = target.toMillis();
         long resolvedSeed = Objects.requireNonNullElseGet(seed, () -> new Random().nextLong());
         Random random = new Random(resolvedSeed);
@@ -79,7 +74,7 @@ public class SetGenerator {
                 .formatted(minutes(state.elapsed), minutes(targetMs)));
         }
         long phaseStart = 0;
-        for (Phase phase : PHASES) {
+        for (SetCurve.Phase phase : curve.phases()) {
             phaseStart += Math.round(targetMs * phase.share());
             fillPhase(candidates, state, phase.slot(), phaseStart, random, notes);
         }
@@ -124,8 +119,6 @@ public class SetGenerator {
     private long minutes(long millis) {
         return Duration.ofMillis(millis).toMinutes();
     }
-
-    private record Phase(DjSlot slot, double share) { }
 
     /** Stan układanego setu: co już weszło, ile to trwa i kiedy grał który wykonawca. */
     private static final class State {
