@@ -22,9 +22,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
@@ -60,6 +62,9 @@ class EnrichmentJobIntegrationTest {
 
     @Autowired
     private ManualMetricsRepository manualMetricsRepository;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     @MockitoBean
     private SpotifyClient spotifyClient;
@@ -202,14 +207,19 @@ class EnrichmentJobIntegrationTest {
     @Test
     void start_whenTrackHasMetricsFromFile_keepsThemInsteadOfLlmEstimate() {
 
-        // given — plik mówi rock i energię 0.15, LLM w stubie twierdzi latin i „high" (D34)
+        // given — plik mówi rock i energię 0.15, LLM w stubie twierdzi latin i „high" (D34).
+        // Metryki zapisujemy w jednej transakcji z odczytem utworu, tak jak robi to
+        // import (D24): klucz jest dzielony przez @MapsId, więc utwór musi być
+        // w tym momencie zarządzany, inaczej Hibernate próbuje wstawić go drugi raz.
         seedSkeletons(1);
-        TrackCatalog track = trackCatalogRepository.findById("trk-000").orElseThrow();
-        ManualMetrics metrics = new ManualMetrics(track);
-        metrics.setGenreFamily(GenreFamily.ROCK);
-        metrics.setEnergy(new BigDecimal("0.15"));
-        metrics.setImportedAt(java.time.Instant.now());
-        manualMetricsRepository.save(metrics);
+        transactionTemplate.executeWithoutResult(status -> {
+            TrackCatalog track = trackCatalogRepository.findById("trk-000").orElseThrow();
+            ManualMetrics metrics = new ManualMetrics(track);
+            metrics.setGenreFamily(GenreFamily.ROCK);
+            metrics.setEnergy(new BigDecimal("0.15"));
+            metrics.setImportedAt(Instant.now());
+            manualMetricsRepository.save(metrics);
+        });
 
         // when
         long executionId = enrichmentService.start(
