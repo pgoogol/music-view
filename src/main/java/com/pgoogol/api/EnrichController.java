@@ -73,6 +73,18 @@ public class EnrichController {
         return EnrichJobResponse.from(enrichmentService.status(executionId));
     }
 
+    @GetMapping("/jobs/{executionId}/failures")
+    @Operation(summary = "Utwory pominięte przez job razem z powodem (D37)",
+        description = "Job nie przerywa się na pierwszym błędzie — przechodzi przez całą listę "
+            + "i pomija to, co padło. Ta lista mówi, co dokładnie odpadło i dlaczego.")
+    public List<EnrichFailureResponse> jobFailures(@PathVariable long executionId,
+                                                   @RequestParam(defaultValue = "200") int limit) {
+
+        return enrichmentService.failures(executionId, CatalogController.cappedSize(limit)).stream()
+            .map(EnrichFailureResponse::from)
+            .toList();
+    }
+
     @PostMapping("/jobs/{executionId}/restart")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @Operation(summary = "Restart nieudanego wykonania — dokańcza od checkpointu")

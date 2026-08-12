@@ -87,6 +87,8 @@ describe('OverviewView', () => {
     expect(screen.getByTestId('tempo-energy')).toBeInTheDocument()
     expect(screen.getByTestId('top-artists')).toBeInTheDocument()
     expect(screen.getByTestId('top-albums')).toBeInTheDocument()
+    expect(screen.getByTestId('time-signatures')).toBeInTheDocument()
+    expect(screen.getByTestId('explicitness')).toBeInTheDocument()
     expect(screen.getByTestId('top-tags')).toBeInTheDocument()
     expect(screen.getByTestId('recently-added')).toBeInTheDocument()
   })
@@ -113,6 +115,30 @@ describe('OverviewView', () => {
     // 700 utworów jest jednocześnie średnich tempem i wysokich energią
     expect(within(matrix).getByText('700')).toBeInTheDocument()
     expect(within(matrix).getByText('średnie')).toBeInTheDocument()
+  })
+
+  it('podaje tanecznosć z katalogu obok pajęczyny, bo próbka jest większa', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const note = await screen.findByTestId('catalog-danceability')
+
+    expect(note).toHaveTextContent('74 / 100')
+    // pajęczyna stoi na 120 utworach z metryk, ta liczba na 1830 z katalogu
+    expect(note).toHaveTextContent('1830')
+  })
+
+  it('metrum i flaga explicit opisują utwory, których nie widać w innych rozkładach', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const meters = await screen.findByTestId('time-signatures')
+    const explicitness = screen.getByTestId('explicitness')
+
+    expect(within(meters).getByText('4/4')).toBeInTheDocument()
+    expect(within(meters).getByText('3/4')).toBeInTheDocument()
+    expect(within(explicitness).getByText('wulgarne')).toBeInTheDocument()
+    expect(within(explicitness).getByText('czyste')).toBeInTheDocument()
   })
 
   it('przy braku tonacji mówi o tym zamiast rysować puste koło', async () => {

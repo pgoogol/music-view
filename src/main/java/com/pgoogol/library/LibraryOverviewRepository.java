@@ -55,7 +55,11 @@ public class LibraryOverviewRepository {
           (select avg(duration_ms) from track_catalog where duration_ms is not null)
                                                                    as average_duration_ms,
           (select avg(popularity) from track_catalog where popularity is not null)
-                                                                   as average_popularity
+                                                                   as average_popularity,
+          (select avg(danceability) from track_catalog where danceability is not null)
+                                                                   as average_danceability,
+          (select count(*) from track_catalog where danceability is not null)
+                                                                   as tracks_with_danceability
         """;
 
     private static final String TOP_ARTISTS_QUERY = """
@@ -146,7 +150,9 @@ public class LibraryOverviewRepository {
             number(counts.get("distinct_albums")),
             average(counts.get("average_bpm")),
             average(counts.get("average_duration_ms")),
-            average(counts.get("average_popularity")));
+            average(counts.get("average_popularity")),
+            average(counts.get("average_danceability")),
+            number(counts.get("tracks_with_danceability")));
     }
 
     /** Średnia z pustego zbioru to brak odpowiedzi, nie zero. */
@@ -176,6 +182,8 @@ public class LibraryOverviewRepository {
             distributionsRepository.camelotKeys(dimension(distributions, "key")),
             dimension(distributions, "duration"),
             dimension(distributions, "popularity"),
+            dimension(distributions, "explicit"),
+            dimension(distributions, "timeSignature"),
             distributionsRepository.tempoEnergy(),
             audioProfile());
     }

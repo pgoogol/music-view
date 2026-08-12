@@ -1360,6 +1360,38 @@ tbody tr.selected {
 @keyframes bar-grow { from { transform: scaleY(0); } }
 .chart-tick { fill: var(--muted); font: 9px var(--font-mono); }
 
+/* --- historia jobów: pominięte utwory (M5.5/D37) --- */
+
+/* pominięcia nie są awarią przebiegu, ale mają kłuć w oczy — job kończy się
+   zielono także wtedy, gdy odpadła połowa listy */
+.job-failed {
+  display: inline-block;
+  min-width: 2ch;
+  padding: 0 8px;
+  border: 1px solid var(--accent);
+  border-radius: var(--pill);
+  color: var(--accent);
+  font: 600 11px/1.7 var(--font-mono);
+  box-shadow: 0 0 10px var(--glow-accent);
+}
+.job-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+/* komunikat zakończenia bywa śladem stosu — ma się zawijać, a nie rozpychać modal */
+.job-exit {
+  max-height: 12rem;
+  overflow: auto;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  border-radius: var(--module-sm);
+  font: 11px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.modal-list code { color: var(--accent-2); font: 600 12px var(--font-mono); }
+.modal-list p { margin: 2px 0 0; font-size: 12px; }
+
 /* --- szacunek zlecenia (M5.1) --- */
 
 .estimate {

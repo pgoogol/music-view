@@ -46,7 +46,9 @@ public record LibraryOverviewResponse(
         long distinctAlbums,
         @Nullable Double averageBpm,
         @Nullable Double averageDurationMs,
-        @Nullable Double averagePopularity) { }
+        @Nullable Double averagePopularity,
+        @Nullable Double averageDanceability,
+        long tracksWithDanceability) { }
 
     public record QualityResponse(
         long metadataMissing,
@@ -64,6 +66,8 @@ public record LibraryOverviewResponse(
         List<BucketResponse> camelotKeys,
         List<BucketResponse> durations,
         List<BucketResponse> popularity,
+        List<BucketResponse> explicitness,
+        List<BucketResponse> timeSignatures,
         List<MatrixCellResponse> tempoEnergy,
         List<MetricResponse> audioProfile) { }
 

@@ -17,6 +17,7 @@ import com.pgoogol.enrichment.spotify.SpotifyClient;
 import com.pgoogol.enrichment.spotify.SpotifyTrackMetadata;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,10 +31,12 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -80,12 +83,15 @@ class EnrichmentJobIntegrationTest {
 
     private final List<List<String>> analyzedBatches = new CopyOnWriteArrayList<>();
     private final AtomicBoolean failOnSecondChunk = new AtomicBoolean(false);
+    /** Utwór, który pada przy każdej próbie — do sprawdzenia pomijania (D37). */
+    private final AtomicReference<String> alwaysFailingTrack = new AtomicReference<>();
 
     @BeforeEach
     void stubSources() {
 
         analyzedBatches.clear();
         failOnSecondChunk.set(false);
+        alwaysFailingTrack.set(null);
         given(spotifyClient.getTracks(any())).willAnswer(invocation -> {
             Collection<String> ids = invocation.getArgument(0);
             return ids.stream().map(this::spotifyMetadata).toList();
@@ -99,6 +105,11 @@ class EnrichmentJobIntegrationTest {
                 failOnSecondChunk.set(false);
                 throw new com.pgoogol.common.ExternalServiceException(
                     "LLM_UNAVAILABLE", "symulowana awaria w trakcie joba");
+            }
+            String failing = alwaysFailingTrack.get();
+            if (Objects.nonNull(failing) && batchIds.contains(failing)) {
+                throw new com.pgoogol.common.ExternalServiceException(
+                    "LLM_UNAVAILABLE", "symulowana trwała awaria dla " + failing);
             }
             analyzedBatches.add(batchIds);
             List<TrackAnalysis> analyses = batch.stream()
@@ -149,38 +160,37 @@ class EnrichmentJobIntegrationTest {
     }
 
     @Test
-    void restart_whenJobFailedMidRun_finishesRemainingTracksWithoutReprocessing() {
+    @DisplayName("trwała awaria jednego utworu nie przerywa przebiegu — reszta wchodzi (D37)")
+    void start_whenOneTrackKeepsFailing_skipsItAndFinishesTheRest() {
 
-        // given — awaria LLM na drugim chunku (utwory trk-005…trk-009)
+        // given — trk-005 pada przy każdej próbie, także po powtórce chunka
         seedSkeletons(10);
-        failOnSecondChunk.set(true);
-        long failedExecutionId = enrichmentService.start(
-            EnrichmentScope.MISSING, EnumSet.allOf(FieldGroup.class), List.of());
-        awaitStatus(failedExecutionId, "FAILED");
-
-        // częściowy postęp widoczny w bazie: pierwszy chunk (5) zapisany
-        assertThat(trackCatalogRepository.findAll().stream()
-            .filter(track -> track.getGenreFamily() != null))
-            .extracting(TrackCatalog::getSpotifyId)
-            .containsExactlyInAnyOrder("trk-000", "trk-001", "trk-002", "trk-003", "trk-004");
+        alwaysFailingTrack.set("trk-005");
 
         // when
-        long restartedExecutionId = enrichmentService.restart(failedExecutionId);
-        awaitStatus(restartedExecutionId, "COMPLETED");
+        long executionId = enrichmentService.start(
+            EnrichmentScope.MISSING, EnumSet.allOf(FieldGroup.class), List.of());
 
-        // then — komplet w bazie, bez duplikatów przetwarzania: utwory z pierwszego
-        // chunka nie wracają do LLM po restarcie
-        assertThat(trackCatalogRepository.findAll())
-            .hasSize(10)
-            .allSatisfy(track -> assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.LATIN));
-        List<String> analyzedAfterRestart = analyzedBatches.stream()
-            .skip(1)
-            .flatMap(List::stream)
-            .toList();
-        assertThat(analyzedAfterRestart)
-            .containsExactlyInAnyOrder("trk-005", "trk-006", "trk-007", "trk-008", "trk-009");
-        assertThat(analyzedBatches.stream().flatMap(List::stream))
-            .doesNotHaveDuplicates();
+        // then — job kończy się sukcesem mimo porażki, bo porażka jednego utworu
+        // nie jest porażką przebiegu; wcześniej wywracała cały job
+        awaitStatus(executionId, "COMPLETED");
+
+        assertThat(trackCatalogRepository.findAll().stream()
+            .filter(track -> Objects.nonNull(track.getGenreFamily())))
+            .extracting(TrackCatalog::getSpotifyId)
+            .hasSize(9)
+            .doesNotContain("trk-005");
+
+        EnrichmentJobStatus status = enrichmentService.status(executionId);
+        assertThat(status.failedCount()).isEqualTo(1);
+
+        // i mówi, co konkretnie padło — sam licznik nie wystarcza do decyzji
+        assertThat(enrichmentService.failures(executionId, 50))
+            .singleElement()
+            .satisfies(failure -> {
+                assertThat(failure.spotifyId()).isEqualTo("trk-005");
+                assertThat(failure.reason()).contains("symulowana trwała awaria");
+            });
     }
 
     @Test

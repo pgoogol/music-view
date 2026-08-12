@@ -125,9 +125,18 @@ export interface EnrichJobResponse {
   fields: string
   readCount: number
   writeCount: number
+  /** Utwory pominięte przez job (D37); powody pod `jobFailures`. */
+  failedCount: number
   startTime: string | null
   endTime: string | null
   exitDescription: string | null
+}
+
+/** Utwór pominięty przez job wzbogacania razem z powodem (D37). */
+export interface EnrichFailureResponse {
+  spotifyId: string
+  reason: string
+  failedAt: string
 }
 
 /** Stan automatycznego odświeżania playlist w tle (M4.7/D35). */
@@ -231,6 +240,9 @@ export interface OverviewScaleResponse {
   averageBpm: number | null
   averageDurationMs: number | null
   averagePopularity: number | null
+  /** Taneczność z katalogu (AcousticBrainz/LLM) — szersza próbka niż metryki z pliku. */
+  averageDanceability: number | null
+  tracksWithDanceability: number
 }
 
 export interface OverviewQualityResponse {
@@ -252,6 +264,9 @@ export interface OverviewSoundResponse {
   camelotKeys: BucketResponse[]
   durations: BucketResponse[]
   popularity: BucketResponse[]
+  explicitness: BucketResponse[]
+  /** Metrum z metryk ręcznych (D24) — obejmuje tylko utwory z pliku. */
+  timeSignatures: BucketResponse[]
   tempoEnergy: MatrixCellResponse[]
   audioProfile: MetricResponse[]
 }
@@ -612,6 +627,11 @@ export const api = {
 
   jobStatus(executionId: number): Promise<EnrichJobResponse> {
     return request(`/api/enrich/jobs/${executionId}`)
+  },
+
+  /** Co dokładnie odpadło w danym przebiegu i dlaczego (D37). */
+  jobFailures(executionId: number, limit = 200): Promise<EnrichFailureResponse[]> {
+    return request(`/api/enrich/jobs/${executionId}/failures?limit=${limit}`)
   },
 
   restartJob(executionId: number): Promise<{ executionId: number }> {

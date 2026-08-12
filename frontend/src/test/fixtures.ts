@@ -149,6 +149,8 @@ export const overviewFixture: LibraryOverviewResponse = {
     averageBpm: 118.4,
     averageDurationMs: 231_000,
     averagePopularity: 54.2,
+    averageDanceability: 0.74,
+    tracksWithDanceability: 1830,
   },
   quality: {
     metadataMissing: 4,
@@ -192,6 +194,16 @@ export const overviewFixture: LibraryOverviewResponse = {
       { label: '40–49', count: 500 },
       { label: '50–59', count: 700 },
       { label: '60–69', count: 400 },
+    ],
+    explicitness: [
+      { label: 'czyste', count: 2300 },
+      { label: 'wulgarne', count: 140 },
+      { label: 'BEZ DANYCH', count: 60 },
+    ],
+    timeSignatures: [
+      { label: '3/4', count: 8 },
+      { label: '4/4', count: 110 },
+      { label: 'BEZ METRUM', count: 2 },
     ],
     tempoEnergy: [
       { tempoClass: 'MEDIUM', energy: 'HIGH', count: 700 },

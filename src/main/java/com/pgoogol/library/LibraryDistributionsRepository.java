@@ -15,9 +15,9 @@ import java.util.Optional;
 
 /**
  * Rozkłady przeglądu biblioteki (M4.3, rozszerzone w M5.4) liczone w bazie
- * (D27). Dziesięć wymiarów schodzi jednym zapytaniem z {@code union all}
- * i etykietą wymiaru — dziesięć osobnych {@code group by} czytałoby tę samą
- * tabelę dziesięć razy.
+ * (D27). Dwanaście wymiarów schodzi jednym zapytaniem z {@code union all}
+ * i etykietą wymiaru — dwanaście osobnych {@code group by} czytałoby te same
+ * tabele dwanaście razy.
  *
  * <p>Każdy wymiar podaje własny {@code sort_key}, bo naturalna kolejność
  * kategorii bywa inna niż alfabetyczna („SLOW" przed „MEDIUM"); {@code null}
@@ -77,9 +77,20 @@ public class LibraryDistributionsRepository {
                count(*), coalesce(lpad(((popularity / 10) * 10)::text, 3, '0'), 'zzz')
           from track_catalog group by (popularity / 10) * 10
         union all
+        select 'explicit',
+               case explicit when true then 'wulgarne' when false then 'czyste'
+                             else 'BEZ DANYCH' end,
+               count(*),
+               case explicit when true then '2' when false then '1' else 'z' end
+          from track_catalog group by explicit
+        union all
         select 'rating', coalesce(rating::text, 'bez oceny'), count(*),
                coalesce(rating::text, 'z')
           from library_entry group by rating
+        union all
+        select 'timeSignature', coalesce(time_signature::text || '/4', 'BEZ METRUM'), count(*),
+               coalesce(lpad(time_signature::text, 2, '0'), 'zz')
+          from manual_metrics group by time_signature
         order by 1, 4, 2
         """;
 

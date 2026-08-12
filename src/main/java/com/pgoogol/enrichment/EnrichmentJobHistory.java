@@ -31,6 +31,7 @@ public class EnrichmentJobHistory {
                e.exit_message,
                coalesce(sum(s.read_count), 0)  as read_count,
                coalesce(sum(s.write_count), 0) as write_count,
+               coalesce(sum(s.write_skip_count + s.process_skip_count), 0) as failed_count,
                max(p_scope.parameter_value)    as scope,
                max(p_fields.parameter_value)   as fields
           from batch_job_execution e
@@ -68,6 +69,7 @@ public class EnrichmentJobHistory {
             resultSet.getString("fields"),
             resultSet.getLong("read_count"),
             resultSet.getLong("write_count"),
+            resultSet.getLong("failed_count"),
             dateTime(resultSet.getTimestamp("start_time")),
             dateTime(resultSet.getTimestamp("end_time")),
             resultSet.getString("exit_message"));

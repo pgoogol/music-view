@@ -62,7 +62,9 @@ public record LibraryOverview(
         long distinctAlbums,
         @Nullable Double averageBpm,
         @Nullable Double averageDurationMs,
-        @Nullable Double averagePopularity) { }
+        @Nullable Double averagePopularity,
+        @Nullable Double averageDanceability,
+        long tracksWithDanceability) { }
 
     /** Kompletność danych: czego brakuje i skąd wiemy to, co wiemy. */
     public record Quality(
@@ -82,6 +84,9 @@ public record LibraryOverview(
         List<Bucket> camelotKeys,
         List<Bucket> durations,
         List<Bucket> popularity,
+        List<Bucket> explicitness,
+        /** Metrum z metryk ręcznych (D24) — obejmuje tylko utwory z pliku. */
+        List<Bucket> timeSignatures,
         List<MatrixCell> tempoEnergy,
         List<Metric> audioProfile) { }
 

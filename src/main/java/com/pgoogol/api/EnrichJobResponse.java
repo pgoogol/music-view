@@ -15,6 +15,8 @@ public record EnrichJobResponse(
     String fields,
     long readCount,
     long writeCount,
+    /** Utwory pominięte przez job (D37); powody pod /jobs/{id}/failures. */
+    long failedCount,
     LocalDateTime startTime,
     LocalDateTime endTime,
     String exitDescription) {
@@ -29,6 +31,7 @@ public record EnrichJobResponse(
             status.fields(),
             status.readCount(),
             status.writeCount(),
+            status.failedCount(),
             status.startTime(),
             status.endTime(),
             status.exitDescription());

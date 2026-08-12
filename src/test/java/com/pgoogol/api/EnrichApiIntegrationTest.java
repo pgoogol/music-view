@@ -75,14 +75,16 @@ class EnrichApiIntegrationTest {
 
         // given
         given(enrichmentService.status(42L)).willReturn(new EnrichmentJobStatus(
-            42L, 7L, "COMPLETED", "MISSING", "METADATA,AUDIO,AI", 12, 12,
+            42L, 7L, "COMPLETED", "MISSING", "METADATA,AUDIO,AI", 12, 9, 3,
             LocalDateTime.of(2026, 7, 5, 12, 0), LocalDateTime.of(2026, 7, 5, 12, 5), ""));
 
         // when + then
         mockMvc.perform(get("/api/enrich/jobs/42"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").value("COMPLETED"))
-            .andExpect(jsonPath("$.writeCount").value(12))
+            .andExpect(jsonPath("$.writeCount").value(9))
+            // job zakończony sukcesem mimo pominięć — licznik musi być widoczny (D37)
+            .andExpect(jsonPath("$.failedCount").value(3))
             .andExpect(jsonPath("$.fields").value("METADATA,AUDIO,AI"));
     }
 

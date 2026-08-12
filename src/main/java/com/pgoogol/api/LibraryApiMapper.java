@@ -41,7 +41,9 @@ public class LibraryApiMapper {
             scale.distinctAlbums(),
             scale.averageBpm(),
             scale.averageDurationMs(),
-            scale.averagePopularity());
+            scale.averagePopularity(),
+            scale.averageDanceability(),
+            scale.tracksWithDanceability());
     }
 
     private LibraryOverviewResponse.QualityResponse quality(LibraryOverview.Quality quality) {
@@ -65,6 +67,8 @@ public class LibraryApiMapper {
             buckets(sound.camelotKeys()),
             buckets(sound.durations()),
             buckets(sound.popularity()),
+            buckets(sound.explicitness()),
+            buckets(sound.timeSignatures()),
             sound.tempoEnergy().stream()
                 .map(cell -> new LibraryOverviewResponse.MatrixCellResponse(
                     cell.tempoClass(), cell.energy(), cell.count()))

@@ -56,14 +56,31 @@ describe('EnrichView — szacunek przed startem (M5.1)', () => {
     expect(box).toHaveTextContent('llm.cost.input-per-1m')
   })
 
-  it('zlecenie ponad limit blokuje przycisk startu', async () => {
+  it('zlecenie ponad limit blokuje start i mówi, jak je odblokować', async () => {
 
     estimate = { trackCount: 2500, aiTracks: 2500, estimatedCost: 1.85, limit: 500, withinLimit: false }
 
     renderWithToasts(<EnrichView selectedIds={new Set()} onJobFinished={vi.fn()} />)
 
-    await waitFor(() => expect(screen.getByTestId('enrich-estimate')).toHaveTextContent('ponad limit'))
+    const box = await screen.findByTestId('enrich-estimate')
+
+    await waitFor(() => expect(box).toHaveTextContent('do modelu idzie 2500 przy limicie 500'))
+    expect(box).toHaveTextContent('Odznacz grupę')
     expect(screen.getByTestId('enrich-start')).toBeDisabled()
+  })
+
+  it('zlecenie bez grupy AI nie ma sufitu, choćby obejmowało cały katalog (D37)', async () => {
+
+    // 2500 utworów, zero płatnych — metadane i audio jadą z darmowych źródeł (D6)
+    estimate = { trackCount: 2500, aiTracks: 0, estimatedCost: null, limit: 500, withinLimit: true }
+
+    renderWithToasts(<EnrichView selectedIds={new Set()} onJobFinished={vi.fn()} />)
+
+    const box = await screen.findByTestId('enrich-estimate')
+
+    await waitFor(() => expect(box).toHaveTextContent('bez kosztu i bez limitu'))
+    expect(box).not.toHaveTextContent('job nie wystartuje')
+    expect(screen.getByTestId('enrich-start')).toBeEnabled()
   })
 
   it('zakres „do przeliczenia" wysyła OUTDATED i zawęża pola do samego AI', async () => {

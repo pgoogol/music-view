@@ -830,3 +830,41 @@ utworach ponad to, ile ich jest. Rozstrzygnięcia:
   Segmenty jednego paska muszą się od siebie odróżniać, a bursztyn i cyjan mają
   w tym motywie znaczenie (akcja / pomiar). Znaczenie segmentu niesie legenda, nie kolor
   (D23), więc podmiana palety pod większy system to podmiana tych sześciu zmiennych.
+
+## D37. Wzbogacanie bez sufitu tam, gdzie nie ma rachunku, i bez wywrotki na jednym błędzie (M5.5)
+
+Trzy rzeczy w zakładce Wzbogacanie działały wbrew temu, po co powstały:
+
+- **Sufit z D28 pilnował nie tego, co miał.** `llm.max-tracks-per-job` porównywał się
+  z liczbą utworów w zleceniu, a nie z liczbą utworów idących do modelu. Uzasadnieniem
+  limitu jest rachunek za LLM („pomyłka w LLM_MODEL przy 2500 utworach to realny
+  rachunek"), a metadane i cechy audio jadą z darmowych źródeł (D6). Efekt: zlecenie
+  na 2500 utworów w grupach METADATA+AUDIO nie startowało, chroniąc budżet, którego
+  w ogóle nie ruszało. **Sufit liczy się teraz po `aiTracks`** — zlecenie bez grupy AI
+  nie ma limitu, choćby obejmowało cały katalog.
+- **Limit 100 przy zakresie SELECTED zostaje, ale przestaje udawać decyzję.** To nie
+  jest limit kosztowy, tylko szerokość kolumny `BATCH_JOB_EXECUTION_PARAMS.PARAMETER_VALUE`
+  (2500 znaków): lista identyfikatorów jedzie w parametrze joba, żeby restart dokańczał
+  dokładnie ten zakres, a nie ten wynikający z aktualnego stanu bazy. Komunikat mówi to
+  wprost i kieruje na zakres MISSING, który tego ograniczenia nie ma.
+- **Job przechodzi przez całą listę zamiast wywracać się na pierwszym błędzie.** Krok
+  jest `faultTolerant` ze `skip(Exception.class)`; utwór, który padł, wypada z przebiegu,
+  a reszta wchodzi. Wcześniej jedna felerna odpowiedź zewnętrznego API kasowała efekt
+  kwadransów pracy — ten sam argument, który w D31 kazał nie przerywać importu hurtem.
+  Pominięcie w writerze każe Spring Batchowi powtórzyć chunk pozycja po pozycji, więc
+  odpada wyłącznie ten utwór, który realnie padł, a nie cała piątka, z którą jechał.
+- **Bez sufitu pominięć.** Sufit zamieniałby „awarię 600. utworu" z powrotem w „przebieg
+  wywrócony", czyli w to, co usuwamy. Awarię systemową (zły klucz, padnięty provider)
+  widać po tym, że nieudanych jest tyle co wszystkich — od tego jest raport, nie limit.
+- **Powody porażek trafiają do tabeli `enrichment_failure`, nie do logu.** „Pominięto 37"
+  bez powodów nie mówi, czy padł jeden serwis, czy 37 razy to samo. Zapis idzie własną
+  transakcją (`REQUIRES_NEW`), bo `SkipListener` woła się w środku chunka, który Spring
+  Batch właśnie wycofuje — inaczej powód znikałby razem z rollbackiem. Bez klucza obcego
+  do tabel `BATCH_*`: należą do Spring Batcha i to on decyduje o czyszczeniu historii.
+- **Konsekwencja dla restartu:** awaria pojedynczych utworów nie kończy się już statusem
+  FAILED, więc restart od checkpointu przestaje dotyczyć tego przypadku (job kończy się
+  sukcesem, z raportem). Restart zostaje dla wykonań STOPPED i awarii infrastrukturalnych.
+- **„Szczegóły" w historii jobów były atrybutem `title` na `<span>`.** Dymek systemowy:
+  nie otwiera się z klawiatury, nie istnieje na dotyku, a dłuższy komunikat i tak jest
+  ucinany przez przeglądarkę. Teraz to przycisk otwierający okno z komunikatem
+  zakończenia i listą pominiętych utworów z powodami; historia dostaje kolumnę „nieudane".

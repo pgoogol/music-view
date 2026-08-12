@@ -159,6 +159,12 @@ export default function OverviewView({ refreshKey }: Props) {
           caption="Koszyki po 10 BPM; utwory bez tempa nie wchodzą do wykresu."
           testId="bpm-histogram"
         />
+        <h3>Metrum</h3>
+        <StackedBar
+          buckets={sound.timeSignatures}
+          caption={`Z metryk wgranych z pliku (D24) — ${scale.tracksWithMetrics} utworów, nie cały katalog.`}
+          testId="time-signatures"
+        />
       </DashPanel>
 
       <DashPanel title="Koło Camelot" span={2} index={3}>
@@ -175,6 +181,16 @@ export default function OverviewView({ refreshKey }: Props) {
           basis={scale.tracksWithMetrics}
           testId="audio-profile"
         />
+        {/* pajęczyna stoi na metrykach z pliku; taneczność znamy dla całego
+            katalogu z AcousticBrainz i LLM-a, więc próbka jest nieporównanie
+            większa i warto podać ją obok, a nie zamiast */}
+        {scale.averageDanceability !== null && (
+          <p className="muted chart-caption" data-testid="catalog-danceability">
+            Taneczność z całego katalogu:{' '}
+            <strong>{Math.round(scale.averageDanceability * 100)} / 100</strong> —
+            z {scale.tracksWithDanceability} utworów (AcousticBrainz i analiza AI).
+          </p>
+        )}
       </DashPanel>
 
       <DashPanel title="Skąd wiemy to, co wiemy" span={3} index={6}>
@@ -240,6 +256,12 @@ export default function OverviewView({ refreshKey }: Props) {
           total={scale.catalogTracks}
           emptyText="Styl to pole free-form (D8) — wypełni je wzbogacanie AI."
           testId="styles"
+        />
+        <h3>Treść</h3>
+        <StackedBar
+          buckets={sound.explicitness}
+          caption="Flaga explicit ze Spotify — ile utworów odpada na imprezie rodzinnej."
+          testId="explicitness"
         />
       </DashPanel>
 
