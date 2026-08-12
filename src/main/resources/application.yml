@@ -48,6 +48,18 @@ llm:
     input-per-1m: ${LLM_COST_INPUT_PER_1M:}
     output-per-1m: ${LLM_COST_OUTPUT_PER_1M:}
 
+# Automatyczne odświeżanie własnych playlist ze Spotify (D35). Przebieg jest
+# ten sam co ręczny import trybu C, więc kosztuje tyle samo wywołań Spotify —
+# przy kilkudziesięciu playlistach potrafi trwać dłużej niż domyślny odstęp.
+# Odstęp liczy się od ZAKOŃCZENIA poprzedniego przebiegu (fixedDelay), więc
+# przebiegi się nie nakładają; przy dużej bibliotece rozważ dłuższy interwał.
+ingestion:
+  playlist-refresh:
+    enabled: ${PLAYLIST_REFRESH_ENABLED:true}
+    interval: ${PLAYLIST_REFRESH_INTERVAL:5m}
+    # nie zero: dajemy aplikacji wstać, zanim ruszy pierwszy przebieg
+    initial-delay: ${PLAYLIST_REFRESH_INITIAL_DELAY:10s}
+
 clients:
   spotify:
     base-url: https://api.spotify.com

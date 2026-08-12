@@ -1,6 +1,5 @@
 package com.pgoogol.playlist;
 
-import com.pgoogol.catalog.CamelotKey;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -17,18 +16,15 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * Układa propozycję setu na zadany czas (M4.2, rozstrzygnięcia w D26).
+ * Układa propozycję setu na zadany czas (M4.2, rozstrzygnięcia w D26) oraz
+ * dokłada dalszy ciąg do setu, który już stoi (M4.4, D32).
  *
- * <p><b>Krzywa wieczoru jest stała</b> — rozgrzewka 25%, środek 30%, szczyt 30%,
- * zamknięcie 15% czasu. Parametryzacja byłaby opcją dla jednego użytkownika,
- * który i tak poprawia wynik ręcznie; progi są punktem wyjścia, jak w D21.</p>
+ * <p><b>Kształt wieczoru wybiera profil</b> {@link SetCurve} (M4.5, D33):
+ * fazy D9 i ich kolejność są stałe, zmieniają się tylko proporcje — wesele
+ * potrzebuje długiej rozgrzewki, klub długiego szczytu.</p>
  *
- * <p><b>Ograniczenia twarde</b> (zawężają pulę): utwór wchodzi do setu raz,
- * a ten sam wykonawca nie częściej niż raz na {@value #ARTIST_GAP_MINUTES} minut.
- * <b>Miękkie</b> (kary w ocenie kandydata): skok BPM ponad próg, brak zgodności
- * harmonicznej, niska ocena, brak BPM. Gdyby miękkie zrobić twardymi, generator
- * przy wąskiej bibliotece zwracałby pustkę zamiast setu z ostrzeżeniami — a DJ
- * woli set do poprawienia niż komunikat.</p>
+ * <p>Ograniczenia twarde i miękkie opisuje {@link SetRules} — tam też siedzi
+ * ocena kandydata, wspólna z dobieraniem pojedynczego utworu.</p>
  *
  * <p><b>Powtarzalność:</b> wybór spośród {@value #SHORTLIST} najlepszych kandydatów
  * z ziarnem z żądania. Czysto zachłanny generator dawałby za każdym razem ten sam
@@ -37,37 +33,48 @@ import java.util.Set;
 @Component
 public class SetGenerator {
 
-    static final int ARTIST_GAP_MINUTES = 30;
     static final int SHORTLIST = 5;
-    static final int BPM_JUMP_TOLERANCE = 15;
 
-    /** Utwór bez znanego czasu liczymy jako typowy singiel — inaczej zawiesiłby pętlę. */
-    static final long DEFAULT_TRACK_MS = Duration.ofMinutes(3).plusSeconds(30).toMillis();
+    private final SetRules rules;
 
-    private static final long ARTIST_GAP_MS = Duration.ofMinutes(ARTIST_GAP_MINUTES).toMillis();
+    public SetGenerator(SetRules rules) {
+        this.rules = rules;
+    }
 
-    /** Krzywa wieczoru (D26) — udziały sumują się do 1.0. */
-    private static final List<Phase> PHASES = List.of(
-        new Phase(DjSlot.WARMUP, 0.25),
-        new Phase(DjSlot.MIDDLE, 0.30),
-        new Phase(DjSlot.PEAK, 0.30),
-        new Phase(DjSlot.CLOSING, 0.15));
+    public SetProposal generate(List<SetCandidate> candidates, Duration target, SetCurve curve,
+                                @Nullable Long seed) {
+        return extend(candidates, List.of(), target, curve, seed);
+    }
 
-    private static final List<DjSlot> PHASE_ORDER =
-        List.of(DjSlot.WARMUP, DjSlot.MIDDLE, DjSlot.PEAK, DjSlot.CLOSING);
-
-    public SetProposal generate(List<SetCandidate> candidates, Duration target, @Nullable Long seed) {
+    /**
+     * Dokłada dalszy ciąg do setu, który już stoi (M4.4). Utwory z {@code prefix}
+     * zajmują początek osi wieczoru: liczą się do upływu czasu, blokują powtórkę
+     * utworu i odstęp wykonawcy, ale <b>nie wracają w wyniku</b> — propozycja to
+     * wyłącznie to, co dochodzi na koniec.
+     *
+     * <p>Fazy liczymy nad <b>całym</b> zamówionym czasem, nie nad tym, co zostało:
+     * set na 90 minut uzupełniany do czterech godzin ma dostać dalszy ciąg
+     * wieczoru (środek → szczyt → zamknięcie), a nie drugą rozgrzewkę.</p>
+     */
+    public SetProposal extend(List<SetCandidate> candidates, List<SetCandidate> prefix,
+                              Duration target, SetCurve curve, @Nullable Long seed) {
 
         Objects.requireNonNull(candidates, "candidates");
+        Objects.requireNonNull(prefix, "prefix");
         Objects.requireNonNull(target, "target");
+        Objects.requireNonNull(curve, "curve");
         long targetMs = target.toMillis();
         long resolvedSeed = Objects.requireNonNullElseGet(seed, () -> new Random().nextLong());
         Random random = new Random(resolvedSeed);
 
-        State state = new State();
+        State state = new State(prefix, rules);
         List<String> notes = new ArrayList<>();
+        if (state.elapsed >= targetMs && !prefix.isEmpty()) {
+            notes.add("Set ma już %d min, czyli co najmniej tyle, ile zamówiono (%d min)"
+                .formatted(minutes(state.elapsed), minutes(targetMs)));
+        }
         long phaseStart = 0;
-        for (Phase phase : PHASES) {
+        for (SetCurve.Phase phase : curve.phases()) {
             phaseStart += Math.round(targetMs * phase.share());
             fillPhase(candidates, state, phase.slot(), phaseStart, random, notes);
         }
@@ -100,7 +107,7 @@ public class SetGenerator {
         List<SetCandidate> shortlist = candidates.stream()
             .filter(candidate -> state.isAllowed(candidate))
             .sorted(Comparator
-                .comparingInt((SetCandidate candidate) -> -score(candidate, state, slot))
+                .comparingInt((SetCandidate candidate) -> -rules.score(candidate, state.last(), slot))
                 .thenComparing(SetCandidate::spotifyId))
             .limit(SHORTLIST)
             .toList();
@@ -109,62 +116,9 @@ public class SetGenerator {
             : Optional.of(shortlist.get(random.nextInt(shortlist.size())));
     }
 
-    /**
-     * Ocena kandydata na daną fazę — im wyżej, tym lepiej pasuje. Wartości są
-     * względne i mają znaczenie tylko wobec siebie nawzajem; ich zadaniem jest
-     * ustawić kolejność, a nie zmierzyć „jakość" utworu.
-     */
-    private int score(SetCandidate candidate, State state, DjSlot slot) {
-
-        int score = 100 - 40 * phaseDistance(candidate.slot(), slot);
-        score += Optional.ofNullable(candidate.rating()).orElse(0) * 6;
-        score += Optional.ofNullable(candidate.track().getPopularity()).orElse(0) / 20;
-
-        Optional<Integer> bpm = candidate.bpm();
-        if (bpm.isEmpty()) {
-            score -= 30;
-        }
-        SetCandidate previous = state.last();
-        if (Objects.isNull(previous)) {
-            return score;
-        }
-        if (bpm.isPresent() && previous.bpm().isPresent()) {
-            int jump = Math.abs(bpm.orElseThrow() - previous.bpm().orElseThrow());
-            score -= 2 * Math.max(0, jump - BPM_JUMP_TOLERANCE);
-        }
-        if (!isHarmonic(previous, candidate)) {
-            score -= 25;
-        }
-        return score;
-    }
-
-    /** Nieznana tonacja po którejkolwiek stronie to brak danych, nie zderzenie (D25). */
-    private boolean isHarmonic(SetCandidate previous, SetCandidate candidate) {
-
-        Optional<CamelotKey> before = previous.key();
-        Optional<CamelotKey> next = candidate.key();
-        return before.isEmpty() || next.isEmpty()
-            || before.orElseThrow().isCompatibleWith(next.orElseThrow());
-    }
-
-    /**
-     * Odległość slotu kandydata od fazy, którą właśnie wypełniamy. {@code BREAK}
-     * i brak slotu nie mają miejsca na osi wieczoru — dostają stałą karę zamiast
-     * odległości, żeby wchodziły tam, gdzie nie ma nic lepszego.
-     */
-    private int phaseDistance(@Nullable DjSlot candidateSlot, DjSlot phase) {
-
-        if (Objects.isNull(candidateSlot) || candidateSlot == DjSlot.BREAK) {
-            return 2;
-        }
-        return Math.abs(PHASE_ORDER.indexOf(candidateSlot) - PHASE_ORDER.indexOf(phase));
-    }
-
     private long minutes(long millis) {
         return Duration.ofMillis(millis).toMinutes();
     }
-
-    private record Phase(DjSlot slot, double share) { }
 
     /** Stan układanego setu: co już weszło, ile to trwa i kiedy grał który wykonawca. */
     private static final class State {
@@ -172,8 +126,17 @@ public class SetGenerator {
         private final List<SetProposal.ProposedTrack> tracks = new ArrayList<>();
         private final Set<String> usedIds = new HashSet<>();
         private final Map<String, Long> lastPlayedByArtist = new HashMap<>();
+        private final SetRules rules;
+        private final int positionOffset;
         private SetCandidate last;
         private long elapsed;
+
+        private State(List<SetCandidate> prefix, SetRules rules) {
+
+            this.rules = rules;
+            this.positionOffset = prefix.size();
+            prefix.forEach(this::consume);
+        }
 
         private boolean isAllowed(SetCandidate candidate) {
 
@@ -185,20 +148,24 @@ public class SetGenerator {
                 return true;
             }
             Long lastPlayed = lastPlayedByArtist.get(artist);
-            return Objects.isNull(lastPlayed) || elapsed - lastPlayed >= ARTIST_GAP_MS;
+            return Objects.isNull(lastPlayed) || elapsed - lastPlayed >= SetRules.ARTIST_GAP_MS;
         }
 
         private void add(SetCandidate candidate, DjSlot slot) {
 
-            tracks.add(new SetProposal.ProposedTrack(tracks.size(), candidate.track(), slot));
+            tracks.add(new SetProposal.ProposedTrack(
+                positionOffset + tracks.size(), candidate.track(), slot));
+            consume(candidate);
+        }
+
+        /** Przesuwa oś wieczoru o utwór — bez zapisu w wyniku (dotyczy też prefiksu). */
+        private void consume(SetCandidate candidate) {
+
             usedIds.add(candidate.spotifyId());
             if (!candidate.artistKey().isEmpty()) {
                 lastPlayedByArtist.put(candidate.artistKey(), elapsed);
             }
-            elapsed += Optional.ofNullable(candidate.track().getDurationMs())
-                .filter(duration -> duration > 0)
-                .map(Integer::longValue)
-                .orElse(DEFAULT_TRACK_MS);
+            elapsed += rules.durationMs(candidate);
             last = candidate;
         }
 

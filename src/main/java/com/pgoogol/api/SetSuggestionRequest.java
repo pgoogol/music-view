@@ -2,20 +2,19 @@ package com.pgoogol.api;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
 /**
- * Żądanie propozycji setu (M4.2) — czas wieczoru plus te same filtry, którymi
- * DJ zawęża wyszukiwarkę. {@code seed} pozwala wrócić do wcześniejszej
- * propozycji; bez niego każde wywołanie daje inny układ (D26).
- * {@code curve} wybiera kształt wieczoru (M4.5, D33); brak = {@code STANDARD}.
+ * Żądanie dobrania utworu na wskazane miejsce w secie (M4.4, D32).
+ *
+ * @param position miejsce wstawienia: 0 przed pierwszym utworem, {@code null}
+ *                 albo długość setu — na koniec
+ * @param limit    ilu kandydatów pokazać (domyślnie 5, najwyżej 20)
  */
-public record SetProposalRequest(
-    @NotNull @Min(15) @Max(720) Integer targetMinutes,
-    String curve,
-    Long seed,
+public record SetSuggestionRequest(
+    @Min(0) Integer position,
+    @Min(1) @Max(20) Integer limit,
     String search,
     String genreFamily,
     Integer bpmMin,

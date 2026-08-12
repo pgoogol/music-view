@@ -7,12 +7,12 @@ import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 
 /**
- * Żądanie propozycji setu (M4.2) — czas wieczoru plus te same filtry, którymi
- * DJ zawęża wyszukiwarkę. {@code seed} pozwala wrócić do wcześniejszej
- * propozycji; bez niego każde wywołanie daje inny układ (D26).
- * {@code curve} wybiera kształt wieczoru (M4.5, D33); brak = {@code STANDARD}.
+ * Żądanie uzupełnienia gotowego setu (M4.4, D32). {@code targetMinutes} to
+ * długość <b>całego</b> wieczoru, nie tego, co dochodzi — set na 90 minut
+ * uzupełniany do 240 dostanie 150 minut dalszego ciągu. {@code curve} wybiera
+ * kształt wieczoru (M4.5, D33); brak = {@code STANDARD}.
  */
-public record SetProposalRequest(
+public record SetFillRequest(
     @NotNull @Min(15) @Max(720) Integer targetMinutes,
     String curve,
     Long seed,

@@ -1,14 +1,14 @@
-// Generator setu (M4.2/D26): propozycja do obejrzenia, nie zapis. Playlistę
-// zakłada dopiero „Utwórz set z propozycji" — istniejącą drogą przez
-// POST /api/playlists, więc generator zostaje bezstanowy.
+// Uzupełnianie gotowego setu (M4.4/D32): dalszy ciąg wieczoru do obejrzenia,
+// nie zapis. Utwory dopisuje dopiero „Dopisz do setu" — istniejącą drogą przez
+// POST /api/playlists/{id}/tracks, więc domykanie zostaje bezstanowe.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   SET_CURVES,
   SET_CURVE_LABELS,
   api,
   type SetCurve,
-  type SetProposalResponse,
+  type SetFillResponse,
 } from '../api'
 import { useToast } from './Toasts'
 import { DASH, formatDuration, slotLabel } from '../format'
@@ -18,25 +18,30 @@ const TARGETS = [60, 90, 120, 180, 240, 300]
 const RATINGS = [1, 2, 3, 4, 5]
 
 interface Props {
-  onCreated: (playlistId: number) => void
+  playlistId: number
+  disabled: boolean
+  onAppend: (spotifyIds: string[]) => Promise<void>
 }
 
-export default function SetGeneratorPanel({ onCreated }: Props) {
+export default function SetFillPanel({ playlistId, disabled, onAppend }: Props) {
 
-  const { notify, reportError } = useToast()
-  const [targetMinutes, setTargetMinutes] = useState(120)
+  const { reportError } = useToast()
+  const [targetMinutes, setTargetMinutes] = useState(180)
   const [curve, setCurve] = useState<SetCurve>('STANDARD')
   const [genreFamily, setGenreFamily] = useState('')
   const [ratingMin, setRatingMin] = useState('')
   const [inLibrary, setInLibrary] = useState(true)
-  const [proposal, setProposal] = useState<SetProposalResponse | null>(null)
+  const [fill, setFill] = useState<SetFillResponse | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const propose = async (seed?: number) => {
+  // podgląd dotyczy konkretnego setu — po przejściu do innego przestaje pasować
+  useEffect(() => setFill(null), [playlistId])
+
+  const preview = async (seed?: number) => {
     setBusy(true)
     try {
-      setProposal(
-        await api.proposeSet({
+      setFill(
+        await api.fillSet(playlistId, {
           targetMinutes,
           curve,
           seed,
@@ -46,49 +51,39 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
         }),
       )
     } catch (error) {
-      setProposal(null)
-      reportError(error, 'Nie udało się ułożyć setu')
+      setFill(null)
+      reportError(error, 'Nie udało się uzupełnić setu')
     } finally {
       setBusy(false)
     }
   }
 
-  // zapis idzie istniejącą drogą (D26) — utwór po utworze, tak jak przy
-  // dokładaniu zaznaczonych z biblioteki
-  const materialize = async () => {
-    if (!proposal || proposal.tracks.length === 0) return
+  const append = async () => {
+    if (!fill || fill.tracks.length === 0) return
     setBusy(true)
     try {
-      const name = `Propozycja ${targetMinutes} min (seed ${proposal.seed})`
-      const created = await api.createPlaylist(name)
-      for (const entry of proposal.tracks) {
-        await api.addPlaylistTrack(created.id, entry.track.spotifyId)
-      }
-      notify(`Utworzono set „${name}" z ${proposal.tracks.length} utworów`)
-      setProposal(null)
-      onCreated(created.id)
-    } catch (error) {
-      reportError(error, 'Nie udało się zapisać setu z propozycji')
+      await onAppend(fill.tracks.map((entry) => entry.track.spotifyId))
+      setFill(null)
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <section className="panel" aria-label="Generator setu" data-testid="set-generator">
-      <h2>Zaproponuj set</h2>
+    <section className="panel-inset" aria-label="Uzupełnianie setu" data-testid="set-fill">
+      <h3>Uzupełnij set</h3>
       <p className="muted">
-        Układa wieczór z biblioteki: rozgrzewka → środek → szczyt → zamknięcie, bez powtórek
-        wykonawcy częściej niż raz na pół godziny. Nic nie zapisuje, dopóki nie klikniesz zapisu.
+        Dokłada dalszy ciąg wieczoru do tego, co już masz — z tymi samymi zasadami co generator.
+        Długość dotyczy całego setu, nie tego, co dochodzi.
       </p>
 
       <div className="filters">
         <label className="filter-group">
-          <span>długość</span>
+          <span>do</span>
           <select
             value={targetMinutes}
             onChange={(event) => setTargetMinutes(Number(event.target.value))}
-            aria-label="długość setu"
+            aria-label="docelowa długość setu"
           >
             {TARGETS.map((value) => (
               <option key={value} value={value}>
@@ -102,7 +97,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           <select
             value={curve}
             onChange={(event) => setCurve(event.target.value as SetCurve)}
-            aria-label="profil wieczoru"
+            aria-label="profil wieczoru przy uzupełnianiu"
             title="profil zmienia proporcje faz wieczoru, nie ich kolejność"
           >
             {SET_CURVES.map((value) => (
@@ -117,7 +112,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           <select
             value={genreFamily}
             onChange={(event) => setGenreFamily(event.target.value)}
-            aria-label="gatunek puli"
+            aria-label="gatunek dobieranych utworów"
           >
             <option value="">wszystkie</option>
             {GENRES.map((genre) => (
@@ -132,7 +127,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           <select
             value={ratingMin}
             onChange={(event) => setRatingMin(event.target.value)}
-            aria-label="ocena co najmniej w puli"
+            aria-label="ocena co najmniej przy uzupełnianiu"
           >
             <option value="">dowolna</option>
             {RATINGS.map((value) => (
@@ -150,22 +145,24 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           />
           <span>tylko z biblioteki</span>
         </label>
-        <button onClick={() => propose()} disabled={busy} data-testid="propose-set">
-          {busy ? 'Układam…' : 'Zaproponuj'}
+        <button onClick={() => preview()} disabled={busy || disabled} data-testid="fill-set">
+          {busy ? 'Dobieram…' : 'Uzupełnij'}
         </button>
       </div>
 
-      {proposal && (
-        <div className="proposal" data-testid="set-proposal">
+      {fill && (
+        <div className="proposal" data-testid="fill-preview">
           <p className="muted result-summary">
-            {proposal.trackCount} utworów · {formatDuration(proposal.totalDurationMs)} z{' '}
-            {formatDuration(proposal.targetDurationMs)} · seed {proposal.seed}
+            teraz {fill.currentTrackCount} utw. · {formatDuration(fill.currentDurationMs)} → po
+            uzupełnieniu {fill.currentTrackCount + fill.addedTrackCount} utw. ·{' '}
+            {formatDuration(fill.totalDurationMs)} z {formatDuration(fill.targetDurationMs)} · seed{' '}
+            {fill.seed}
           </p>
 
-          {proposal.notes.length > 0 && (
-            <div className="warnings" data-testid="proposal-notes">
+          {fill.notes.length > 0 && (
+            <div className="warnings" data-testid="fill-notes">
               <ul>
-                {proposal.notes.map((note) => (
+                {fill.notes.map((note) => (
                   <li key={note}>{note}</li>
                 ))}
               </ul>
@@ -173,7 +170,7 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           )}
 
           <ol className="proposal-tracks">
-            {proposal.tracks.map((entry) => (
+            {fill.tracks.map((entry) => (
               <li key={entry.track.spotifyId}>
                 {/* kolor niesie kropka, etykieta zostaje w kolorze tekstu (D22) */}
                 <span className="slot">
@@ -192,22 +189,26 @@ export default function SetGeneratorPanel({ onCreated }: Props) {
           </ol>
 
           <div className="row">
-            <button onClick={materialize} disabled={busy} data-testid="materialize-set">
-              Utwórz set z propozycji
+            <button
+              onClick={append}
+              disabled={busy || disabled || fill.tracks.length === 0}
+              data-testid="fill-append"
+            >
+              Dopisz {fill.addedTrackCount} utworów do setu
             </button>
             <button
               className="link"
-              onClick={() => propose()}
+              onClick={() => preview()}
               disabled={busy}
-              data-testid="reroll-set"
+              data-testid="fill-reroll"
             >
               spróbuj inaczej
             </button>
             <button
               className="link"
-              onClick={() => propose(proposal.seed)}
+              onClick={() => preview(fill.seed)}
               disabled={busy}
-              title="ten sam seed daje tę samą propozycję"
+              title="ten sam seed daje ten sam dalszy ciąg"
             >
               powtórz ten układ
             </button>

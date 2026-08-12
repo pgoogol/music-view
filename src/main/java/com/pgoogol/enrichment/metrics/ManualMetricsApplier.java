@@ -14,9 +14,14 @@ import java.util.Optional;
 
 /**
  * Rzutuje metryki wgrane ręcznie (D24) na pola katalogu, których używa reszta
- * aplikacji: bpm (+ {@code bpm_source=MANUAL}, korekta half-time, tempo_class),
- * tonacja, danceability i energia. Projekcja jest idempotentna i odtwarzalna —
- * ten sam kod biegnie przy imporcie CSV i przy wzbogacaniu (grupa AUDIO).
+ * aplikacji: rodzina gatunkowa, bpm (+ {@code bpm_source=MANUAL}, korekta
+ * half-time, tempo_class), tonacja, danceability i energia. Projekcja jest
+ * idempotentna i odtwarzalna — ten sam kod biegnie przy imporcie CSV i przy
+ * wzbogacaniu (grupa AUDIO).
+ *
+ * <p><b>Plik wygrywa z estymatą</b> (D34): wartość z CSV nadpisuje to, co jest
+ * w katalogu, także gdy pochodzi z LLM-a. Kolumny, których plik nie ma, zostają
+ * nietknięte — brak danych to nie to samo co zaprzeczenie.</p>
  *
  * <p>Energia w katalogu jest tekstem (D11), bo tak liczy ją LLM i tak filtruje
  * front; zmierzoną wartość 0..1 progujemy więc na {@code low/medium/high},
@@ -45,6 +50,8 @@ public class ManualMetricsApplier {
 
         Objects.requireNonNull(track, "track");
         Objects.requireNonNull(metrics, "metrics");
+        // gatunek przed BPM — korekta half-time pyta o genre_family
+        Optional.ofNullable(metrics.getGenreFamily()).ifPresent(track::setGenreFamily);
         Optional.ofNullable(metrics.getBpm()).ifPresent(bpm -> applyBpm(track, bpm));
         Optional.ofNullable(metrics.getMusicalKey()).ifPresent(track::setMusicalKey);
         Optional.ofNullable(metrics.getDanceability()).ifPresent(track::setDanceability);

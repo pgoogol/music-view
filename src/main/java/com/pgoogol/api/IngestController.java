@@ -6,10 +6,14 @@ import com.pgoogol.ingestion.MetricsBatchIngestionService;
 import com.pgoogol.ingestion.MyPlaylistsIngestionService;
 import com.pgoogol.ingestion.NamedCsv;
 import com.pgoogol.ingestion.PlaylistIngestionService;
+import com.pgoogol.ingestion.PlaylistRefreshProperties;
+import com.pgoogol.ingestion.PlaylistRefreshScheduler;
+import com.pgoogol.ingestion.PlaylistRefreshStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,14 +35,20 @@ public class IngestController {
     private final PlaylistIngestionService playlistIngestionService;
     private final MyPlaylistsIngestionService myPlaylistsIngestionService;
     private final MetricsBatchIngestionService metricsBatchIngestionService;
+    private final PlaylistRefreshScheduler playlistRefreshScheduler;
+    private final PlaylistRefreshProperties playlistRefreshProperties;
     private final IngestApiMapper mapper;
 
     public IngestController(FileIngestionService fileIngestionService,
                             PlaylistIngestionService playlistIngestionService,
                             MyPlaylistsIngestionService myPlaylistsIngestionService,
                             MetricsBatchIngestionService metricsBatchIngestionService,
+                            PlaylistRefreshScheduler playlistRefreshScheduler,
+                            PlaylistRefreshProperties playlistRefreshProperties,
                             IngestApiMapper mapper) {
 
+        this.playlistRefreshScheduler = playlistRefreshScheduler;
+        this.playlistRefreshProperties = playlistRefreshProperties;
         this.fileIngestionService = fileIngestionService;
         this.playlistIngestionService = playlistIngestionService;
         this.myPlaylistsIngestionService = myPlaylistsIngestionService;
@@ -102,5 +112,22 @@ public class IngestController {
     public IngestMyPlaylistsResponse ingestMyPlaylists() {
 
         return mapper.toResponse(myPlaylistsIngestionService.ingestMyPlaylists());
+    }
+
+    @GetMapping("/my-playlists/refresh-status")
+    @Operation(summary = "Stan automatycznego odświeżania playlist (D35)",
+        description = "Kiedy poszedł ostatni przebieg w tle i czym się skończył. "
+            + "SKIPPED_NOT_CONNECTED to normalny stan świeżej instalacji, nie awaria — "
+            + "bez połączonego konta Spotify nie ma czego odświeżać.")
+    public PlaylistRefreshStatusResponse refreshStatus() {
+
+        PlaylistRefreshStatus status = playlistRefreshScheduler.status();
+        return new PlaylistRefreshStatusResponse(
+            status.outcome().name(),
+            status.lastRunAt(),
+            status.refreshedPlaylists(),
+            status.failedPlaylists(),
+            status.message(),
+            playlistRefreshProperties.interval().toSeconds());
     }
 }

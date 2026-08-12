@@ -21,7 +21,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -211,12 +210,10 @@ public class PlaylistService {
         DjSlot slot = DjSlot.parse(override)
             .or(() -> djSlotCalculator.calculate(track))
             .orElse(null);
-        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override,
-            Optional.ofNullable(metrics).map(ManualMetrics::getLoudnessDb).orElse(null),
-            Optional.ofNullable(metrics).map(ManualMetrics::getTimeSignature).orElse(null));
+        return new PlannedTrack(playlistTrack.getPosition(), track, slot, override, metrics);
     }
 
-    /** Metryki z pliku (D24) dla ostrzeżeń planera o głośności i metrum (D25). */
+    /** Metryki z pliku (D24) — ostrzeżenia planera i falowe tryby układania (D34). */
     private Map<String, ManualMetrics> metrics(List<PlaylistTrack> tracks) {
 
         Set<String> spotifyIds = tracks.stream()

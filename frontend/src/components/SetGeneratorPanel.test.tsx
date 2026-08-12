@@ -89,6 +89,22 @@ describe('SetGeneratorPanel', () => {
     expect(bodyOf(proposeCalls()[2]).seed).toBeUndefined()
   })
 
+  it('profil wieczoru jedzie w żądaniu; domyślnie standardowy', async () => {
+
+    const user = userEvent.setup()
+    renderWithToasts(<SetGeneratorPanel onCreated={vi.fn()} />)
+
+    await user.click(screen.getByTestId('propose-set'))
+    await waitFor(() => expect(proposeCalls()).toHaveLength(1))
+    expect(bodyOf(proposeCalls()[0]).curve).toBe('STANDARD')
+
+    await user.selectOptions(screen.getByLabelText('profil wieczoru'), 'WEDDING')
+    await user.click(screen.getByTestId('propose-set'))
+
+    await waitFor(() => expect(proposeCalls()).toHaveLength(2))
+    expect(bodyOf(proposeCalls()[1]).curve).toBe('WEDDING')
+  })
+
   it('zapis zakłada playlistę i dokłada utwory istniejącą drogą', async () => {
 
     const user = userEvent.setup()
