@@ -11,7 +11,7 @@ import java.util.List;
  * rysował je jednym komponentem zamiast kilkunastu prawie identycznych.
  *
  * <p>Pola siedzą w pięciu grupach zamiast w jednej płaskiej liście
- * (D32): ekran ma pięć stref czytania, a konstruktor z dwudziestoma
+ * (D36): ekran ma pięć stref czytania, a konstruktor z dwudziestoma
  * argumentami tego samego typu {@code List<Bucket>} to zaproszenie do
  * przestawienia dwóch rozkładów miejscami bez żadnego błędu kompilacji.</p>
  *

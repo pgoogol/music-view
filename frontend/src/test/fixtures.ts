@@ -4,6 +4,7 @@
 import type {
   IngestPlaylistResponse,
   LibraryOverviewResponse,
+  TrackMetricsResponse,
   PageResponse,
   PlaylistResponse,
   PlaylistSummaryResponse,
@@ -43,6 +44,31 @@ export function aTrack(overrides: Partial<TrackResponse> = {}): TrackResponse {
   }
 }
 
+/** Metryki z pliku (D24) — same puste, test dopisuje tylko to, co bada. */
+export function aMetrics(
+  overrides: Partial<TrackMetricsResponse> = {},
+): TrackMetricsResponse {
+
+  return {
+    spotifyId: 'sp-1',
+    bpm: null,
+    musicalKey: null,
+    camelot: null,
+    danceability: null,
+    energy: null,
+    valence: null,
+    acousticness: null,
+    instrumentalness: null,
+    speechiness: null,
+    liveness: null,
+    loudnessDb: null,
+    timeSignature: null,
+    source: 'test.csv',
+    importedAt: '2026-08-01T10:00:00Z',
+    ...overrides,
+  }
+}
+
 export function aPlaylistTrack(
   track: Partial<TrackResponse>,
   djSlot: string | null,
@@ -54,8 +80,7 @@ export function aPlaylistTrack(
     position,
     djSlot,
     djSlotOverride: null,
-    loudnessDb: null,
-    timeSignature: null,
+    metrics: null,
     track: aTrack(track),
     ...overrides,
   }

@@ -43,6 +43,38 @@ class ManualMetricsApplierTest {
     }
 
     @Test
+    void apply_whenFileCarriesGenre_overwritesEstimateAndDrivesHalfTimeCorrection() {
+
+        // given — w katalogu estymata LLM-a (rock), w pliku zmierzony gatunek (latino)
+        TrackCatalog track = TrackCatalogFixtures.skeletonTrack("sp-genre");
+        track.setGenreFamily(GenreFamily.ROCK);
+        ManualMetrics metrics = metricsWithBpm(track, "96");
+        metrics.setGenreFamily(GenreFamily.LATIN);
+
+        // when
+        applier.apply(track, metrics);
+
+        // then — plik wygrywa (D34), a korekta half-time liczy się już wg gatunku z pliku
+        assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.LATIN);
+        assertThat(track.getBpm()).isEqualTo(192);
+    }
+
+    @Test
+    void apply_whenFileHasNoGenre_leavesCatalogGenreAlone() {
+
+        // given — brak kolumny z gatunkiem to brak danych, nie polecenie skasowania
+        TrackCatalog track = TrackCatalogFixtures.skeletonTrack("sp-brak-gatunku");
+        track.setGenreFamily(GenreFamily.DISCO_POLO);
+        ManualMetrics metrics = metricsWithBpm(track, "128");
+
+        // when
+        applier.apply(track, metrics);
+
+        // then
+        assertThat(track.getGenreFamily()).isEqualTo(GenreFamily.DISCO_POLO);
+    }
+
+    @Test
     void apply_whenGenreOutsideLatin_keepsBpmFromFile() {
 
         // given

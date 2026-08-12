@@ -11,23 +11,31 @@ import com.pgoogol.ingestion.MyPlaylistsIngestionService;
 import com.pgoogol.ingestion.NamedCsv;
 import com.pgoogol.ingestion.PlaylistIngestReport;
 import com.pgoogol.ingestion.PlaylistIngestionService;
+import com.pgoogol.ingestion.PlaylistRefreshProperties;
+import com.pgoogol.ingestion.PlaylistRefreshScheduler;
+import com.pgoogol.ingestion.PlaylistRefreshStatus;
 import com.pgoogol.ingestion.RowError;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -55,6 +63,22 @@ class IngestControllerTest {
 
     @MockitoBean
     private MetricsBatchIngestionService metricsBatchIngestionService;
+
+    @MockitoBean
+    private PlaylistRefreshScheduler playlistRefreshScheduler;
+
+    /**
+     * Wycinek {@code @WebMvcTest} nie skanuje {@code @ConfigurationProperties},
+     * a kontroler potrzebuje interwału do odpowiedzi o stanie odświeżania (D35).
+     */
+    @TestConfiguration
+    static class RefreshPropertiesConfig {
+
+        @Bean
+        PlaylistRefreshProperties playlistRefreshProperties() {
+            return new PlaylistRefreshProperties(true, Duration.ofMinutes(5), Duration.ofSeconds(10));
+        }
+    }
 
     @Test
     void ingestMetrics_whenSeveralFilesSent_passesAllOfThemWithTheirNames() throws Exception {
@@ -171,5 +195,34 @@ class IngestControllerTest {
 
         return new MockMultipartFile("file", name, "text/csv",
             "Spotify Track Id,BPM\n2c7nzxJYmPtkimDdrhcfJx,96\n".getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void refreshStatus_whenBackgroundRunFinished_reportsOutcomeAndInterval() throws Exception {
+
+        // given
+        given(playlistRefreshScheduler.status()).willReturn(
+            PlaylistRefreshStatus.refreshed(Instant.parse("2026-08-11T20:15:00Z"), 12, 1));
+
+        // when + then
+        mockMvc.perform(get("/api/ingest/my-playlists/refresh-status"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.outcome").value("REFRESHED"))
+            .andExpect(jsonPath("$.refreshedPlaylists").value(12))
+            .andExpect(jsonPath("$.failedPlaylists").value(1))
+            .andExpect(jsonPath("$.intervalSeconds").value(300));
+    }
+
+    @Test
+    void refreshStatus_whenAccountNotConnected_isNotAnError() throws Exception {
+
+        // given — świeża instalacja bez OAuth to normalny stan (D20/D35)
+        given(playlistRefreshScheduler.status())
+            .willReturn(PlaylistRefreshStatus.skipped(Instant.parse("2026-08-11T20:15:00Z")));
+
+        // when + then
+        mockMvc.perform(get("/api/ingest/my-playlists/refresh-status"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.outcome").value("SKIPPED_NOT_CONNECTED"));
     }
 }

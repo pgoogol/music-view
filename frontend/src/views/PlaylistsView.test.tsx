@@ -1,7 +1,8 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PlaylistsView from './PlaylistsView'
+import type { PlaylistRefreshStatusResponse } from '../api'
 import { aPlaylist, aPlaylistSummary, aPlaylistTrack } from '../test/fixtures'
 import { jsonResponse, renderWithToasts } from '../test/renderWithToasts'
 
@@ -16,11 +17,38 @@ const detail = aPlaylist([
   aPlaylistTrack({ spotifyId: 'c', title: 'Bailando', artist: 'Enrique Iglesias', bpm: 102 }, 'PEAK', 2),
 ])
 
+/** Stan odświeżania w tle (M4.7/D35) — testy podmieniają tylko to, co badają. */
+let refreshStatus: PlaylistRefreshStatusResponse = {
+  outcome: 'REFRESHED',
+  lastRunAt: '2026-08-11T20:15:00Z',
+  refreshedPlaylists: 12,
+  failedPlaylists: 0,
+  message: null,
+  intervalSeconds: 300,
+}
+
+let fetchMock: ReturnType<typeof vi.fn>
+
+function listCalls() {
+  return fetchMock.mock.calls.filter((call) => String(call[0]).endsWith('/api/playlists'))
+}
+
 beforeEach(() => {
   window.location.hash = '#/playlists'
-  globalThis.fetch = vi.fn().mockImplementation((url: string) =>
-    Promise.resolve(jsonResponse(/\/api\/playlists\/\d+$/.test(String(url)) ? detail : summaries)),
-  ) as unknown as typeof fetch
+  refreshStatus = {
+    outcome: 'REFRESHED',
+    lastRunAt: '2026-08-11T20:15:00Z',
+    refreshedPlaylists: 12,
+    failedPlaylists: 0,
+    message: null,
+    intervalSeconds: 300,
+  }
+  fetchMock = vi.fn().mockImplementation((url: string) => {
+    const target = String(url)
+    if (target.includes('/refresh-status')) return Promise.resolve(jsonResponse(refreshStatus))
+    return Promise.resolve(jsonResponse(/\/api\/playlists\/\d+$/.test(target) ? detail : summaries))
+  })
+  globalThis.fetch = fetchMock as unknown as typeof fetch
 })
 
 describe('PlaylistsView', () => {
@@ -86,5 +114,47 @@ describe('PlaylistsView', () => {
     await user.type(screen.getByTestId('track-search'), 'techno')
 
     expect(await screen.findByTestId('no-track-hits')).toBeInTheDocument()
+  })
+})
+
+describe('PlaylistsView — odświeżanie w tle (M4.7)', () => {
+
+  it('pokazuje, kiedy backend ostatnio odświeżył playlisty', async () => {
+
+    renderWithToasts(<PlaylistsView refreshKey={0} />)
+
+    expect(await screen.findByTestId('playlist-refresh-status')).toHaveTextContent(
+      /Odświeżono automatycznie/,
+    )
+    expect(screen.getByTestId('playlist-refresh-status')).toHaveTextContent('playlist: 12')
+  })
+
+  it('brak połączonego konta opisuje jako oczekiwanie, nie awarię', async () => {
+
+    refreshStatus = { ...refreshStatus, outcome: 'SKIPPED_NOT_CONNECTED', lastRunAt: null }
+
+    renderWithToasts(<PlaylistsView refreshKey={0} />)
+
+    expect(await screen.findByTestId('playlist-refresh-status')).toHaveTextContent(
+      /czeka na połączenie/,
+    )
+  })
+
+  it('po przebiegu w tle lista przeładowuje się sama', async () => {
+
+    vi.useFakeTimers()
+    try {
+      renderWithToasts(<PlaylistsView refreshKey={0} />)
+      await act(async () => await vi.advanceTimersByTimeAsync(0))
+      expect(listCalls()).toHaveLength(1)
+
+      // backend zdążył odświeżyć playlisty — zmiana znacznika ma pociągnąć nowy odczyt
+      refreshStatus = { ...refreshStatus, lastRunAt: '2026-08-11T20:20:00Z' }
+      await act(async () => await vi.advanceTimersByTimeAsync(60_000))
+
+      expect(listCalls()).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

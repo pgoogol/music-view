@@ -16,6 +16,7 @@ import com.pgoogol.enrichment.metrics.ManualMetricsApplier;
 import com.pgoogol.enrichment.musicbrainz.MusicBrainzClient;
 import com.pgoogol.enrichment.spotify.SpotifyClient;
 import com.pgoogol.enrichment.spotify.SpotifyTrackMetadata;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -164,19 +165,24 @@ public class TrackEnricher {
         Map<String, TrackCatalog> byId = tracks.stream()
             .collect(Collectors.toMap(TrackCatalog::getSpotifyId, Function.identity()));
         result.analyses().forEach(analysis -> applyAnalysis(byId.get(analysis.spotifyId()), analysis,
-            measuredEnergy(manualMetrics.get(analysis.spotifyId()))));
+            manualMetrics.get(analysis.spotifyId())));
     }
 
-    /** Zmierzona energia z pliku (D24) bije estymatę LLM-a — reszta analizy zostaje AI-owa. */
-    private boolean measuredEnergy(ManualMetrics metrics) {
+    /**
+     * Dane z pliku (D24) biją estymatę LLM-a (D34): zmierzona energia i rodzina
+     * gatunkowa z kolumn z gatunkami zostają nietknięte, reszta analizy jest AI-owa.
+     * Bez tego najbliższe wzbogacanie kasowałoby to, co DJ wgrał świadomie.
+     */
+    private void applyAnalysis(TrackCatalog track, TrackAnalysis analysis,
+                               @Nullable ManualMetrics metrics) {
 
-        return Objects.nonNull(metrics) && Objects.nonNull(metrics.getEnergy());
-    }
-
-    private void applyAnalysis(TrackCatalog track, TrackAnalysis analysis, boolean measuredEnergy) {
+        boolean measuredEnergy = Objects.nonNull(metrics) && Objects.nonNull(metrics.getEnergy());
+        boolean genreFromFile = Objects.nonNull(metrics) && Objects.nonNull(metrics.getGenreFamily());
 
         track.setStyle(analysis.style());
-        track.setGenreFamily(analysis.genreFamily());
+        if (!genreFromFile) {
+            track.setGenreFamily(analysis.genreFamily());
+        }
         track.setLyricsTheme(analysis.lyricsTheme());
         track.setDescriptionPl(analysis.descriptionPl());
         if (!measuredEnergy) {

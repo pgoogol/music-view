@@ -917,7 +917,26 @@ tbody tr.selected {
 .proposal-tracks li:first-child { border-top: 0; }
 .proposal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* --- przegląd biblioteki: pulpit (M4.3, przebudowa M5.4/D32) --- */
+/* --- domykanie setu (M4.4) --- */
+
+/* moduł w module: ta sama rodzina co .panel, ale bez chromu i bez cienia,
+   żeby podgląd nie przykrywał wizualnie składu setu, do którego należy */
+.panel-inset {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--module-sm);
+}
+.panel-inset h3 { margin-top: 0; }
+
+/* utwór, po którym dobieramy — widać, której luki dotyczy lista kandydatów */
+.set-list li.gap-target {
+  box-shadow: inset 2px 0 0 var(--accent-2);
+  background: var(--panel-2);
+}
+
+/* --- przegląd biblioteki: pulpit (M4.3, przebudowa M5.4/D36) --- */
 
 /*
  * Sześć kolumn zamiast dwóch panelów obok siebie: moduł ma dostać dokładnie

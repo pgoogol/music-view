@@ -1,6 +1,5 @@
 package com.pgoogol.api;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
@@ -19,16 +18,16 @@ public record PlaylistResponse(
     List<PlaylistTrackResponse> tracks) {
 
     /**
-     * {@code loudnessDb} i {@code timeSignature} pochodzą z metryk wgranych z pliku
-     * (D24) i służą wyłącznie ostrzeżeniom planera setu (D25) — skok głośności
-     * i metrum inne niż 4/4. Tonacja jedzie w {@code track.camelot}.
+     * {@code metrics} to komplet metryk wgranych z pliku (D24), {@code null} dla
+     * utworu, którego w żadnym pliku nie było. Planer liczy z nich ostrzeżenia
+     * (głośność, metrum — D25) i falowe tryby układania, którym zgrubne
+     * {@code track.energy} nie wystarcza (D34). Tonacja jedzie w {@code track.camelot}.
      */
     public record PlaylistTrackResponse(
         int position,
         String djSlot,
         String djSlotOverride,
-        BigDecimal loudnessDb,
-        Integer timeSignature,
+        TrackMetricsResponse metrics,
         TrackResponse track) {
 
     }

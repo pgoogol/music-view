@@ -9,6 +9,7 @@ import BpmCurve from '../components/BpmCurve'
 import Collapsible from '../components/Collapsible'
 import { useToast } from '../components/Toasts'
 import { useHashRoute } from '../hooks/useHashRoute'
+import { refreshLabel, usePlaylistRefresh } from '../hooks/usePlaylistRefresh'
 import {
   DASH,
   SLOT_LABELS,
@@ -56,6 +57,8 @@ export default function PlaylistsView({ refreshKey }: Props) {
   const [playlists, setPlaylists] = useState<PlaylistSummaryResponse[]>([])
   const [playlist, setPlaylist] = useState<PlaylistResponse | null>(null)
   const [listFilter, setListFilter] = useState('')
+  // backend odświeża playlisty w tle (D35); po każdym przebiegu przeładowujemy listę
+  const { status: refreshStatus, completedRuns } = usePlaylistRefresh()
   const [trackFilter, setTrackFilter] = useState('')
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export default function PlaylistsView({ refreshKey }: Props) {
     return () => {
       current = false
     }
-  }, [refreshKey, reportError])
+  }, [refreshKey, completedRuns, reportError])
 
   useEffect(() => {
     if (openId === null) {
@@ -87,7 +90,7 @@ export default function PlaylistsView({ refreshKey }: Props) {
     return () => {
       current = false
     }
-  }, [openId, refreshKey, reportError])
+  }, [openId, refreshKey, completedRuns, reportError])
 
   const visiblePlaylists = useMemo(() => {
     const needle = listFilter.trim().toLowerCase()
@@ -114,6 +117,12 @@ export default function PlaylistsView({ refreshKey }: Props) {
         Wszystko, co trafiło do music-view: playlisty zaciągnięte ze Spotify i sety ułożone
         w planerze. Wejdź do środka, żeby przejrzeć skład i tempo.
       </p>
+
+      {refreshStatus && (
+        <p className="muted" data-testid="playlist-refresh-status">
+          {refreshLabel(refreshStatus, formatDateTime)}
+        </p>
+      )}
 
       <div className="row">
         <input

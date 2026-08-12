@@ -316,14 +316,20 @@ z aplikacji.
 # ETAP 4 — Warsztat DJ-a (zaplanowany)
 
 **Cel etapu:** aplikacja przestaje być katalogiem, a zaczyna podpowiadać, **co z czym
-zagrać**. Wszystkie trzy kamienie stoją na danych, które już są w bazie — żaden nie
-wymaga nowego źródła zewnętrznego ani migracji schematu domenowego.
+zagrać**. Kamienie stoją na danych, które już są w bazie — żaden nie wymaga nowego
+źródła zewnętrznego; jedyna migracja to kolumna dokładająca do metryk z pliku
+informację, której schemat nie przewidział (V7, M4.6). M4.7 dokłada jedyne w projekcie
+zadanie cykliczne.
 
 | Kamień | Zakres | Zależy od | Stan |
 |---|---|---|---|
 | **M4.1** Zgodność harmoniczna i pełne metryki | Camelot liczony z `musical_key`, filtry harmoniczne w wyszukiwarce, filtry `valence`/`instrumentalness`/`liveness`, ostrzeżenia tonacji/głośności/metrum w secie (D25) | M3.3 | ✅ |
 | **M4.2** Generator setu | `POST /api/sets/propose` — propozycja setu na zadany czas z ograniczeniami (fazy D9, skok BPM, harmonia, odstęp między utworami wykonawcy), podgląd przed zapisem (D26) | M4.1 | ✅ |
 | **M4.3** Przegląd biblioteki | Zakładka „Przegląd": rozkłady gatunków / BPM / energii, udział źródeł BPM, pokrycie pól, top wykonawcy, przyrost biblioteki; agregaty liczy baza (D27) | M3.3 | ✅ |
+| **M4.4** Domykanie setu | `POST /api/sets/{id}/suggest` (kandydaci na jedną lukę) i `POST /api/sets/{id}/fill` (dalszy ciąg wieczoru do zadanego czasu) — te same reguły co generator, podgląd bez zapisu (D32) | M4.2 | ✅ |
+| **M4.5** Profile wieczoru i tryby układania | `SetCurve` (STANDARD / WEDDING / CLUB / EVEN) w generatorze i uzupełnianiu, cztery tryby układania gotowego setu: fazy D9, tempo, harmonia, energia (D33) | M4.4 | ✅ |
+| **M4.6** Metryki z pliku pierwszym źródłem | Gatunek z pliku obok metryk (V7) i ponad estymatą LLM-a, komplet metryk w składzie setu, falowe tryby układania `WAVE` i `ARC` liczone ze zmierzonej energii (D34) | M3.3, M4.5 | ✅ |
+| **M4.7** Odświeżanie playlist w tle | Import trybu C przy starcie aplikacji i cyklicznie (domyślnie co 5 min, `fixedDelay`), status przebiegu w API i w zakładce Playlisty (D35) | M2.2 | ✅ |
 
 ## M4.1 Zgodność harmoniczna i pełne metryki *(po M3.3)*
 
@@ -392,6 +398,121 @@ jest operacyjnych, żadna nie pokazuje biblioteki z góry.
 **DoD:** ekran ładuje się bez zauważalnej zwłoki na bibliotece 2500 utworów; każda liczba
 na ekranie daje się odtworzyć zapytaniem w duchu `scripts/coverage_report.sql`; testy
 repozytorium na Testcontainers dla każdego agregatu.
+
+## M4.4 Domykanie setu *(po M4.2)*
+
+**Cel:** generator (M4.2) układa wieczór od zera, a w praktyce set częściej stoi już
+w połowie — „co zagrać po tym" i „dociągnij mi to do czterech godzin".
+
+- `SetRules` w module `playlist` — ograniczenia i ocena kandydata **wspólne** dla
+  generatora i domykania; gdyby dobieranie liczyło inaczej niż generator, DJ dostawałby
+  dwie różne opinie o tej samej bibliotece (D32)
+- `SetGenerator.extend(...)` — utwory z setu zajmują początek osi wieczoru (liczą się do
+  upływu czasu, blokują powtórkę utworu i odstęp wykonawcy), a wynikiem jest sama końcówka.
+  Fazy D9 liczone nad **całym** zamówionym czasem, nie nad resztą: set na 90 min ciągnięty
+  do 240 dostaje środek → szczyt → zamknięcie, nie drugą rozgrzewkę
+- `SetSuggester` — kandydaci na jedną lukę, **bez losowania** (DJ i tak wybiera z listy),
+  z karą za przejście liczoną w obie strony: od utworu przed luką i do utworu za nią
+- `POST /api/sets/{id}/fill` i `POST /api/sets/{id}/suggest` — te same filtry puli co
+  wyszukiwarka, **nic nie zapisują** (D26/D32); skład zmienia DJ istniejącą drogą.
+  Wstawienie w środek to dopisanie na koniec plus `PUT /{id}/tracks` z wersją z odpowiedzi
+  na dopisanie (D29)
+- Front: „dobierz" przy każdym utworze setu i „Dobierz na koniec" pokazują kandydatów
+  z powodami (różnica tempa wobec sąsiada, zgodność tonacji); panel „Uzupełnij set"
+  pokazuje dalszy ciąg do obejrzenia przed dopisaniem
+- **Bez rozszerzania testu E2E** (D30/D32): przepływ to jeden przebieg, a nie siatka
+  przypadków — dołożenie kroku wymagałoby poszerzenia fikstury CSV o utwory spoza setu
+
+**DoD:** „dobierz" przy utworze w środku setu wstawia utwór dokładnie za nim i nie rusza
+reszty kolejności; uzupełnianie setu w połowie wieczoru dokłada szczyt i zamknięcie zamiast
+rozgrzewki, a set już dłuższy od zamówionego czasu dostaje notatkę, nie błąd; testy
+jednostkowe reguł (oba sąsiedzi, odstęp wykonawcy wokół luki, powtarzalność) i integracyjne
+obu endpointów zielone.
+
+## M4.5 Profile wieczoru i tryby układania *(po M4.4)*
+
+**Cel:** jedna krzywa i jeden sposób układania nie opisują dwóch różnych imprez. Wesele
+i klub mają inny przebieg, a „ułóż set" znaczy raz „prowadź przez fazy", a raz „chcę
+płynne przejścia".
+
+- `SetCurve` w module `playlist` — profil zmienia **proporcje faz D9, nie ich kolejność**:
+  `STANDARD` 25/30/30/15 (przebieg z D26), `WEDDING` 30/30/25/15 (długa rozgrzewka —
+  goście przy stołach), `CLUB` 15/25/45/15 (parkiet gotowy od początku), `EVEN` 25/25/25/25
+  (bez wyraźnego szczytu). Udziały sumujące się do innej wartości niż 1.0 wywracają start
+  aplikacji, nie cichy przebieg
+- `curve` w `POST /api/sets/propose` i `POST /api/sets/{id}/fill`; brak pola = `STANDARD`
+  (zgodność wstecz z M4.2), nieznana nazwa = `400 INVALID_SET_CURVE` — literówka nie może
+  po cichu dać innego wieczoru (D33)
+- `arrangeBy(tracks, mode)` w `setPlanner.ts` — cztery tryby układania gotowego setu:
+  `PHASES` (fazy D9, domyślny, bez zmian z M3.1), `TEMPO` (narastające BPM, utwory bez
+  tempa na koniec), `HARMONY` (zachłanny łańcuch po kole Camelot — zderzenie tonacji
+  przeważa nad skokiem tempa, otwarcie DJ-a zostaje na miejscu), `ENERGY` (niska → wysoka,
+  w grupie po tempie)
+- Układanie liczy front (D22), backend dostaje gotową permutację przez
+  `PUT /api/playlists/{id}/tracks` — kontrakt z D21 obowiązuje każdy tryb
+- Front: wybór profilu w generatorze i w panelu uzupełniania, wybór trybu obok przycisku
+  „Ułóż" w składzie setu
+
+**DoD:** ten sam seed i ta sama pula z profilem `CLUB` dają dłuższy szczyt niż z `WEDDING`,
+a `EVEN` rozkłada fazy po równo; każdy tryb układania zwraca permutację składu (żaden utwór
+nie ginie i nie dubluje się); testy jednostkowe każdego trybu i profilu oraz integracyjne
+`curve` w obu endpointach zielone.
+
+## M4.6 Metryki z pliku pierwszym źródłem *(po M3.3 i M4.5)*
+
+**Cel:** to, co DJ wgrał świadomie plikiem, wygrywa z tym, co aplikacja zgadła — i realnie
+służy układaniu setu, a nie tylko podglądowi w szufladzie utworu.
+
+- Migracja **V7**: `manual_metrics.genre_family`. Rodzina gatunkowa była jedyną kolumną
+  CSV, która trafiała prosto na katalog i nigdzie nie zostawała — bez zapisania jej obok
+  metryk nie da się odróżnić pliku od estymaty, a więc nie da się dać plikowi
+  pierwszeństwa (D34)
+- **Plik bije estymatę:** gatunek z pliku nadpisuje wartość w katalogu (do M4.5 tylko
+  wypełniał lukę) i przeżywa wzbogacanie AI, tak jak zmierzona energia od M3.3.
+  Kolumny, których w pliku nie ma, zostają nietknięte — brak danych to nie polecenie
+  skasowania
+- **Komplet metryk w składzie setu:** `PlannedTrack` i `PlaylistTrackResponse` niosą cały
+  rekord `metrics` zamiast płaskich `loudnessDb` i `timeSignature`; falowe układanie
+  potrzebuje zmierzonej energii jako liczby 0..1, a `track.energy` ma trzy wartości (D11)
+- **Dwa nowe tryby układania** (`setPlanner.ts`), których nie da się dostać sortowaniem:
+  `WAVE` (kilka narastań przedzielonych zejściem, każde następne wyżej — utwory rozdawane
+  do fal na przemian) i `ARC` (jedno narastanie do szczytu w połowie i zejście)
+- **Intensywność ma kaskadę jak BPM (D6):** zmierzona energia z pliku → tempo przeskalowane
+  z 60–200 BPM → zgrubna energia katalogu; utwór bez żadnej z tych rzeczy ląduje w środku
+  skali zamiast wypadać z setu
+
+**DoD:** ten sam utwór z gatunkiem w pliku i innym w estymacie ma po wzbogacaniu gatunek
+z pliku; set ułożony falami ma co najmniej jedno zejście w środku, a każda kolejna fala
+sięga wyżej od poprzedniej; łuk stawia najmocniejszy utwór w środku, nie na końcu; oba
+nowe tryby zwracają permutację składu; testy jednostkowe trybów i projekcji oraz
+integracyjne importu i joba wzbogacania zielone.
+
+## M4.7 Odświeżanie playlist w tle *(po M2.2)*
+
+**Cel:** playlisty zmieniają się poza aplikacją (DJ dorzuca utwór w telefonie), więc
+music-view sam po nie sięga — zamiast czekać na kliknięcie „Importuj moje playlisty".
+
+- `PlaylistRefreshScheduler` w module `ingestion` — ten sam import trybu C (M2.2), tylko
+  bez klikania: przy starcie aplikacji (po `initial-delay`, domyślnie 10 s) i potem
+  co `interval`. `@EnableScheduling` dochodzi w `common/SchedulingConfig`; to jedyne
+  zadanie cykliczne w projekcie (joby wzbogacania startują wyłącznie ręcznie)
+- **`fixedDelay`, nie `fixedRate`** — odstęp liczony od zakończenia poprzedniego
+  przebiegu, więc przebiegi się nie nakładają. Przy kilkudziesięciu playlistach jeden
+  przebieg bywa dłuższy niż domyślne 5 minut (D35)
+- Konfiguracja `ingestion.playlist-refresh.{enabled,interval,initial-delay}`, każda ze
+  zmienną środowiskową; brak połączonego konta Spotify (D20) to normalny stan — zadanie
+  wychodzi po cichu, a nie zasypuje logów
+- `GET /api/ingest/my-playlists/refresh-status` — kiedy poszedł ostatni przebieg i czym
+  się skończył (`NEVER_RUN` / `DISABLED` / `SKIPPED_NOT_CONNECTED` / `REFRESHED` / `FAILED`).
+  Stan w pamięci: po restarcie i tak zaraz leci pierwsze odświeżenie
+- Front: zakładka Playlisty pokazuje jednozdaniowy stan i **przeładowuje listę dopiero
+  po zmianie znacznika** ostatniego przebiegu — bez tego odświeżanie w tle byłoby
+  niewidoczne w otwartej karcie
+
+**DoD:** aplikacja postawiona z połączonym kontem odświeża playlisty bez klikania,
+a bez konta wychodzi po cichu zamiast logować błędy; awaria Spotify nie zatrzymuje
+harmonogramu i wraca w statusie; zakładka Playlisty pokazuje czas ostatniego przebiegu
+i sama pobiera nową listę; testy jednostkowe zadania i etykiety stanu zielone.
 
 ---
 
@@ -490,7 +611,7 @@ zagrać" — i wygląda jak pulpit, a nie jak zrzut z bazy.
 
 - **Pięć stref czytania** zamiast sześciu równorzędnych paneli: skala → wnioski → brzmienie
   → kompletność danych → czas i gust; kontrakt `GET /api/library/overview` dostaje ten sam
-  podział na pięć grup zamiast płaskiej listy pól (D32)
+  podział na pięć grup zamiast płaskiej listy pól (D36)
 - **Nowe agregaty w bazie** (D27 bez zmian): czas grania i liczba wykonawców biblioteki,
   średnie tempo, utwory poza wszystkimi setami, dekady, długości, popularność, pewność
   analizy AI, źródła wpisów, top tagi i style, macierz tempo × energia, uśredniony profil
@@ -503,7 +624,7 @@ zagrać" — i wygląda jak pulpit, a nie jak zrzut z bazy.
 - **Animacje jako dekoracja**: moduły zapalają się po kolei, kreski rysują od lewej, liczniki
   nabijają od zera — przy `prefers-reduced-motion` wszystko startuje w stanie końcowym
 - **Osobna rampa kolorów wykresów** (`--viz-1..6`) obok kolorów semantycznych motywu, żeby
-  podmiana palety pod większy system była podmianą sześciu zmiennych (D32)
+  podmiana palety pod większy system była podmianą sześciu zmiennych (D36)
 
 **DoD:** `./mvnw verify` i `npm test` zielone; przegląd pokazuje komplet agregatów jednym
 wywołaniem API, koło Camelot nie kłamie na utworach bez tonacji, a ekran czyta się przy
@@ -533,13 +654,17 @@ Etapy 3–5 (kamienie zaplanowane zaznaczone przerywaną linią):
 flowchart LR
     M33[M3.3<br/>metryki CSV] --> M41[M4.1<br/>harmonia] & M43[M4.3<br/>przegląd]
     M41 --> M42[M4.2<br/>generator setu]
+    M42 --> M44[M4.4<br/>domykanie setu] --> M45[M4.5<br/>profile i tryby]
+    M45 --> M46[M4.6<br/>metryki + fale]
+    M33 --> M46
+    M22[M2.2<br/>OAuth + tryb C] -.-> M47[M4.7<br/>odświeżanie w tle]
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
     M43 --> M54[M5.4<br/>pulpit przeglądu]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M51,M52,M53,M54 plan
+    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53,M54 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

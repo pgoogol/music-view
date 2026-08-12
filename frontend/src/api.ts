@@ -130,6 +130,17 @@ export interface EnrichJobResponse {
   exitDescription: string | null
 }
 
+/** Stan automatycznego odświeżania playlist w tle (M4.7/D35). */
+export interface PlaylistRefreshStatusResponse {
+  outcome: 'NEVER_RUN' | 'DISABLED' | 'SKIPPED_NOT_CONNECTED' | 'REFRESHED' | 'FAILED'
+  lastRunAt: string | null
+  refreshedPlaylists: number
+  failedPlaylists: number
+  message: string | null
+  /** Odstęp liczony od zakończenia poprzedniego przebiegu. */
+  intervalSeconds: number
+}
+
 export interface PlaylistSummaryResponse {
   id: number
   name: string
@@ -143,9 +154,11 @@ export interface PlaylistTrackResponse {
   position: number
   djSlot: string | null
   djSlotOverride: string | null
-  /** Z metryk wgranych z pliku (D24) — tylko dla ostrzeżeń planera setu (D25). */
-  loudnessDb: number | null
-  timeSignature: number | null
+  /**
+   * Komplet metryk z pliku (D24); `null`, gdy utworu nie było w żadnym wgranym
+   * pliku. Planer liczy z nich ostrzeżenia i falowe tryby układania (D34).
+   */
+  metrics: TrackMetricsResponse | null
   track: TrackResponse
 }
 
@@ -252,7 +265,7 @@ export interface OverviewTasteResponse {
   sources: BucketResponse[]
 }
 
-/** Pięć grup = pięć stref czytania ekranu przeglądu (M5.4/D32). */
+/** Pięć grup = pięć stref czytania ekranu przeglądu (M5.4/D36). */
 export interface LibraryOverviewResponse {
   scale: OverviewScaleResponse
   quality: OverviewQualityResponse
@@ -262,10 +275,20 @@ export interface LibraryOverviewResponse {
   recentlyAdded: RecentTrackResponse[]
 }
 
-/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
-export interface SetProposalRequest {
-  targetMinutes: number
-  seed?: number
+/** Profil kształtu wieczoru dla generatora (M4.5/D33) — udziały faz D9. */
+export type SetCurve = 'STANDARD' | 'WEDDING' | 'CLUB' | 'EVEN'
+
+export const SET_CURVES: readonly SetCurve[] = ['STANDARD', 'WEDDING', 'CLUB', 'EVEN']
+
+export const SET_CURVE_LABELS: Record<SetCurve, string> = {
+  STANDARD: 'standardowy',
+  WEDDING: 'wesele',
+  CLUB: 'klub',
+  EVEN: 'równy',
+}
+
+/** Filtry puli wspólne dla generatora i domykania setu (M4.2/M4.4). */
+export interface SetPoolFilters {
   search?: string
   genreFamily?: string
   bpmMin?: number
@@ -277,6 +300,14 @@ export interface SetProposalRequest {
   tag?: string
   camelot?: string
   camelotCompatible?: boolean
+}
+
+/** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */
+export interface SetProposalRequest extends SetPoolFilters {
+  targetMinutes: number
+  /** Kształt wieczoru (M4.5); brak = `STANDARD`. */
+  curve?: SetCurve
+  seed?: number
 }
 
 export interface ProposedTrackResponse {
@@ -293,6 +324,46 @@ export interface SetProposalResponse {
   seed: number
   notes: string[]
   tracks: ProposedTrackResponse[]
+}
+
+/** Uzupełnienie gotowego setu (M4.4/D32) — `targetMinutes` liczy CAŁY wieczór. */
+export interface SetFillRequest extends SetPoolFilters {
+  targetMinutes: number
+  /** Kształt wieczoru (M4.5); brak = `STANDARD`. */
+  curve?: SetCurve
+  seed?: number
+}
+
+export interface SetFillResponse {
+  currentTrackCount: number
+  currentDurationMs: number
+  addedTrackCount: number
+  /** Długość setu po dopisaniu propozycji. */
+  totalDurationMs: number
+  targetDurationMs: number
+  seed: number
+  notes: string[]
+  tracks: ProposedTrackResponse[]
+}
+
+/** Dobranie utworu na jedno miejsce w secie (M4.4/D32); brak `position` = na koniec. */
+export interface SetSuggestionRequest extends SetPoolFilters {
+  position?: number
+  limit?: number
+}
+
+export interface SuggestedTrackResponse {
+  djSlot: string | null
+  /** Różnica tempa wobec sąsiada; `null`, gdy któremuś brakuje BPM. */
+  bpmDelta: number | null
+  /** Zgodność tonacji na kole Camelot; `null` przy nieznanej tonacji (D25). */
+  harmonic: boolean | null
+  track: TrackResponse
+}
+
+export interface SetSuggestionResponse {
+  position: number
+  suggestions: SuggestedTrackResponse[]
 }
 
 /** Pokrycie katalogu metrykami z pliku — kontekst filtrów metryk (M4.1). */
@@ -423,6 +494,16 @@ export const api = {
     return request('/api/sets/propose', jsonInit('POST', body))
   },
 
+  /** Dalszy ciąg gotowego setu (M4.4) — nic nie zapisuje, tak jak generator. */
+  fillSet(playlistId: number, body: SetFillRequest): Promise<SetFillResponse> {
+    return request(`/api/sets/${playlistId}/fill`, jsonInit('POST', body))
+  },
+
+  /** Kandydaci na jedno miejsce w secie (M4.4) — bez losowania, uszeregowani. */
+  suggestForSet(playlistId: number, body: SetSuggestionRequest): Promise<SetSuggestionResponse> {
+    return request(`/api/sets/${playlistId}/suggest`, jsonInit('POST', body))
+  },
+
   metricsCoverage(): Promise<MetricsCoverageResponse> {
     return request('/api/catalog/metrics-coverage')
   },
@@ -474,6 +555,10 @@ export const api = {
 
   spotifyAccount(): Promise<SpotifyAccountResponse> {
     return request('/api/auth/spotify/status')
+  },
+
+  playlistRefreshStatus(): Promise<PlaylistRefreshStatusResponse> {
+    return request('/api/ingest/my-playlists/refresh-status')
   },
 
   listPlaylists(): Promise<PlaylistSummaryResponse[]> {

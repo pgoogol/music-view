@@ -1,9 +1,9 @@
 # Rejestr decyzji projektowych (ADR-lite)
 
-Status wszystkich decyzji **D1–D30: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
+Status wszystkich decyzji **D1–D35: przyjęte**. D25–D30 zostały rozstrzygnięte *przed*
 implementacją Etapów 4–5 (2026-08-01), żeby kamienie dało się wziąć w dowolnej kolejności
 bez projektowania od zera, i są zrealizowane w M4.1–M5.3.
-Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D30;
+Decyzje nadpisują [KONCEPT.md](KONCEPT.md) tam, gdzie się różnią. Numeracja D1–D35;
 odwołania §x wskazują sekcje konceptu.
 
 ---
@@ -621,7 +621,169 @@ playlist (tryb C) i importu metryk z plików CSV (D24).
   rząd. Osobne żądanie na plik działałoby tak samo, ale raport rozjechałby się na
   kilkanaście toastów zamiast jednego podsumowania.
 
-## D32. Przegląd jako pulpit — pięć stref, jedno wywołanie (M5.4)
+## D32. Domykanie gotowego setu: dobieranie i uzupełnianie (M4.4)
+
+Generator z D26 układa wieczór **od zera**. W praktyce set częściej stoi już w połowie:
+DJ ma trzon z zaznaczonych utworów i pyta „co po tym zagrać" albo „dociągnij mi to do
+czterech godzin". Obie operacje działają na tym, co już w secie jest.
+
+- **Nic nie zapisują — jak generator (D26).** `POST /api/sets/{id}/fill`
+  i `POST /api/sets/{id}/suggest` zwracają podgląd; skład zmienia DJ istniejącą drogą
+  (`POST /api/playlists/{id}/tracks`, `PUT /{id}/tracks`). Nowy endpoint zapisu byłby
+  trzecią drogą do tej samej tabeli, a wersjonowanie agregatu (D29) trzeba by w nim
+  odtworzyć od nowa.
+- **Wstawienie w środek to dopisanie plus zmiana kolejności.** API dokłada utwór wyłącznie
+  na koniec, więc front dopisuje i od razu wysyła nową kolejność z wersją **z odpowiedzi
+  na dopisanie**, nie z widoku sprzed zmiany. Dwa żądania zamiast jednego są tu tańsze niż
+  endpoint „wstaw na pozycję", który dublowałby kontrakt permutacji z D21.
+- **Reguły oceny są jedne dla obu ścieżek** (`SetRules`). Gdyby dobieranie liczyło inaczej
+  niż generator, DJ dostawałby dwie różne opinie o tej samej bibliotece — a to, co
+  podpowiada „dobierz", musi być tym, co generator by wybrał.
+- **Uzupełnianie liczy fazy nad całym zamówionym czasem**, nie nad tym, co zostało. Set na
+  90 minut ciągnięty do czterech godzin ma dostać dalszy ciąg wieczoru (środek → szczyt →
+  zamknięcie), a nie drugą rozgrzewkę. Utwory z setu zajmują początek osi: liczą się do
+  upływu czasu i blokują powtórkę utworu oraz odstęp wykonawcy, ale nie wracają w wyniku.
+  Set już dłuższy od zamówionego dostaje **notatkę, nie błąd** — to stan normalny.
+- **Dobieranie nie losuje.** Generator losuje z piątki najlepszych, bo inaczej po pierwszym
+  uruchomieniu byłby bezużyteczny (D26); tutaj DJ i tak dostaje listę i wybiera sam, więc
+  ziarno nie miałoby czego powtarzać, a ta sama luka pytana dwa razy musi dać tę samą
+  odpowiedź.
+- **Kandydat ma dwóch sąsiadów.** Karę za przejście liczymy i od utworu przed luką, i do
+  utworu za nią — inaczej dokładanie w środek psułoby przejście, które DJ przed chwilą
+  ułożył. Odstęp wykonawcy sprawdzamy w obie strony od momentu wstawienia; utwór dołożony
+  w środek i tak przesuwa resztę wieczoru, więc dokładniejsza arytmetyka nic by nie kupiła.
+- **Fazę dobieramy od sąsiada, nie z krzywej.** Przy pojedynczej luce liczy się miejscowa
+  ciągłość, a nie to, w którym procencie wieczoru ta luka wypada — inaczej dokładanie na
+  koniec każdego, nawet krótkiego setu proponowałoby wyłącznie zamknięcia.
+- **Na zewnątrz idą powody, nie punkty.** Odpowiedź niesie różnicę tempa wobec sąsiada
+  i zgodność tonacji; sama punktacja jest względna i poza kolejnością listy nic nie znaczy.
+  Nieznana tonacja albo brak BPM to `null` — brak danych, nie zderzenie (D25).
+- **Bez rozszerzania testu E2E.** Przepływ z D30 to jeden przebieg, a nie siatka
+  przypadków; domykanie ma testy jednostkowe reguł i integracyjne obu endpointów.
+  Dołożenie kroku do E2E wymagałoby poszerzenia fikstury CSV o utwory spoza setu,
+  czyli przestrojenia asercji całego przebiegu — koszt bez nowego sygnału.
+
+## D33. Kształt wieczoru i tryby układania setu (M4.5)
+
+Do M4.4 planer miał po jednym sposobie na każdą czynność: generator układał wieczór wg
+krzywej 25/30/30/15 (D26), a gotowy set dawał się ułożyć wyłącznie wg faz D9. Wystarczało,
+dopóki narzędzie układało „jakąś imprezę"; przy trzeciej pod rząd okazało się, że wesele
+i klub to dwa różne przebiegi, a „ułóż" znaczy raz „prowadź przez fazy", a raz „chcę
+płynne przejścia".
+
+- **Profil zmienia proporcje faz, nie ich kolejność.** `SetCurve` to `STANDARD`
+  (25/30/30/15 z D26), `WEDDING` (30/30/25/15 — goście jedzą, szczyt krótszy i wcześniej),
+  `CLUB` (15/25/45/15 — parkiet gorący od początku) i `EVEN` (25/25/25/25 — urodziny,
+  impreza firmowa, granie w tle). Fazy D9 zostają te same i w tej samej kolejności; to
+  jedyne, co realnie różni te imprezy w danych, które mamy.
+- **Wybór z listy, nie suwaki.** Cztery liczby do ustawienia to cztery pytania „ile", na
+  które DJ przed imprezą nie zna odpowiedzi. Profil odpowiada na pytanie, które faktycznie
+  sobie zadaje: „co to za impreza".
+- **Nieznany profil to `400 INVALID_SET_CURVE`, nie ciche zejście do domyślnego.** Brak
+  pola w żądaniu znaczy `STANDARD` (najczęstszy przypadek i zgodność wstecz z M4.2), ale
+  literówka w nazwie musi być widoczna — inaczej DJ dostaje standardowy przebieg
+  w przekonaniu, że układa klub.
+- **Tryby układania liczy front** (`arrangeBy` w `setPlanner.ts`), tak jak ostrzeżenia
+  i statystyki setu (D22). Backend dostaje gotową permutację składu przez
+  `PUT /api/playlists/{id}/tracks` (D21) i nie musi wiedzieć, skąd się wzięła.
+- **Cztery tryby, bo odpowiadają na cztery różne pytania:** `PHASES` (fazy D9, domyślny,
+  bez zmian z M3.1), `TEMPO` (narastające BPM — utwory bez tempa na koniec, bo `null` to
+  brak danych, nie zero), `HARMONY` (łańcuch po kole Camelot) i `ENERGY` (niska → wysoka,
+  w grupie po tempie).
+- **Układanie harmoniczne jest zachłanne i zostawia otwarcie DJ-a.** Pierwszy utwór
+  zostaje na miejscu, każdy kolejny to najtańsze przejście z tego, co zostało; zderzenie
+  tonacji przeważa nad każdym skokiem tempa, bo tego nie da się przemiksować. Optymalna
+  trasa przez kilkadziesiąt utworów to problem komiwojażera — a wynik i tak idzie do
+  ręcznej poprawki, więc dokładność kosztowałaby więcej, niż jest warta.
+- **Nieznane BPM przy układaniu harmonicznym wyceniamy jak spory skok** (40), a nie jak
+  zero. Nie wiemy, czy przejście zagra, więc nie stawiamy go przed przejściem, o którym
+  wiemy.
+- **Żaden tryb nie gubi i nie dokłada utworów** — kontrakt permutacji z D21 obowiązuje tak
+  samo jak przy przeciąganiu; test sprawdza to dla każdego trybu osobno.
+
+## D34. Plik z metrykami jako pierwsze źródło i falowe tryby układania (M4.6)
+
+Dwie strony tej samej sprawy: dane wgrane świadomie z pliku (D24) mają wygrywać z tym,
+co aplikacja zgadła, i mają realnie służyć układaniu setu, a nie tylko podglądowi.
+
+- **Plik bije estymatę, nie tylko wypełnia lukę.** Do M4.5 rodzina gatunkowa z kolumn
+  z gatunkami wchodziła wyłącznie wtedy, gdy utwór nie miał jeszcze gatunku, a najbliższe
+  wzbogacanie AI i tak ją nadpisywało. Teraz jest odwrotnie: gatunek z pliku zostaje,
+  a LLM uzupełnia tylko to, czego w pliku nie było. Kolumna analizatora playlist to tag
+  z realnego opisu nagrania, a `genre_family` z LLM-a to zgadywanka z tytułu i wykonawcy.
+  **Koszt tej zmiany:** felerna kolumna w eksporcie przestaje dawać się naprawić samym
+  wzbogacaniem — trzeba poprawić plik i wgrać go ponownie. Świadomie: wgranie pliku jest
+  decyzją DJ-a, a estymata nie.
+- **Gatunek z pliku zapisujemy obok metryk** (migracja V7, `manual_metrics.genre_family`).
+  Bez tego nie da się odróżnić gatunku z pliku od estymaty, a więc nie da się dać plikowi
+  pierwszeństwa — to jedyna kolumna CSV, która do tej pory trafiała prosto na katalog
+  i nigdzie nie zostawała. Reszta metryk była zapisywana w komplecie od M3.3, a BPM
+  (`BpmSource.MANUAL` na czele kaskady D6) i zmierzona energia już wygrywały.
+- **Do planera setu jadą wszystkie metryki, nie dwie wybrane.** `PlannedTrack`
+  i `PlaylistTrackResponse` niosą cały rekord (`metrics`) zamiast płaskich `loudnessDb`
+  i `timeSignature`. Powód jest konkretny: falowe układanie potrzebuje **zmierzonej
+  energii jako liczby 0..1**, a `track.energy` z katalogu ma trzy wartości
+  (`low/medium/high`, D11) i nie ułoży z nich fali. Kontrakt jest węższy do napisania
+  i szerszy w treści niż dokładanie kolejnych płaskich pól przy każdym nowym trybie.
+- **Intensywność ma kaskadę jak BPM (D6):** zmierzona energia z pliku → tempo
+  przeskalowane z 60–200 BPM → zgrubna energia katalogu. Utwór bez żadnej z tych rzeczy
+  ląduje w środku skali, bo wyrzucenie go z setu byłoby gorsze niż postawienie
+  w przypadkowym miejscu.
+- **Dwa nowe kształty, których nie da się dostać sortowaniem.** `TEMPO` i `ENERGY` rosną
+  monotonicznie przez cały wieczór, a parkiet potrzebuje oddechu między szczytami:
+  - **`WAVE`** — kilka narastań przedzielonych zejściem, każde następne wyżej.
+    Posortowane po intensywności utwory rozdajemy do fal na przemian (jak karty), więc
+    każda fala przechodzi cały zakres od dołu do góry, a kolejna startuje o oczko wyżej.
+    Liczba fal wynika z długości setu (~5 utworów na falę, 2–4 fale) — parametr, którego
+    DJ nie musi ustawiać, bo i tak poprawia wynik ręcznie.
+  - **`ARC`** — jedno narastanie do szczytu w połowie i zejście: co drugi utwór
+    z posortowanej listy idzie na zbocze wznoszące, reszta na opadające (odwrócona).
+- **Układanie zostaje po stronie frontu** (D22/D33) i każdy tryb zwraca **permutację**
+  składu (D21) — także nowe. Test sprawdza to trybowi po trybie, bo cicha utrata utworu
+  przy układaniu jest gorsza od złej kolejności: kolejność widać, brak utworu nie.
+
+## D35. Automatyczne odświeżanie playlist ze Spotify (M4.7)
+
+Playlisty zmieniają się poza aplikacją — DJ dorzuca utwór w telefonie, a music-view
+pokazuje stan sprzed ostatniego kliknięcia „Importuj moje playlisty". Odświeżanie idzie
+więc samo: przy starcie aplikacji i potem co `ingestion.playlist-refresh.interval`
+(domyślnie 5 minut).
+
+- **To ten sam import co tryb C** (M2.2), tylko bez klikania — nie duplikujemy logiki
+  i nie zmieniamy jej zachowania. Awaria pojedynczej playlisty nadal nie przerywa
+  przebiegu (D31), więc odświeżanie w tle dziedziczy tę odporność za darmo.
+- **`fixedDelay`, nie `fixedRate`** — odstęp liczy się od *zakończenia* poprzedniego
+  przebiegu. To nie jest szczegół: import kilkudziesięciu playlist bywa dłuższy niż
+  pięć minut, a przy `fixedRate` przebiegi wchodziłyby sobie na głowę i mnożyły
+  wywołania Spotify. **Uwaga na koszt:** przy dużej bibliotece pięciominutowy odstęp
+  znaczy w praktyce „odświeżaj bez przerwy" — dla takiej biblioteki interwał należy
+  wydłużyć. Domyślne 5 minut zostaje, bo jest tym, o co poproszono, a wyłącznik
+  i interwał są w konfiguracji.
+- **Brak połączonego konta to normalny stan, nie awaria** (D20). Świeża instalacja nie
+  ma przeprowadzonego OAuth; zadanie sprawdza to na wejściu i wychodzi po cichu, zamiast
+  co pięć minut zasypywać logi błędami. Ten sam warunek chroni test E2E, który stawia
+  aplikację bez konta.
+- **Wyjątek nie wychodzi z zadania.** Przebieg leci w tle bez nikogo, kto by go obejrzał,
+  a Spotify potrafi nie odpowiedzieć z powodów, które miną same. Powód ląduje w statusie,
+  żeby UI mógł powiedzieć, że dane są nieświeże, i nie zatrzymuje harmonogramu.
+- **Stan trzymamy w pamięci, nie w bazie.** To informacja o bieżącym uruchomieniu
+  aplikacji — po restarcie i tak zaraz leci pierwsze odświeżenie, więc tabela niosłaby
+  wyłącznie koszt migracji.
+- **Zadanie rejestruje się także przy `enabled: false`** i sprawdza flagę na wejściu.
+  Warunkowy bean byłby czystszy w teorii, ale kontroler musiałby go szukać przez
+  `ObjectProvider`, żeby oddać status „wyłączone" — a to właśnie ten status jest
+  potrzebny użytkownikowi, który się zastanawia, czemu nic się nie odświeża.
+- **Front pyta o status, a nie o playlisty.** `GET /api/ingest/my-playlists/refresh-status`
+  to odczyt z pamięci; widok odpytuje go raz na minutę i przeładowuje listę dopiero, gdy
+  **zmieni się znacznik** ostatniego przebiegu. Pierwsza odpowiedź tylko zapamiętuje stan
+  — inaczej samo wejście na zakładkę pobierałoby listę dwa razy. Bez tego odświeżanie
+  w tle byłoby niewidoczne w otwartej karcie do czasu ręcznego przeładowania.
+- **Testy integracyjne z połączonym kontem wyłączają zadanie** jawnie
+  (`ingestion.playlist-refresh.enabled=false`). Zadanie ruszające w środku testu poszłoby
+  po realne dane do Spotify — a test, który zależy od cudzego serwera, przestaje coś
+  znaczyć (ten sam argument co w D30).
+
+## D36. Przegląd jako pulpit — pięć stref, jedno wywołanie (M5.4)
 
 Przegląd z M4.3 odpowiadał na „co ja mam" sześcioma panelami: cztery liczby i pięć
 rozkładów. Odpowiedzi na „czy da się z tego zagrać" nie było, a listy słupków wyglądały

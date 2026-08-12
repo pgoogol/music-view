@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 @Component
 public class PlaylistApiMapper {
@@ -49,8 +50,9 @@ public class PlaylistApiMapper {
             plannedTrack.position(),
             Objects.toString(plannedTrack.djSlot(), null),
             plannedTrack.djSlotOverride(),
-            plannedTrack.loudnessDb(),
-            plannedTrack.timeSignature(),
+            Optional.ofNullable(plannedTrack.metrics())
+                .map(catalogApiMapper::toResponse)
+                .orElse(null),
             catalogApiMapper.toResponse(plannedTrack.track()));
     }
 }

@@ -160,11 +160,12 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
       }
     }
 
-    if (entry.timeSignature !== null && entry.timeSignature !== EXPECTED_TIME_SIGNATURE) {
+    const timeSignature = entry.metrics?.timeSignature ?? null
+    if (timeSignature !== null && timeSignature !== EXPECTED_TIME_SIGNATURE) {
       warnings.push({
         position,
         kind: 'ODD_METER',
-        message: `„${title}" w metrum ${entry.timeSignature}/4 — przejście trzeba policzyć ręcznie`,
+        message: `„${title}" w metrum ${timeSignature}/4 — przejście trzeba policzyć ręcznie`,
       })
     }
 
@@ -179,14 +180,16 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
       })
     }
 
-    if (entry.loudnessDb !== null && previous.loudnessDb !== null) {
-      const jump = Math.abs(entry.loudnessDb - previous.loudnessDb)
+    const loudness = entry.metrics?.loudnessDb ?? null
+    const previousLoudness = previous.metrics?.loudnessDb ?? null
+    if (loudness !== null && previousLoudness !== null) {
+      const jump = Math.abs(loudness - previousLoudness)
       if (jump > LOUDNESS_JUMP_THRESHOLD_DB) {
         warnings.push({
           position,
           kind: 'LOUDNESS_JUMP',
           message:
-            `skok głośności ${previous.loudnessDb} → ${entry.loudnessDb} dB przed „${title}"`,
+            `skok głośności ${previousLoudness} → ${loudness} dB przed „${title}"`,
         })
       }
     }
@@ -207,6 +210,199 @@ export function findSetWarnings(tracks: readonly PlaylistTrackResponse[]): SetWa
   })
 
   return warnings.sort((left, right) => left.position - right.position)
+}
+
+/**
+ * Tryby układania gotowego setu (M4.5, D33). Fazy wieczoru to domyślny sposób
+ * i został z M3.1; reszta odpowiada na pytania, których fazy nie obsługują —
+ * „chcę płynne przejścia", „chcę czyste miksy", „chcę narastającą energię".
+ */
+export type ArrangeMode = 'PHASES' | 'TEMPO' | 'HARMONY' | 'ENERGY' | 'WAVE' | 'ARC'
+
+export const ARRANGE_MODES: readonly ArrangeMode[] = [
+  'PHASES',
+  'TEMPO',
+  'HARMONY',
+  'ENERGY',
+  'WAVE',
+  'ARC',
+]
+
+export const ARRANGE_LABELS: Record<ArrangeMode, string> = {
+  PHASES: 'wg faz wieczoru',
+  TEMPO: 'wg narastającego tempa',
+  HARMONY: 'wg zgodności tonacji',
+  ENERGY: 'wg narastającej energii',
+  WAVE: 'falami (każda wyżej)',
+  ARC: 'łukiem (szczyt w środku)',
+}
+
+/** Ile utworów przypada na jedną falę, zanim energia zejdzie i zacznie rosnąć od nowa. */
+const TRACKS_PER_WAVE = 5
+const MIN_WAVES = 2
+const MAX_WAVES = 4
+
+/** Zgrubna energia katalogu (D11) jako ostatnia deska ratunku — środek przedziału. */
+const ENERGY_FALLBACK: Record<string, number> = { low: 0.2, medium: 0.5, high: 0.8 }
+
+/** Zakres BPM, na którym rozpinamy skalę intensywności, gdy nie ma zmierzonej energii. */
+const BPM_FLOOR = 60
+const BPM_CEILING = 200
+
+/**
+ * Intensywność utworu w skali 0..1 — czym „faluje" set. Kolejność źródeł to
+ * kolejność wiarygodności (D34): najpierw **zmierzona energia z pliku**, bo
+ * jest liczbą, potem tempo, a na końcu zgrubne `low/medium/high` z katalogu,
+ * które ma tylko trzy wartości i samo w sobie nie ułoży fali.
+ */
+function intensity(entry: PlaylistTrackResponse): number {
+
+  const measured = entry.metrics?.energy
+  if (measured !== null && measured !== undefined) return Math.min(Math.max(measured, 0), 1)
+  const bpm = entry.track.bpm
+  if (bpm !== null) {
+    return Math.min(Math.max((bpm - BPM_FLOOR) / (BPM_CEILING - BPM_FLOOR), 0), 1)
+  }
+  return ENERGY_FALLBACK[entry.track.energy ?? ''] ?? 0.5
+}
+
+function byIntensity(tracks: readonly PlaylistTrackResponse[]): PlaylistTrackResponse[] {
+  return [...tracks].sort((left, right) => intensity(left) - intensity(right))
+}
+
+/**
+ * Fale: kilka narastań przedzielonych zejściem, każde następne wyżej od
+ * poprzedniego. Utwory posortowane po intensywności rozdajemy do fal na
+ * przemian (jak karty), więc każda fala przechodzi przez cały zakres od dołu
+ * do góry, a kolejna startuje o oczko wyżej niż poprzednia.
+ *
+ * <p>To jest ten kształt, którego nie da się dostać sortowaniem: `TEMPO` rośnie
+ * monotonicznie przez cały wieczór, a parkiet potrzebuje oddechu między
+ * szczytami.</p>
+ */
+function arrangeByWave(tracks: readonly PlaylistTrackResponse[]): string[] {
+
+  const sorted = byIntensity(tracks)
+  const waveCount = Math.min(
+    MAX_WAVES,
+    Math.max(MIN_WAVES, Math.round(sorted.length / TRACKS_PER_WAVE)),
+  )
+  const waves: PlaylistTrackResponse[][] = Array.from({ length: waveCount }, () => [])
+  sorted.forEach((entry, index) => waves[index % waveCount].push(entry))
+  return waves.flat().map((entry) => entry.track.spotifyId)
+}
+
+/**
+ * Łuk: jedno narastanie do szczytu mniej więcej w połowie setu i zejście.
+ * Z posortowanej listy co drugi utwór idzie na zbocze wznoszące, reszta na
+ * opadające (odwrócona) — najmocniejszy utwór ląduje na styku.
+ */
+function arrangeByArc(tracks: readonly PlaylistTrackResponse[]): string[] {
+
+  const sorted = byIntensity(tracks)
+  const rising = sorted.filter((_, index) => index % 2 === 0)
+  const falling = sorted.filter((_, index) => index % 2 === 1).reverse()
+  return [...rising, ...falling].map((entry) => entry.track.spotifyId)
+}
+
+/** Kolejność energii na wieczór; utwór bez wartości ląduje na końcu grupy. */
+const ENERGY_ORDER: readonly string[] = ['low', 'medium', 'high']
+
+/** Utwór bez BPM idzie na koniec, a nie na początek — `null` to brak danych, nie zero. */
+function bpmOrLast(entry: PlaylistTrackResponse): number {
+  return entry.track.bpm ?? Number.POSITIVE_INFINITY
+}
+
+function energyRank(entry: PlaylistTrackResponse): number {
+  const index = ENERGY_ORDER.indexOf(entry.track.energy ?? '')
+  return index === -1 ? ENERGY_ORDER.length : index
+}
+
+/**
+ * Koszt przejścia między sąsiadami przy układaniu harmonicznym: zderzenie
+ * tonacji przeważa nad każdym skokiem tempa, bo tego nie da się przemiksować.
+ * Nieznane BPM po którejś stronie wyceniamy jak spory skok — nie wiemy, czy
+ * przejście zagra, więc nie stawiamy go przed przejściem, o którym wiemy.
+ */
+function transitionCost(from: PlaylistTrackResponse, to: PlaylistTrackResponse): number {
+  const clash = areKeysCompatible(from.track.camelot, to.track.camelot) ? 0 : 1000
+  const before = from.track.bpm
+  const after = to.track.bpm
+  const jump = before === null || after === null ? 40 : Math.abs(after - before)
+  return clash + jump
+}
+
+/**
+ * Łańcuch harmoniczny: pierwszy utwór zostaje na miejscu (DJ wybrał otwarcie),
+ * a każdy kolejny to najtańsze przejście z tego, co zostało. Zachłannie, bo
+ * przy kilkudziesięciu utworach optymalna trasa to problem komiwojażera,
+ * a DJ i tak poprawia wynik ręcznie.
+ */
+function arrangeByHarmony(tracks: readonly PlaylistTrackResponse[]): string[] {
+
+  const remaining = [...tracks]
+  const chain: PlaylistTrackResponse[] = [remaining.shift()!]
+  while (remaining.length > 0) {
+    const previous = chain[chain.length - 1]
+    let best = 0
+    remaining.forEach((entry, index) => {
+      if (transitionCost(previous, entry) < transitionCost(previous, remaining[best])) best = index
+    })
+    chain.push(remaining.splice(best, 1)[0])
+  }
+  return chain.map((entry) => entry.track.spotifyId)
+}
+
+/**
+ * Propozycja kolejności setu w wybranym trybie. Zwraca listę `spotifyId`
+ * gotową do `PUT /api/playlists/{id}/tracks` — układanie liczy front (D22),
+ * backend dostaje gotową permutację składu (D21).
+ */
+export function arrangeBy(
+  tracks: readonly PlaylistTrackResponse[],
+  mode: ArrangeMode,
+): string[] {
+
+  if (tracks.length < 2) return tracks.map((entry) => entry.track.spotifyId)
+  switch (mode) {
+    case 'PHASES':
+      return arrangeBySlot(tracks)
+    case 'TEMPO':
+      return [...tracks]
+        .sort((left, right) => bpmOrLast(left) - bpmOrLast(right))
+        .map((entry) => entry.track.spotifyId)
+    case 'ENERGY':
+      return [...tracks]
+        .sort((left, right) => energyRank(left) - energyRank(right) || bpmOrLast(left) - bpmOrLast(right))
+        .map((entry) => entry.track.spotifyId)
+    case 'HARMONY':
+      return arrangeByHarmony(tracks)
+    case 'WAVE':
+      return arrangeByWave(tracks)
+    case 'ARC':
+      return arrangeByArc(tracks)
+  }
+}
+
+/**
+ * Kolejność setu po wstawieniu dobranego utworu (M4.4) na wskazane miejsce.
+ * API dokłada utwór wyłącznie na koniec (`POST /{id}/tracks`), więc wstawienie
+ * w środek to dopisanie i zaraz po nim zmiana kolejności — nowego endpointu
+ * do zapisu nie ma i nie potrzeba (D32).
+ *
+ * @param tracks   skład setu **po** dopisaniu utworu (dobrany jest ostatni)
+ * @param position docelowe miejsce; poza zakresem zostawia utwór na końcu
+ */
+export function insertLastAt(
+  tracks: readonly PlaylistTrackResponse[],
+  position: number,
+): string[] {
+
+  const order = tracks.map((entry) => entry.track.spotifyId)
+  if (position < 0 || position >= order.length) return order
+  const [added] = order.splice(order.length - 1, 1)
+  order.splice(position, 0, added)
+  return order
 }
 
 /**

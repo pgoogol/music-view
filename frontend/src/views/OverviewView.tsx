@@ -1,4 +1,4 @@
-// Przegląd biblioteki (M4.3, przebudowany na pulpit w M5.4/D32) — ekran
+// Przegląd biblioteki (M4.3, przebudowany na pulpit w M5.4/D36) — ekran
 // odpowiadający na pytanie „co ja właściwie mam" i „czy da się z tego zagrać".
 //
 // Czyta się go w pięciu strefach, w kolejności malejącej ogólności: skala →
