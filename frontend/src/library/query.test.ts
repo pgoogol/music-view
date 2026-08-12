@@ -10,9 +10,12 @@ import {
 
 /** Adres z kompletem filtrów — jeden fixture dla testów opisu i czyszczenia. */
 const EVERY_FILTER =
-  'q=salsa&lib=yes&genre=LATIN&rating=4&tag=wesele' +
-  '&yearMin=1990&yearMax=1999&durMin=120&durMax=270&popMin=60&explicit=0' +
-  '&bpmMin=100&bpmMax=130&tempo=FAST&energy=high&key=8A&keyExact=1' +
+  'q=salsa&genre=LATIN&rating=4&durMin=120&durMax=270' +
+  '&bpmMin=100&bpmMax=130&tempo=FAST&energy=high&key=8A&keyExact=1'
+
+/** Parametry zdjętych filtrów (D39) — wklejony stary link nie może ich wskrzesić. */
+const RETIRED_FILTERS =
+  'lib=yes&tag=wesele&yearMin=1990&yearMax=1999&popMin=60&explicit=0' +
   '&valMin=0.3&valMax=0.8&instr=0.5&live=0.4&bpmSrc=DEEZER&missing=ANY'
 
 describe('searchRequest', () => {
@@ -33,13 +36,26 @@ describe('searchRequest', () => {
     const request = searchRequest(new URLSearchParams(EVERY_FILTER))
 
     expect(request.genreFamily).toBe('LATIN')
-    expect(request.yearMin).toBe(1990)
+    expect(request.durationMinSec).toBe(120)
     expect(request.durationMaxSec).toBe(270)
-    expect(request.popularityMin).toBe(60)
-    expect(request.explicit).toBe(false)
-    expect(request.inLibrary).toBe(true)
-    expect(request.missing).toBe('ANY')
-    expect(request.bpmSource).toBe('DEEZER')
+    expect(request.bpmMin).toBe(100)
+    expect(request.tempoClass).toBe('FAST')
+    expect(request.energy).toBe('high')
+    expect(request.ratingMin).toBe(4)
+  })
+
+  it('parametry zdjętych filtrów ze starego linku nie zawężają wyniku', () => {
+
+    const request = searchRequest(new URLSearchParams(RETIRED_FILTERS))
+
+    expect(request.inLibrary).toBeUndefined()
+    expect(request.tag).toBeUndefined()
+    expect(request.yearMin).toBeUndefined()
+    expect(request.popularityMin).toBeUndefined()
+    expect(request.explicit).toBeUndefined()
+    expect(request.instrumentalMin).toBeUndefined()
+    expect(request.bpmSource).toBeUndefined()
+    expect(request.missing).toBeUndefined()
   })
 
   it('tonacja domyślnie obejmuje zgodne, a „dokładna" zawęża ją do jednej pozycji', () => {
@@ -72,12 +88,15 @@ describe('activeFilters', () => {
 
   it('tłumaczy wartości słownikowe na polskie etykiety ekranu', () => {
 
-    const labels = activeFilters(new URLSearchParams('tempo=FAST&energy=high&missing=AI'))
+    const labels = activeFilters(new URLSearchParams('tempo=FAST&energy=high'))
       .map((filter) => filter.label)
 
     expect(labels).toContain('tempo: szybkie')
     expect(labels).toContain('energia: wysoka')
-    expect(labels).toContain('braki: opis AI')
+  })
+
+  it('zdjęty filtr nie ma jak się pokazać na chipsie', () => {
+    expect(activeFilters(new URLSearchParams(RETIRED_FILTERS))).toEqual([])
   })
 
   it('czas pokazuje w minutach i sekundach, bo tak się go czyta na secie', () => {
@@ -116,6 +135,6 @@ describe('advancedFiltersActive', () => {
   })
 
   it('filtr spoza pierwszego rzutu otwiera panel, żeby nie działał w ukryciu', () => {
-    expect(advancedFiltersActive(new URLSearchParams('instr=0.5'))).toBe(true)
+    expect(advancedFiltersActive(new URLSearchParams('durMax=240'))).toBe(true)
   })
 })

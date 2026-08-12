@@ -1,21 +1,19 @@
-// Kolumny tabeli biblioteki (M5.6) w jednym miejscu: nagłówek, porządek
-// sortowania i sposób narysowania komórki. Wcześniej lista kolumn była w tabeli,
-// a wartości w JSX-ie pod nią — dołożenie kolumny znaczyło trafić w dwa miejsca
-// naraz i nie pomylić kolejności.
+// Kolumny tabeli biblioteki (M5.6, przycięte w M5.7) w jednym miejscu: nagłówek,
+// porządek sortowania i sposób narysowania komórki. Wcześniej lista kolumn była
+// w tabeli, a wartości w JSX-ie pod nią — dołożenie kolumny znaczyło trafić
+// w dwa miejsca naraz i nie pomylić kolejności.
 //
-// Zestaw domyślny to odpowiedź na „co widać bez klikania": tożsamość utworu,
-// to, czym się go miksuje (BPM, tonacja, energia) i to, co DJ o nim sam
-// powiedział (ocena). Reszta czeka pod wybierakiem — razem z tym, co dotąd
-// stało w tabeli na stałe, choć powtarzało sąsiednią kolumnę (tempo to
-// przedział BPM) albo bywało akapitem, nie komórką (styl).
+// Tabela opisuje wyłącznie utwór (D39): tożsamość, to, czym się go miksuje
+// (BPM, tonacja, energia, gatunek), a pod wybierakiem reszta danych katalogu.
+// Dane prywatne DJ-a (ocena, tagi, data dodania) i pochodzenie BPM mieszkają
+// w szufladzie utworu, gdzie da się je od razu zmienić, zamiast zajmować
+// kolumnę powtarzającą to, co widać po kliknięciu.
 
 import type { ReactNode } from 'react'
 import type { CatalogRowResponse, CatalogSort } from '../api'
-import StarRating from '../components/StarRating'
 import {
   DASH,
   energyLabel,
-  formatDate,
   formatDuration,
   formatScore,
   isEnriched,
@@ -63,28 +61,6 @@ function keyCell(row: CatalogRowResponse): ReactNode {
   return <span title={musicalKey ?? undefined}>{camelot}</span>
 }
 
-function ratingCell(row: CatalogRowResponse): ReactNode {
-
-  const rating = row.library?.rating
-  if (!rating) return DASH
-  return <StarRating value={rating} />
-}
-
-function tagsCell(row: CatalogRowResponse): ReactNode {
-
-  const tags = row.library?.customTags ?? []
-  if (tags.length === 0) return DASH
-  return (
-    <span className="chips chips-inline">
-      {tags.map((tag) => (
-        <span key={tag} className="chip">
-          {tag}
-        </span>
-      ))}
-    </span>
-  )
-}
-
 export const LIBRARY_COLUMNS: readonly LibraryColumn[] = [
   { key: 'title', label: 'Tytuł', sort: 'TITLE', fixed: true, cell: titleCell },
   {
@@ -110,7 +86,6 @@ export const LIBRARY_COLUMNS: readonly LibraryColumn[] = [
   { key: 'key', label: 'Tonacja', cell: keyCell },
   { key: 'energy', label: 'Energia', sort: 'ENERGY', cell: (row) => energyLabel(row.track.energy) },
   { key: 'genre', label: 'Gatunek', cell: (row) => row.track.genreFamily ?? DASH },
-  { key: 'rating', label: 'Ocena', sort: 'RATING', cell: ratingCell },
   { key: 'tempo', label: 'Tempo', cell: (row) => tempoLabel(row.track.tempoClass) },
   { key: 'style', label: 'Styl', cell: (row) => row.track.style ?? DASH },
   {
@@ -125,19 +100,6 @@ export const LIBRARY_COLUMNS: readonly LibraryColumn[] = [
     sort: 'POPULARITY',
     cell: (row) => row.track.popularity ?? DASH,
   },
-  {
-    key: 'explicit',
-    label: 'Explicit',
-    cell: (row) => (row.track.explicit === null ? DASH : row.track.explicit ? 'tak' : 'nie'),
-  },
-  { key: 'bpmSource', label: 'Źródło BPM', cell: (row) => row.track.bpmSource ?? DASH },
-  { key: 'tags', label: 'Tagi DJ-a', cell: tagsCell },
-  {
-    key: 'added',
-    label: 'Dodano',
-    sort: 'ADDED_AT',
-    cell: (row) => formatDate(row.library?.addedAt),
-  },
 ]
 
 export const DEFAULT_COLUMN_KEYS = [
@@ -149,7 +111,6 @@ export const DEFAULT_COLUMN_KEYS = [
   'key',
   'energy',
   'genre',
-  'rating',
 ]
 
 const KNOWN_KEYS = LIBRARY_COLUMNS.map((column) => column.key)

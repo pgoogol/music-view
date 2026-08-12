@@ -917,3 +917,36 @@ o dziewięciu kolumnach ustawionych na sztywno. Porządkujemy to tak:
   utworach i stronie po 20 przeklikiwanie się przez 125 stron jest gorsze niż jedno
   cięższe zapytanie: dochodzą rozmiary 200 i 500 (sufit API podniesiony ze 100), skok na
   pierwszą i ostatnią stronę, wpisanie numeru z ręki i licznik „1–20 na ekranie".
+
+## D39. Biblioteka bez filtrów i kolumn, po które DJ nie sięga (M5.7)
+
+M5.6 dołożyło do ekranu wszystko, co dało się odfiltrować bez migracji — i dopiero praca
+na nim pokazała, że „da się" to nie to samo co „przydaje się". Ekran wraca do tego, po co
+się go otwiera: znaleźć utwór i zobaczyć, czym się go miksuje. Znikają:
+
+- **Filtry `lib`, `tag`, `yearMin/yearMax`, `popMin`, `explicit`, metryki z pliku
+  (`valMin/valMax/instr/live`), `bpmSrc` i `missing`.** Z panelu „więcej filtrów"
+  zostają dwie grupy: utwór (długość) i brzmienie (BPM, tempo, energia, tonacja),
+  a na wierzchu szukaj, gatunek i ocena. Braki danych zbiera zakładka Wzbogacanie —
+  filtr `missing` był tam drugim wejściem do tej samej roboty; metryki z pliku
+  odsiewały do kilku procent katalogu (D24), więc pusty wynik trzeba było tłumaczyć
+  osobnym zdaniem pod paskiem narzędzi; `explicit` i `popMin` to dane Spotify, po
+  których nikt nie szukał.
+- **Kolumny Explicit, Tagi DJ-a, Ocena, Źródło BPM i Dodano.** Tabela opisuje utwór,
+  dane prywatne DJ-a mieszkają w szufladzie (D3), gdzie od razu da się je zmienić —
+  w tabeli były wersją do czytania tego samego. Pochodzenie tempa zostaje jako dymek
+  przy BPM (kryterium D19 nadal widać, bez własnej kolumny), a zestaw domyślny to
+  tożsamość utworu plus BPM, tonacja, energia i gatunek.
+- **Dwa zapytania mniej przy wejściu na ekran**: słownik tagów (`/api/library/tags`)
+  i pokrycie metrykami (`/api/catalog/metrics-coverage`) obsługiwały wyłącznie zdjęte
+  filtry. Endpointy zostają w API — to front przestał ich potrzebować.
+
+Zdjęte parametry **nie są też czytane z adresu**: stary link z `lib=yes&missing=ANY`
+otwiera pełny katalog zamiast filtrować czymś, czego nie widać na chipsie i czego nie da
+się zdjąć. To ta sama zasada, która w D38 kazała pokazywać komplet aktywnych filtrów —
+filtr niewidoczny na ekranie nie ma prawa działać. Tak samo nieznane klucze w `cols`:
+`cols=title,artist,tags` wraca do zestawu domyślnego.
+
+Kryteria wyszukiwarki w backendzie zostają bez zmian — `CatalogSearchCriteria` nadal
+przyjmuje komplet filtrów z M5.6 (używa ich m.in. generator setu, D33), a przywrócenie
+któregokolwiek na ekran jest dopisaniem pola do listy w `library/query.ts`, nie migracją.

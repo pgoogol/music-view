@@ -77,11 +77,6 @@ export function formatDateTime(value: string | null | undefined): string {
   return value ? new Date(value).toLocaleString('pl') : DASH
 }
 
-/** Sama data — w tabeli godzina dodania utworu do biblioteki tylko szerzy kolumnę. */
-export function formatDate(value: string | null | undefined): string {
-  return value ? new Date(value).toLocaleDateString('pl') : DASH
-}
-
 export function spotifyTrackUrl(spotifyId: string): string {
   return `https://open.spotify.com/track/${encodeURIComponent(spotifyId)}`
 }

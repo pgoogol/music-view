@@ -457,10 +457,6 @@ label { color: var(--muted); }
   box-shadow: 0 12px 30px rgba(4, 6, 12, 0.6);
 }
 
-/* tagi w komórce tabeli — te same chipsy co w szufladzie, tylko ciaśniej */
-.chips-inline { display: inline-flex; flex-wrap: wrap; gap: 4px; }
-.metrics-coverage { margin: 0 var(--space-2) var(--space-2); font-size: 12px; }
-
 /* --- tabele --- */
 
 .table-panel { padding: var(--space-3); }

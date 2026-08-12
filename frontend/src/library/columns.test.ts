@@ -17,16 +17,20 @@ describe('kolumny biblioteki', () => {
 
   it('nieznane klucze ze starego linku odpadają, a kolumny stałe wracają zawsze', () => {
 
-    const keys = parseColumns('tags,nieistnieje')
+    const keys = parseColumns('popularity,nieistnieje')
 
-    expect(keys).toContain('tags')
+    expect(keys).toContain('popularity')
     expect(keys).toContain('title')
     expect(keys).toContain('artist')
     expect(keys).not.toContain('nieistnieje')
   })
 
+  it('kolumny zdjęte z tabeli odpadają jak każdy nieznany klucz (D39)', () => {
+    expect(parseColumns('rating,tags,added,explicit,bpmSource')).toEqual(DEFAULT_COLUMN_KEYS)
+  })
+
   it('kolejność kolumn jest kanoniczna, nie taka jak w adresie', () => {
-    expect(parseColumns('rating,year')).toEqual(['title', 'artist', 'year', 'rating'])
+    expect(parseColumns('year,album')).toEqual(['title', 'artist', 'album', 'year'])
   })
 
   it('zestaw domyślny nie zaśmieca adresu', () => {

@@ -1,7 +1,13 @@
-// Adres jako źródło prawdy ekranu Biblioteka (M3.1, uporządkowane w M5.6):
-// jedno miejsce, które wie, jak parametr w hashu nazywa się w URL-u, jak nazywa
-// się w API i jak brzmi po polsku na chipsie aktywnych filtrów. Rozjazd między
-// tymi trzema listami był głównym kosztem dokładania kolejnego filtra.
+// Adres jako źródło prawdy ekranu Biblioteka (M3.1, uporządkowane w M5.6,
+// przycięte w M5.7): jedno miejsce, które wie, jak parametr w hashu nazywa się
+// w URL-u, jak nazywa się w API i jak brzmi po polsku na chipsie aktywnych
+// filtrów. Rozjazd między tymi trzema listami był głównym kosztem dokładania
+// kolejnego filtra.
+//
+// Lista jest krótsza niż w M5.6 (D39): parametry, których ekran już nie stawia
+// (`lib`, `tag`, `yearMin/yearMax`, `popMin`, `explicit`, metryki z pliku,
+// `bpmSrc`, `missing`), nie są też czytane — stary link nie może filtrować
+// czymś, czego nie da się na ekranie zobaczyć ani zdjąć.
 
 import type { CatalogSort, SearchParams, SortDirection } from '../api'
 import { ENERGY_LABELS, TEMPO_LABELS, formatDuration } from '../format'
@@ -11,44 +17,25 @@ export const DEFAULT_PAGE_SIZE = 20
 /** Wielkości strony — od „przeglądam" po „chcę mieć całą półkę pod ręką". */
 export const PAGE_SIZES = [20, 50, 100, 200, 500] as const
 
-export const MISSING_LABELS: Record<string, string> = {
-  ANY: 'do wzbogacenia',
-  METADATA: 'braki: metadane',
-  AUDIO: 'braki: cechy audio',
-  AI: 'braki: opis AI',
-}
-
 /**
  * Filtry „pierwszego rzutu" zostają zawsze na wierzchu; reszta chowa się
  * w panelu, który otwiera się sam, gdy któryś z jego filtrów jest aktywny.
  */
-const BASIC_KEYS = ['q', 'lib', 'genre', 'rating']
+const BASIC_KEYS = ['q', 'genre', 'rating']
 
 /** Wszystkie parametry filtrów — kolejność bez znaczenia, komplet ma znaczenie. */
 export const FILTER_KEYS = [
   'q',
-  'lib',
   'genre',
   'rating',
-  'tag',
-  'yearMin',
-  'yearMax',
   'durMin',
   'durMax',
-  'popMin',
-  'explicit',
   'bpmMin',
   'bpmMax',
   'tempo',
   'energy',
   'key',
   'keyExact',
-  'valMin',
-  'valMax',
-  'instr',
-  'live',
-  'bpmSrc',
-  'missing',
 ]
 
 function text(params: URLSearchParams, key: string): string | undefined {
@@ -62,21 +49,6 @@ function num(params: URLSearchParams, key: string): number | undefined {
   if (value === undefined) return undefined
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
-}
-
-/** `1`/`0` w adresie; cokolwiek innego = bez filtra. */
-function flag(params: URLSearchParams, key: string): boolean | undefined {
-  const value = text(params, key)
-  if (value === '1') return true
-  if (value === '0') return false
-  return undefined
-}
-
-/** `lib` w adresie: yes = tylko z biblioteki, no = tylko spoza; brak = bez filtra. */
-export function parseInLibrary(value: string | undefined): boolean | undefined {
-  if (value === 'yes') return true
-  if (value === 'no') return false
-  return undefined
 }
 
 /**
@@ -101,27 +73,15 @@ export function searchRequest(params: URLSearchParams): LibraryRequest {
   return {
     search: text(params, 'q'),
     genreFamily: text(params, 'genre'),
-    yearMin: num(params, 'yearMin'),
-    yearMax: num(params, 'yearMax'),
     durationMinSec: num(params, 'durMin'),
     durationMaxSec: num(params, 'durMax'),
-    popularityMin: num(params, 'popMin'),
-    explicit: flag(params, 'explicit'),
     bpmMin: num(params, 'bpmMin'),
     bpmMax: num(params, 'bpmMax'),
     tempoClass: text(params, 'tempo'),
     energy: text(params, 'energy'),
-    inLibrary: parseInLibrary(text(params, 'lib')),
     ratingMin: num(params, 'rating'),
-    tag: text(params, 'tag'),
     camelot,
     camelotCompatible: camelot ? params.get('keyExact') !== '1' : undefined,
-    valenceMin: num(params, 'valMin'),
-    valenceMax: num(params, 'valMax'),
-    instrumentalMin: num(params, 'instr'),
-    livenessMax: num(params, 'live'),
-    bpmSource: text(params, 'bpmSrc'),
-    missing: text(params, 'missing') as SearchParams['missing'],
     sort: (text(params, 'sort') ?? 'RELEVANCE') as CatalogSort,
     direction: (text(params, 'dir') ?? 'ASC') as SortDirection,
     page: num(params, 'page') ?? 0,
@@ -152,13 +112,6 @@ function rangeLabel(
 
 const seconds = (value: string) => formatDuration(Number(value) * 1000)
 
-const LIBRARY_LABELS: Record<string, string> = {
-  yes: 'tylko w bibliotece',
-  no: 'tylko spoza biblioteki',
-}
-
-const EXPLICIT_LABELS: Record<string, string> = { '1': 'tylko explicit', '0': 'bez explicit' }
-
 export function activeFilters(params: URLSearchParams): ActiveFilter[] {
 
   const value = (key: string) => text(params, key)
@@ -171,14 +124,9 @@ export function activeFilters(params: URLSearchParams): ActiveFilter[] {
   const energy = value('energy')
   const candidates: { keys: string[]; label: string | undefined }[] = [
     { keys: ['q'], label: value('q') && `„${value('q')}"` },
-    { keys: ['lib'], label: LIBRARY_LABELS[value('lib') ?? ''] },
     { keys: ['genre'], label: value('genre') && `gatunek: ${value('genre')}` },
     { keys: ['rating'], label: value('rating') && `ocena ≥ ${value('rating')}★` },
-    { keys: ['tag'], label: value('tag') && `tag: ${value('tag')}` },
-    range(['yearMin', 'yearMax'], 'rok'),
     range(['durMin', 'durMax'], 'czas', seconds),
-    { keys: ['popMin'], label: value('popMin') && `popularność ≥ ${value('popMin')}` },
-    { keys: ['explicit'], label: EXPLICIT_LABELS[value('explicit') ?? ''] },
     range(['bpmMin', 'bpmMax'], 'BPM'),
     { keys: ['tempo'], label: tempo && `tempo: ${TEMPO_LABELS[tempo] ?? tempo}` },
     { keys: ['energy'], label: energy && `energia: ${ENERGY_LABELS[energy] ?? energy}` },
@@ -186,11 +134,6 @@ export function activeFilters(params: URLSearchParams): ActiveFilter[] {
       keys: ['key', 'keyExact'],
       label: camelot && `tonacja ${camelot}${params.get('keyExact') === '1' ? '' : ' + zgodne'}`,
     },
-    range(['valMin', 'valMax'], 'nastrój'),
-    { keys: ['instr'], label: value('instr') && `instrumentalność ≥ ${value('instr')}` },
-    { keys: ['live'], label: value('live') && `koncertowość ≤ ${value('live')}` },
-    { keys: ['bpmSrc'], label: value('bpmSrc') && `źródło BPM: ${value('bpmSrc')}` },
-    { keys: ['missing'], label: MISSING_LABELS[value('missing') ?? ''] },
   ]
   return candidates.filter((filter): filter is ActiveFilter => Boolean(filter.label))
 }

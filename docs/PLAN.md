@@ -685,6 +685,25 @@ chipsie, potrafi się też wyczyścić (pilnuje tego test), wklejony link odtwar
 filtrów, kolumn, sortowania i strony, a filtr braków zbiera utwory do wzbogacenia bez
 przeglądania biblioteki oczami.
 
+## M5.7 Biblioteka przycięta do tego, po co się ją otwiera *(po M5.6)*
+
+**Cel:** na ekranie zostają filtry i kolumny, po które DJ realnie sięga — reszta schodzi,
+zamiast czekać na wypadek.
+
+- **Zdjęte filtry** (D39): biblioteka (`lib`), rok od–do, popularność, wulgaryzmy,
+  tag DJ-a, metryki z pliku i kompletność danych (źródło BPM, braki); w panelu zostają
+  grupy utwór (długość) i brzmienie, na wierzchu szukaj / gatunek / ocena
+- **Zdjęte kolumny**: Explicit, Tagi DJ-a, Ocena, Źródło BPM, Dodano — tabela opisuje
+  utwór, dane prywatne DJ-a są w szufladzie (D3), źródło tempa w dymku przy BPM
+- **Zdjęte parametry nie działają też z adresu**: stary link z `lib=yes&missing=ANY`
+  otwiera pełny katalog, bo filtr niewidoczny na chipsie nie ma jak zostać zdjęty
+- **Dwa zapytania mniej przy wejściu**: słownik tagów i pokrycie metrykami obsługiwały
+  wyłącznie zdjęte filtry; endpointy zostają w API
+
+**DoD:** `npm test` i `./mvnw verify` zielone; wklejony link ze zdjętym filtrem albo
+zdjętą kolumną otwiera pełny katalog w zestawie domyślnym, a nie pusty wynik bez śladu
+przyczyny.
+
 ---
 
 # Zależności między kamieniami

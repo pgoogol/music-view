@@ -1,14 +1,16 @@
-// Widok biblioteki (M3.1, filtry biblioteczne w M3.2, uporządkowanie w M5.6):
-// filtry, kolumny, sortowanie i stronicowanie zapisane w adresie, tabela
-// z okładkami, szczegóły utworu w szufladzie. Odświeżenie strony wraca do tego
-// samego widoku — front nie trzyma stanu ekranu nigdzie poza hashem.
+// Widok biblioteki (M3.1, uporządkowanie w M5.6, przycięcie w M5.7): filtry,
+// kolumny, sortowanie i stronicowanie zapisane w adresie, tabela z okładkami,
+// szczegóły utworu w szufladzie. Odświeżenie strony wraca do tego samego
+// widoku — front nie trzyma stanu ekranu nigdzie poza hashem.
+//
+// Ekran pyta wyłącznie o utwory: słownik tagów i pokrycie metrykami zniknęły
+// razem z filtrami, które je potrzebowały (D39).
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   api,
   type CatalogRowResponse,
   type CatalogSort,
-  type MetricsCoverageResponse,
   type PageResponse,
   type SearchParams,
 } from '../api'
@@ -52,30 +54,7 @@ export default function LibraryView({
   const detailsId = params.get('track')
 
   const [result, setResult] = useState<PageResponse<CatalogRowResponse> | null>(null)
-  const [knownTags, setKnownTags] = useState<string[]>([])
-  const [coverage, setCoverage] = useState<MetricsCoverageResponse | null>(null)
   const [loading, setLoading] = useState(true)
-
-  // słownik tagów i pokrycie metrykami zmieniają się rzadko (edycja utworu,
-  // wgranie pliku) — starczy odświeżanie razem z widokiem
-  useEffect(() => {
-    let current = true
-    api
-      .listTags()
-      .then((tags) => {
-        if (current) setKnownTags(tags)
-      })
-      .catch(() => setKnownTags([]))
-    api
-      .metricsCoverage()
-      .then((loaded) => {
-        if (current) setCoverage(loaded)
-      })
-      .catch(() => setCoverage(null))
-    return () => {
-      current = false
-    }
-  }, [refreshKey])
 
   // adres *jest* zapytaniem, więc efekt zależy od jego serializacji, a nie od
   // listy kilkunastu filtrów przepisanej po raz drugi w tablicy zależności
@@ -99,11 +78,6 @@ export default function LibraryView({
   }, [requestKey, refreshKey, reportError])
 
   const rows = result?.content ?? []
-  const metricFiltersActive =
-    request.valenceMin !== undefined ||
-    request.valenceMax !== undefined ||
-    request.instrumentalMin !== undefined ||
-    request.livenessMax !== undefined
 
   const toggleTrack = (spotifyId: string) => {
     const next = new Set(selectedIds)
@@ -140,7 +114,6 @@ export default function LibraryView({
       <LibraryFilters
         params={params}
         setParams={setParams}
-        knownTags={knownTags}
         onClear={() => setParams(clearFiltersPatch())}
       />
 
@@ -169,15 +142,6 @@ export default function LibraryView({
           ))}
         </select>
       </div>
-
-      {/* filtry metryk odsiewają utwory bez metryk, więc pusty wynik trzeba umieć
-          wytłumaczyć brakiem danych, a nie awarią (D24/D25) */}
-      {metricFiltersActive && coverage && (
-        <p className="muted metrics-coverage" data-testid="metrics-coverage">
-          Filtry metryk działają na {coverage.withMetrics} z {coverage.total} utworów — resztę
-          uzupełnisz plikiem CSV w zakładce Import.
-        </p>
-      )}
 
       <LibraryTable
         rows={rows}

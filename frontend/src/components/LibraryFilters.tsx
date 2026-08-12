@@ -1,17 +1,19 @@
-// Panel filtrów biblioteki (M3.1–M4.1, uporządkowany w M5.6).
+// Panel filtrów biblioteki (M3.1–M4.1, uporządkowany w M5.6, przycięty w M5.7).
 //
-// Trzy piętra zamiast jednego rzędu kilkunastu kontrolek: na wierzchu cztery
-// filtry, których DJ używa za każdym razem (szukaj, biblioteka, gatunek, ocena);
-// pod nimi chipsy z tym, co realnie jest włączone — bo filtr schowany w zwiniętym
-// panelu wciąż odsiewa wyniki i musi być widać, że to on; a pod spodem panel
-// z resztą, podzielony na grupy odpowiadające temu, o co pytają: utwór, brzmienie,
-// biblioteka, metryki z pliku (D24), kompletność danych (D19).
+// Trzy piętra zamiast jednego rzędu kilkunastu kontrolek: na wierzchu trzy
+// filtry, których DJ używa za każdym razem (szukaj, gatunek, ocena); pod nimi
+// chipsy z tym, co realnie jest włączone — bo filtr schowany w zwiniętym panelu
+// wciąż odsiewa wyniki i musi być widać, że to on; a pod spodem panel z resztą,
+// podzielony na grupy odpowiadające temu, o co pytają: utwór i brzmienie.
+//
+// Grupy „biblioteka DJ-a", „metryki z pliku" i „kompletność danych" znikają
+// razem z filtrami, które je wypełniały (D39) — braki danych zbiera zakładka
+// Wzbogacanie, a metryki z pliku widać w szufladzie utworu.
 
 import { useCallback, useState, type ReactNode } from 'react'
-import { BPM_SOURCES, MISSING_GROUPS } from '../api'
 import { ENERGY_LABELS, TEMPO_LABELS } from '../format'
 import { useDebouncedParam } from '../hooks/useDebouncedParam'
-import { MISSING_LABELS, activeFilters, advancedFiltersActive } from '../library/query'
+import { activeFilters, advancedFiltersActive } from '../library/query'
 
 const GENRES = ['LATIN', 'ROCK', 'POP', 'DISCO', 'DISCO_POLO', 'ELECTRONIC', 'HIP_HOP', 'OTHER']
 const TEMPO_CLASSES = Object.keys(TEMPO_LABELS)
@@ -28,16 +30,14 @@ type Patch = Record<string, string | number | undefined | null>
 interface Props {
   params: URLSearchParams
   setParams: (patch: Patch) => void
-  knownTags: readonly string[]
   onClear: () => void
 }
 
-export default function LibraryFilters({ params, setParams, knownTags, onClear }: Props) {
+export default function LibraryFilters({ params, setParams, onClear }: Props) {
 
   const [open, setOpen] = useState(() => advancedFiltersActive(params))
 
   const search = params.get('q') ?? ''
-  const tag = params.get('tag') ?? ''
   const camelot = params.get('key') ?? ''
 
   // każda zmiana filtra wraca na pierwszą stronę — inaczej węższy wynik potrafi
@@ -47,9 +47,7 @@ export default function LibraryFilters({ params, setParams, knownTags, onClear }
     [setParams],
   )
   const pushSearch = useCallback((next: string) => set({ q: next }), [set])
-  const pushTag = useCallback((next: string) => set({ tag: next }), [set])
   const [searchDraft, setSearchDraft] = useDebouncedParam(search, pushSearch)
-  const [tagDraft, setTagDraft] = useDebouncedParam(tag, pushTag)
 
   const active = activeFilters(params)
 
@@ -110,10 +108,6 @@ export default function LibraryFilters({ params, setParams, knownTags, onClear }
           onChange={(event) => setSearchDraft(event.target.value)}
           data-testid="search-input"
         />
-        {selectField('lib', 'biblioteka', 'cały katalog', [
-          ['yes', 'tylko w bibliotece'],
-          ['no', 'tylko spoza biblioteki'],
-        ])}
         {selectField(
           'genre',
           'gatunek',
@@ -167,15 +161,8 @@ export default function LibraryFilters({ params, setParams, knownTags, onClear }
             'track-filters',
             'utwór',
             <>
-              {numberField('yearMin', 'rok od', { placeholder: '1990' })}
-              {numberField('yearMax', 'rok do', { placeholder: '1999' })}
               {numberField('durMin', 'czas od (sek)', { min: '0', step: '15' })}
               {numberField('durMax', 'czas do (sek)', { min: '0', step: '15' })}
-              {numberField('popMin', 'popularność co najmniej', { min: '0', max: '100' })}
-              {selectField('explicit', 'wulgaryzmy', 'bez znaczenia', [
-                ['0', 'tylko czyste'],
-                ['1', 'tylko explicit'],
-              ])}
             </>,
           )}
 
@@ -216,83 +203,6 @@ export default function LibraryFilters({ params, setParams, knownTags, onClear }
                   />
                   <span>tylko dokładna tonacja</span>
                 </label>
-              )}
-            </>,
-          )}
-
-          {/* dane prywatne DJ-a (D3) — wyszukiwarka chodzi po katalogu, ale potrafi
-              zawęzić go do tego, co jest (albo czego nie ma) w bibliotece */}
-          {group(
-            'library-filters',
-            'biblioteka DJ-a',
-            <label className="filter-group">
-              <span>tag DJ-a</span>
-              <input
-                type="text"
-                list="dj-tags"
-                placeholder="np. wesele"
-                value={tagDraft}
-                onChange={(event) => setTagDraft(event.target.value)}
-                aria-label="tag DJ-a"
-                data-testid="tag-input"
-              />
-              <datalist id="dj-tags">
-                {knownTags.map((value) => (
-                  <option key={value} value={value} />
-                ))}
-              </datalist>
-            </label>,
-          )}
-
-          {/* metryki z pliku (D24) — filtr działa wyłącznie na utworach, które je mają */}
-          {group(
-            'metric-filters',
-            'metryki z pliku',
-            <>
-              {numberField('valMin', 'nastrój od', {
-                min: '0',
-                max: '1',
-                step: '0.05',
-                placeholder: '0.00',
-              })}
-              {numberField('valMax', 'nastrój do', {
-                min: '0',
-                max: '1',
-                step: '0.05',
-                placeholder: '1.00',
-              })}
-              {numberField('instr', 'instrumentalność od', {
-                min: '0',
-                max: '1',
-                step: '0.05',
-                placeholder: '0.00',
-              })}
-              {numberField('live', 'koncertowość do', {
-                min: '0',
-                max: '1',
-                step: '0.05',
-                placeholder: '1.00',
-              })}
-            </>,
-          )}
-
-          {/* kompletność danych: czy tempo jest z pomiaru, czy z estymaty (D19),
-              i co zostało do wzbogacenia (D11) */}
-          {group(
-            'quality-filters',
-            'kompletność danych',
-            <>
-              {selectField(
-                'bpmSrc',
-                'źródło BPM',
-                'dowolne',
-                BPM_SOURCES.map((value) => [value, value] as const),
-              )}
-              {selectField(
-                'missing',
-                'braki danych',
-                'bez znaczenia',
-                MISSING_GROUPS.map((value) => [value, MISSING_LABELS[value]] as const),
               )}
             </>,
           )}
