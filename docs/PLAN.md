@@ -658,6 +658,33 @@ zewnętrznego API nie kasuje efektu całego przebiegu.
 startuje, job z trwale padającym utworem kończy się statusem COMPLETED, wzbogaca resztę
 i raportuje, co odpadło i dlaczego.
 
+## M5.6 Biblioteka: filtry w grupach, kolumny do wyboru, większe strony *(po M4.1)*
+
+**Cel:** ekran, na którym DJ spędza najwięcej czasu, daje się czytać i ustawiać —
+filtry są pogrupowane i widoczne, kolumny wybieralne, a strona nie kończy się na 20.
+
+- **Trzy piętra filtrów** (D38): cztery filtry pierwszego rzutu, chipsy z aktywnymi
+  filtrami (zdejmowane pojedynczo), panel „więcej filtrów" w grupach utwór / brzmienie /
+  biblioteka DJ-a / metryki z pliku / kompletność danych; panel otwiera się sam, gdy
+  filtr z niego przyszedł w adresie
+- **Nowe filtry bez migracji**: `yearMin/yearMax`, `durationMinSec/durationMaxSec`,
+  `popularityMin`, `explicit`, `bpmSource` (kryterium D19), `missing`
+  (METADATA/AUDIO/AI/ANY — znacznik „do wzbogacenia" jako filtr)
+- **Kolumny wybierane przez DJ-a**, zestaw w adresie (`cols`); domyślnie tożsamość
+  utworu + BPM/tonacja/energia/gatunek + ocena, reszta pod wybierakiem; tempo i styl
+  schodzą z domyślnych
+- **Wiersz = `{ track, library }`** (D3 w kontrakcie): ocena, tagi i data dodania
+  w tabeli, sortowanie `RATING` i `ADDED_AT`; dane DJ-a dociągane po ID-kach strony
+- **`CatalogSearchCriteria` w grupach** i SQL wyszukiwarki wydzielony do
+  `CatalogSearchSql`
+- **Stronicowanie**: rozmiary 20/50/100/200/500 (sufit API 500), skok na pierwszą
+  i ostatnią stronę, numer strony z ręki, licznik „1–20 na ekranie"
+
+**DoD:** `./mvnw verify` i `npm test` zielone; każdy filtr, który potrafi się pokazać na
+chipsie, potrafi się też wyczyścić (pilnuje tego test), wklejony link odtwarza komplet
+filtrów, kolumn, sortowania i strony, a filtr braków zbiera utwory do wzbogacenia bez
+przeglądania biblioteki oczami.
+
 ---
 
 # Zależności między kamieniami
@@ -691,9 +718,10 @@ flowchart LR
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
     M43 --> M54[M5.4<br/>pulpit przeglądu]
     M51 --> M55[M5.5<br/>wzbogacanie bez sufitu]
+    M41 --> M56[M5.6<br/>ekran biblioteki]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53,M54,M55 plan
+    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53,M54,M55,M56 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

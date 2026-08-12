@@ -3,7 +3,10 @@ package com.pgoogol.api;
 import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.CatalogSearchCriteria;
 import com.pgoogol.catalog.CatalogSearchCriteria.HarmonicFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.LibraryFilter;
 import com.pgoogol.catalog.CatalogSearchCriteria.MetricFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.SoundFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.TrackFilter;
 import com.pgoogol.catalog.GenreFamily;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.common.ValidationException;
@@ -131,17 +134,15 @@ public class SetController {
 
         return new CatalogSearchCriteria(
             request.search(),
-            parseEnum(GenreFamily.class, request.genreFamily(), "genreFamily"),
-            request.bpmMin(),
-            request.bpmMax(),
-            parseEnum(TempoClass.class, request.tempoClass(), "tempoClass"),
-            request.energy(),
-            request.inLibrary(),
-            request.ratingMin(),
-            request.tag(),
-            harmonicFilter(request),
+            new TrackFilter(parseEnum(GenreFamily.class, request.genreFamily(), "genreFamily"),
+                null, null, null, null, null, null),
+            new SoundFilter(request.bpmMin(), request.bpmMax(),
+                parseEnum(TempoClass.class, request.tempoClass(), "tempoClass"),
+                request.energy(), harmonicFilter(request)),
+            new LibraryFilter(request.inLibrary(), request.ratingMin(), request.tag()),
             new MetricFilter(request.valenceMin(), request.valenceMax(),
-                request.instrumentalMin(), request.livenessMax()));
+                request.instrumentalMin(), request.livenessMax()),
+            null);
     }
 
     private HarmonicFilter harmonicFilter(SetFilters request) {

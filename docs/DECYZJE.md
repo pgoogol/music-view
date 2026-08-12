@@ -868,3 +868,52 @@ Trzy rzeczy w zakładce Wzbogacanie działały wbrew temu, po co powstały:
   nie otwiera się z klawiatury, nie istnieje na dotyku, a dłuższy komunikat i tak jest
   ucinany przez przeglądarkę. Teraz to przycisk otwierający okno z komunikatem
   zakończenia i listą pominiętych utworów z powodami; historia dostaje kolumnę „nieudane".
+
+## D38. Biblioteka: filtry w grupach, kolumny do wyboru, większe strony (M5.6)
+
+Ekran Biblioteka rósł kamień po kamieniu — filtry katalogu (M1.7), biblioteczne (M3.2),
+harmoniczne i metryk (M4.1) — i skończył jako jeden rząd kilkunastu kontrolek nad tabelą
+o dziewięciu kolumnach ustawionych na sztywno. Porządkujemy to tak:
+
+- **Filtry mają trzy piętra, nie jeden rząd.** Na wierzchu cztery, po które sięga się za
+  każdym razem (szukaj, biblioteka, gatunek, ocena); pod nimi chipsy z tym, co realnie
+  jest włączone; pod spodem panel „więcej filtrów" z resztą, podzielony na grupy
+  odpowiadające temu, **o co pytają**: utwór, brzmienie, biblioteka DJ-a, metryki
+  z pliku (D24), kompletność danych. Nazwa grupy jest odpowiedzią na „gdzie tego szukać",
+  a wcześniejsza kolejność pól była kolejnością pisania kodu.
+- **Zwinięty panel nie może filtrować w ukryciu.** Chipsy pokazują komplet aktywnych
+  filtrów i zdejmują je pojedynczo, a panel otwiera się sam, gdy w adresie siedzi filtr
+  spoza pierwszego rzutu. Bez tego wklejony link z `instr=0.5` dawałby pusty wynik bez
+  śladu przyczyny na ekranie.
+- **Nowe filtry biorą się z kolumn, które i tak mamy:** rok od–do, długość od–do,
+  popularność, explicit (przy weselu to kryterium, nie ciekawostka), źródło BPM (pomiar
+  czy estymata — kryterium D19) i grupa braków (D11). Ostatni zamienia znacznik
+  „do wzbogacenia" z tabeli w zaznaczenie, które można wysłać do joba, zamiast szukać
+  braków oczami strona po stronie. Żaden nie wymaga migracji — wszystkie mieszczą się
+  w istniejącym `where`.
+- **Kolumny wybiera DJ, a zestaw domyślny odpowiada na „co widać bez klikania":**
+  tożsamość utworu, to, czym się go miksuje (BPM, tonacja, energia, gatunek) i to, co DJ
+  sam o nim powiedział (ocena). Z tabeli znikają tempo (powtarza przedział BPM) i styl
+  (bywa akapitem, nie komórką); dochodzą tonacja i ocena, a album, popularność,
+  taneczność, explicit, źródło BPM, tagi i data dodania czekają pod wybierakiem.
+  Definicja kolumny to jedno miejsce: nagłówek, porządek sortowania i sposób narysowania
+  komórki (`library/columns.tsx`).
+- **Zestaw kolumn siedzi w adresie (`cols`), jak wszystko inne na tym ekranie (D22).**
+  „Mój widok do układania wesela" jest linkiem, a nie ustawieniem schowanym
+  w przeglądarce; zestaw domyślny nie zaśmieca adresu.
+- **Wiersz to katalog **i** dane DJ-a, ale nadal jako dwa obiekty.** Rozdział z D3
+  obowiązuje w kontrakcie: `{ track, library }`, gdzie `library: null` znaczy „utwór jest
+  w katalogu, ale nie w bibliotece" — co innego niż „w bibliotece bez oceny". Dzięki temu
+  ocena i tagi są w tabeli, a nie dopiero po otwarciu szuflady, i da się po nich sortować
+  (`RATING`, `ADDED_AT`). Dane DJ-a dociąga osobne zapytanie po ID-kach jednej strony
+  wyniku — złączenie z `library_entry` jest w wyszukiwarce od M3.2, ale mapowanie
+  natywnego zapytania na dwie encje naraz kosztowałoby ręczne przepisywanie kolumn
+  katalogu, czyli to, czego `select t.*` pozwala uniknąć.
+- **Kryteria wyszukiwarki też chodzą w grupach.** `CatalogSearchCriteria` z osiemnastoma
+  polami obok siebie nie ma jak wyłapać przestawienia `bpmMin` z `yearMin` — ten sam
+  argument, który w D36 kazał rozbić kontrakt przeglądu. Tekst SQL wyszukiwarki mieszka
+  odtąd w `CatalogSearchSql`, bo po dołożeniu filtrów był dłuższy niż całe repozytorium.
+- **Strona ma do 500 utworów, a stronicowanie ma więcej niż „następna".** Przy 2500
+  utworach i stronie po 20 przeklikiwanie się przez 125 stron jest gorsze niż jedno
+  cięższe zapytanie: dochodzą rozmiary 200 i 500 (sufit API podniesiony ze 100), skok na
+  pierwszą i ostatnią stronę, wpisanie numeru z ręki i licznik „1–20 na ekranie".

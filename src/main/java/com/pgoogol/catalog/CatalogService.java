@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 @Service
 public class CatalogService {
 
+    private static final int MAX_DURATION_SEC = 24 * 60 * 60;
+
     private final TrackCatalogRepository trackCatalogRepository;
     private final ManualMetricsRepository manualMetricsRepository;
 
@@ -58,32 +60,65 @@ public class CatalogService {
 
         Objects.requireNonNull(criteria, "criteria");
         Objects.requireNonNull(sortOrder, "sortOrder");
-        String search = Optional.ofNullable(criteria.search())
-            .map(String::strip)
-            .filter(value -> !value.isEmpty())
-            .orElse(null);
+        CatalogSearchCriteria.TrackFilter track = criteria.track();
+        CatalogSearchCriteria.SoundFilter sound = criteria.sound();
+        CatalogSearchCriteria.LibraryFilter library = criteria.library();
         CatalogSearchCriteria.MetricFilter metrics = criteria.metrics();
+        CatalogSearchCriteria.QualityFilter quality = criteria.quality();
         return trackCatalogRepository.search(
-            search,
-            Optional.ofNullable(criteria.genreFamily()).map(Enum::name).orElse(null),
-            criteria.bpmMin(),
-            criteria.bpmMax(),
-            Optional.ofNullable(criteria.tempoClass()).map(Enum::name).orElse(null),
-            criteria.energy(),
-            criteria.inLibrary(),
-            criteria.ratingMin(),
-            Optional.ofNullable(criteria.tag())
-                .map(String::strip)
-                .filter(value -> !value.isEmpty())
-                .orElse(null),
-            musicalKeys(criteria.harmonic()),
+            text(criteria.search()),
+            name(track.genreFamily()),
+            track.yearMin(),
+            track.yearMax(),
+            millis(track.durationMinSec()),
+            millis(track.durationMaxSec()),
+            track.popularityMin(),
+            track.explicit(),
+            sound.bpmMin(),
+            sound.bpmMax(),
+            name(sound.tempoClass()),
+            sound.energy(),
+            musicalKeys(sound.harmonic()),
+            library.inLibrary(),
+            library.ratingMin(),
+            text(library.tag()),
             metrics.valenceMin(),
             metrics.valenceMax(),
             metrics.instrumentalMin(),
             metrics.livenessMax(),
+            name(quality.bpmSource()),
+            name(quality.missing()),
             sortOrder.field().name(),
             sortOrder.direction().name(),
             pageable);
+    }
+
+    /** Puste i same białe znaki znaczą „bez filtra", nie „pasuje pusty tekst". */
+    @Nullable
+    private String text(@Nullable String value) {
+
+        return Optional.ofNullable(value)
+            .map(String::strip)
+            .filter(stripped -> !stripped.isEmpty())
+            .orElse(null);
+    }
+
+    @Nullable
+    private String name(@Nullable Enum<?> value) {
+        return Optional.ofNullable(value).map(Enum::name).orElse(null);
+    }
+
+    /**
+     * UI pyta o długość w sekundach, kolumna trzyma milisekundy. Doba w sekundach
+     * to sufit przeliczenia — bez niego wpisana z palca liczba dziewiątek przekręca
+     * {@code int} i filtr zaczyna znaczyć coś zupełnie innego, niż wygląda.
+     */
+    @Nullable
+    private Integer millis(@Nullable Integer seconds) {
+
+        return Optional.ofNullable(seconds)
+            .map(value -> Math.clamp(value, 0, MAX_DURATION_SEC) * 1000)
+            .orElse(null);
     }
 
     /**

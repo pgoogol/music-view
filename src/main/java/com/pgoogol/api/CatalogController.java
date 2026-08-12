@@ -1,15 +1,22 @@
 package com.pgoogol.api;
 
+import com.pgoogol.catalog.BpmSource;
 import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.CatalogSearchCriteria;
 import com.pgoogol.catalog.CatalogSearchCriteria.HarmonicFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.LibraryFilter;
 import com.pgoogol.catalog.CatalogSearchCriteria.MetricFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.QualityFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.SoundFilter;
+import com.pgoogol.catalog.CatalogSearchCriteria.TrackFilter;
 import com.pgoogol.catalog.CatalogService;
 import com.pgoogol.catalog.CatalogSort;
 import com.pgoogol.catalog.CatalogSortOrder;
 import com.pgoogol.catalog.GenreFamily;
+import com.pgoogol.catalog.MissingGroup;
 import com.pgoogol.catalog.TempoClass;
 import com.pgoogol.common.ValidationException;
+import com.pgoogol.library.LibrarySearchService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.data.domain.PageRequest;
@@ -30,14 +37,24 @@ import java.util.Objects;
 public class CatalogController {
 
     static final int DEFAULT_PAGE_SIZE = 20;
-    static final int MAX_PAGE_SIZE = 100;
+
+    /**
+     * Sufit strony (M5.6). Podniesiony ze 100, bo ekran Biblioteka daje wybrać
+     * większe strony — przy 2500 utworach przeklikiwanie się przez 125 stron
+     * po 20 pozycji jest gorsze niż jedno cięższe zapytanie.
+     */
+    static final int MAX_PAGE_SIZE = 500;
 
     private final CatalogService catalogService;
+    private final LibrarySearchService librarySearchService;
     private final CatalogApiMapper mapper;
 
-    public CatalogController(CatalogService catalogService, CatalogApiMapper mapper) {
+    public CatalogController(CatalogService catalogService,
+                             LibrarySearchService librarySearchService,
+                             CatalogApiMapper mapper) {
 
         this.catalogService = catalogService;
+        this.librarySearchService = librarySearchService;
         this.mapper = mapper;
     }
 
@@ -72,44 +89,63 @@ public class CatalogController {
     @GetMapping("/tracks")
     @Operation(summary = "Wyszukiwarka katalogu",
         description = "Pełnotekstowo (tsvector) + fuzzy (pg_trgm) po tytule/wykonawcy; "
-            + "filtry katalogu: genreFamily, bpmMin/bpmMax, tempoClass, energy; "
+            + "filtry utworu: genreFamily, yearMin/yearMax, durationMinSec/durationMaxSec, "
+            + "popularityMin, explicit; "
+            + "filtry brzmienia: bpmMin/bpmMax, tempoClass, energy oraz harmonia (D25): "
+            + "camelot (np. 8A) + camelotCompatible (true = także sąsiedzi na kole "
+            + "i tonacja równoległa); "
             + "filtry biblioteki DJ-a (D3): inLibrary (true = tylko z biblioteki, "
             + "false = tylko spoza), ratingMin, tag; "
-            + "filtr harmoniczny (D25): camelot (np. 8A) + camelotCompatible "
-            + "(true = także sąsiedzi na kole i tonacja równoległa); "
             + "filtry metryk (D24): valenceMin/valenceMax, instrumentalMin, livenessMax — "
             + "odsiewają utwory bez metryk, por. /api/catalog/metrics-coverage; "
-            + "sortowanie: sort (RELEVANCE domyślnie, TITLE, ARTIST, YEAR, BPM, POPULARITY, "
-            + "DURATION, ENERGY) + direction (ASC/DESC), braki zawsze na końcu; "
-            + "paginacja (max 100).")
-    public PageResponse<TrackResponse> searchTracks(
+            + "filtry kompletności danych: bpmSource (MANUAL/ACOUSTICBRAINZ/DEEZER/LLM, "
+            + "kryterium D19) i missing (METADATA/AUDIO/AI/ANY); "
+            + "sortowanie: sort (RELEVANCE domyślnie, TITLE, ARTIST, ALBUM, YEAR, BPM, "
+            + "POPULARITY, DURATION, DANCEABILITY, ENERGY, RATING, ADDED_AT) "
+            + "+ direction (ASC/DESC), braki zawsze na końcu; "
+            + "paginacja (max " + MAX_PAGE_SIZE + "). "
+            + "Wiersz to katalog + dane DJ-a (library = null dla utworu spoza biblioteki).")
+    public PageResponse<CatalogRowResponse> searchTracks(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) GenreFamily genreFamily,
+            @RequestParam(required = false) Integer yearMin,
+            @RequestParam(required = false) Integer yearMax,
+            @RequestParam(required = false) Integer durationMinSec,
+            @RequestParam(required = false) Integer durationMaxSec,
+            @RequestParam(required = false) Integer popularityMin,
+            @RequestParam(required = false) Boolean explicit,
             @RequestParam(required = false) Integer bpmMin,
             @RequestParam(required = false) Integer bpmMax,
             @RequestParam(required = false) TempoClass tempoClass,
             @RequestParam(required = false) String energy,
+            @RequestParam(required = false) String camelot,
+            @RequestParam(defaultValue = "true") boolean camelotCompatible,
             @RequestParam(required = false) Boolean inLibrary,
             @RequestParam(required = false) Integer ratingMin,
             @RequestParam(required = false) String tag,
-            @RequestParam(required = false) String camelot,
-            @RequestParam(defaultValue = "true") boolean camelotCompatible,
             @RequestParam(required = false) BigDecimal valenceMin,
             @RequestParam(required = false) BigDecimal valenceMax,
             @RequestParam(required = false) BigDecimal instrumentalMin,
             @RequestParam(required = false) BigDecimal livenessMax,
+            @RequestParam(required = false) BpmSource bpmSource,
+            @RequestParam(required = false) MissingGroup missing,
             @RequestParam(required = false) CatalogSort sort,
             @RequestParam(required = false) Sort.Direction direction,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "" + DEFAULT_PAGE_SIZE) int size) {
 
         CatalogSearchCriteria criteria = new CatalogSearchCriteria(
-            search, genreFamily, bpmMin, bpmMax, tempoClass, energy, inLibrary, ratingMin, tag,
-            harmonicFilter(camelot, camelotCompatible),
-            new MetricFilter(valenceMin, valenceMax, instrumentalMin, livenessMax));
+            search,
+            new TrackFilter(genreFamily, yearMin, yearMax, durationMinSec, durationMaxSec,
+                popularityMin, explicit),
+            new SoundFilter(bpmMin, bpmMax, tempoClass, energy,
+                harmonicFilter(camelot, camelotCompatible)),
+            new LibraryFilter(inLibrary, ratingMin, tag),
+            new MetricFilter(valenceMin, valenceMax, instrumentalMin, livenessMax),
+            new QualityFilter(bpmSource, missing));
         PageRequest pageRequest = PageRequest.of(Math.max(0, page), cappedSize(size));
         return PageResponse.of(
-            catalogService.search(criteria, CatalogSortOrder.of(sort, direction), pageRequest),
+            librarySearchService.search(criteria, CatalogSortOrder.of(sort, direction), pageRequest),
             mapper::toResponse);
     }
 
