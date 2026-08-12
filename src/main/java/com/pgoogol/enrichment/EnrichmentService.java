@@ -46,6 +46,7 @@ public class EnrichmentService {
     private final EnrichmentJobHistory jobHistory;
     private final TrackCatalogRepository trackCatalogRepository;
     private final EnrichmentCostEstimator costEstimator;
+    private final EnrichmentFailureRepository failureRepository;
     private final LlmProperties llmProperties;
 
     public EnrichmentService(@Qualifier("asyncJobLauncher") JobLauncher asyncJobLauncher,
@@ -53,6 +54,7 @@ public class EnrichmentService {
                              EnrichmentJobHistory jobHistory,
                              TrackCatalogRepository trackCatalogRepository,
                              EnrichmentCostEstimator costEstimator,
+                             EnrichmentFailureRepository failureRepository,
                              LlmProperties llmProperties) {
 
         this.asyncJobLauncher = asyncJobLauncher;
@@ -61,6 +63,7 @@ public class EnrichmentService {
         this.jobHistory = jobHistory;
         this.trackCatalogRepository = trackCatalogRepository;
         this.costEstimator = costEstimator;
+        this.failureRepository = failureRepository;
         this.llmProperties = llmProperties;
     }
 
@@ -112,12 +115,15 @@ public class EnrichmentService {
         };
         long aiTracks = fields.contains(FieldGroup.AI) ? trackCount : 0;
         int limit = llmProperties.maxTracksPerJob();
+        // sufit liczy się po utworach idących do LLM-a, nie po wielkości przebiegu
+        // (D37): metadane i audio jadą z darmowych źródeł (D6), więc blokowanie ich
+        // limitem kosztowym z D28 chroniło budżet, którego one nie ruszają
         return new EnrichmentEstimate(
             trackCount,
             aiTracks,
             costEstimator.estimate(aiTracks).orElse(null),
             limit,
-            trackCount <= limit);
+            aiTracks <= limit);
     }
 
     /** Restart nieudanego wykonania — Spring Batch dokańcza od ostatniego chunka. */
@@ -146,6 +152,17 @@ public class EnrichmentService {
         return jobHistory.recent(EnrichmentJobConfig.JOB_NAME, Math.max(1, limit));
     }
 
+    /**
+     * Utwory, które wypadły z danego przebiegu, razem z powodem (D37) — job
+     * przechodzi przez całą listę i pomija to, co padło, więc bez tej listy
+     * zostaje sam licznik pominięć.
+     */
+    public List<EnrichmentFailure> failures(long executionId, int limit) {
+
+        requireExecution(executionId);
+        return failureRepository.byExecution(executionId, Math.max(1, limit));
+    }
+
     public MissingFieldsCount missingCount() {
 
         TrackCatalogRepository.MissingCounts counts =
@@ -162,9 +179,10 @@ public class EnrichmentService {
             .map(value -> ", szacunek kosztu $" + value)
             .orElse("");
         throw new ValidationException("ENRICH_TOO_MANY_TRACKS",
-            ("Zakres %s obejmuje %d utworów przy limicie %d%s — zawęź zlecenie albo podnieś "
+            ("Zakres %s wysyła do modelu %d utworów przy limicie %d%s — odznacz grupę AI "
+                + "(metadane i audio nie mają sufitu), zawęź zlecenie albo podnieś "
                 + "llm.max-tracks-per-job w konfiguracji")
-                .formatted(scope, estimate.trackCount(), estimate.limit(), cost));
+                .formatted(scope, estimate.aiTracks(), estimate.limit(), cost));
     }
 
     private String requiredModel() {
@@ -217,8 +235,13 @@ public class EnrichmentService {
                         "Zakres SELECTED wymaga listy spotify_id");
                 }
                 if (spotifyIds.size() > MAX_SELECTED_TRACKS) {
+                    // to nie jest limit kosztowy (D28), tylko szerokość kolumny
+                    // BATCH_JOB_EXECUTION_PARAMS.PARAMETER_VALUE: lista id-ków jedzie
+                    // w parametrze joba, żeby restart dokończył dokładnie ten zakres
                     throw new ValidationException("ENRICH_TOO_MANY_TRACKS",
-                        "Zakres SELECTED obsługuje maksymalnie %d utworów — dla większych partii użyj MISSING"
+                        ("Zakres SELECTED przenosi listę utworów w parametrze joba, a ten mieści "
+                            + "najwyżej %d pozycji — dla większych partii użyj zakresu MISSING, "
+                            + "który nie ma sufitu poza kosztem grupy AI")
                             .formatted(MAX_SELECTED_TRACKS));
                 }
             }

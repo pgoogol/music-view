@@ -16,6 +16,8 @@ public record EnrichmentJobStatus(
     String fields,
     long readCount,
     long writeCount,
+    /** Utwory pominięte przez job (D37) — powody w {@code enrichment_failure}. */
+    long failedCount,
     LocalDateTime startTime,
     LocalDateTime endTime,
     String exitDescription) {
@@ -26,6 +28,8 @@ public record EnrichmentJobStatus(
             .mapToLong(StepExecution::getReadCount).sum();
         long writeCount = execution.getStepExecutions().stream()
             .mapToLong(StepExecution::getWriteCount).sum();
+        long failedCount = execution.getStepExecutions().stream()
+            .mapToLong(step -> step.getWriteSkipCount() + step.getProcessSkipCount()).sum();
         return new EnrichmentJobStatus(
             execution.getId(),
             execution.getJobInstance().getInstanceId(),
@@ -34,6 +38,7 @@ public record EnrichmentJobStatus(
             execution.getJobParameters().getString("fields"),
             readCount,
             writeCount,
+            failedCount,
             execution.getStartTime(),
             execution.getEndTime(),
             execution.getExitStatus().getExitDescription());

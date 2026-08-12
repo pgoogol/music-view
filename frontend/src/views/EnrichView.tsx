@@ -259,17 +259,20 @@ export default function EnrichView({ selectedIds, onJobFinished }: Props) {
                   </strong>
                 </>
               )}
-              {estimate.aiTracks === 0 && ' · bez kosztu (darmowe źródła)'}
+              {estimate.aiTracks === 0 && ' · bez kosztu i bez limitu (darmowe źródła)'}
               {estimate.estimatedCost === null && estimate.aiTracks > 0 && (
                 <span className="muted">
                   {' '}
                   — ustaw llm.cost.input-per-1m i llm.cost.output-per-1m
                 </span>
               )}
+              {/* sufit dotyczy wyłącznie utworów idących do modelu (D37) —
+                  metadane i audio mogą lecieć w dowolnej liczbie */}
               {!estimate.withinLimit && (
                 <span className="error">
                   {' '}
-                  — ponad limit {estimate.limit}, job nie wystartuje
+                  — do modelu idzie {estimate.aiTracks} przy limicie {estimate.limit}, job nie
+                  wystartuje. Odznacz grupę „analiza AI", żeby puścić resztę bez sufitu.
                 </span>
               )}
             </>

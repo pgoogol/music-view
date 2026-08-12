@@ -1,6 +1,7 @@
 // Wykres słupkowy rysowany inline w SVG (M4.3) — jak krzywa tempa z M3.1,
 // bez biblioteki wykresów i bez zasobów z sieci (D23). Używany tam, gdzie oś
-// jest uporządkowana i niesie znaczenie: histogram BPM i przyrost po miesiącach.
+// jest uporządkowana i niesie znaczenie: przyrost biblioteki po miesiącach.
+// Klasę sekcji dzieli od M5.4 z resztą wykresów pulpitu (`viz`).
 
 import type { BucketResponse } from '../api'
 
@@ -19,7 +20,7 @@ export default function ColumnChart({ title, buckets, caption, testId }: Props) 
 
   if (buckets.length === 0) {
     return (
-      <section className="distribution">
+      <section className="viz">
         <h4>{title}</h4>
         <p className="muted">Brak danych.</p>
       </section>
@@ -35,7 +36,7 @@ export default function ColumnChart({ title, buckets, caption, testId }: Props) 
   const labelEvery = buckets.length > 10 ? 2 : 1
 
   return (
-    <section className="distribution">
+    <section className="viz">
       <h4>{title}</h4>
       <figure className="chart">
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" data-testid={testId}

@@ -69,16 +69,36 @@ public class EnrichmentJobConfig {
             .build();
     }
 
+    /**
+     * Krok odporny na porażki pojedynczych utworów (D37): to, co padło, zostaje
+     * pominięte i opisane, a przebieg idzie dalej. Wcześniej jedna felerna
+     * odpowiedź zewnętrznego API wywracała cały job — przy 2500 utworach
+     * kasowało to efekt kwadransów pracy.
+     *
+     * <p>Bez sufitu pominięć: sufit zamieniałby „awarię 600. utworu" z powrotem
+     * w „przebieg wywrócony", czyli w to, co właśnie usuwamy. Systemową awarię
+     * (zły klucz, padnięty provider) widać po tym, że nieudanych jest tyle co
+     * wszystkich — i po to jest raport, a nie po to sufit.</p>
+     *
+     * <p>Pominięcie w writerze każe Spring Batchowi powtórzyć chunk pozycja po
+     * pozycji, więc odpada wyłącznie ten utwór, który realnie padł, a nie cała
+     * piątka, z którą akurat jechał.</p>
+     */
     @Bean
     public Step enrichmentStep(JobRepository jobRepository,
                                PlatformTransactionManager transactionManager,
                                JdbcPagingItemReader<String> enrichmentTrackIdReader,
-                               ItemWriter<String> enrichmentTrackWriter) {
+                               ItemWriter<String> enrichmentTrackWriter,
+                               EnrichmentSkipRecorder skipRecorder) {
 
         return new StepBuilder("enrichmentStep", jobRepository)
             .<String, String>chunk(CHUNK_SIZE, transactionManager)
             .reader(enrichmentTrackIdReader)
             .writer(enrichmentTrackWriter)
+            .faultTolerant()
+            .skip(Exception.class)
+            .skipLimit(Integer.MAX_VALUE)
+            .listener(skipRecorder)
             .build();
     }
 

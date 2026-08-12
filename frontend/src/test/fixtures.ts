@@ -3,6 +3,7 @@
 
 import type {
   IngestPlaylistResponse,
+  LibraryOverviewResponse,
   TrackMetricsResponse,
   PageResponse,
   PlaylistResponse,
@@ -130,6 +131,131 @@ export function anIngestReport(
     skipped: [],
     ...overrides,
   }
+}
+
+/**
+ * Przegląd biblioteki w kształcie z M5.4 — jeden komplet danych dla testów
+ * logiki wniosków i całego pulpitu. Liczby są tak dobrane, żeby dało się je
+ * sprawdzić w pamięci: 2500 w katalogu, 2120 znanych temp, dominująca 8A.
+ */
+export const overviewFixture: LibraryOverviewResponse = {
+  scale: {
+    catalogTracks: 2500,
+    libraryTracks: 2310,
+    tracksWithMetrics: 120,
+    libraryDurationMs: 22_000_000,
+    distinctArtists: 640,
+    distinctAlbums: 410,
+    averageBpm: 118.4,
+    averageDurationMs: 231_000,
+    averagePopularity: 54.2,
+    averageDanceability: 0.74,
+    tracksWithDanceability: 1830,
+  },
+  quality: {
+    metadataMissing: 4,
+    audioMissing: 380,
+    aiMissing: 90,
+    bpmSources: [
+      { label: 'MANUAL', count: 120 },
+      { label: 'DEEZER', count: 900 },
+      { label: 'LLM', count: 1100 },
+      { label: 'BRAK BPM', count: 380 },
+    ],
+    confidences: [
+      { label: 'high', count: 1500 },
+      { label: 'BEZ ANALIZY', count: 90 },
+    ],
+  },
+  sound: {
+    genres: [
+      { label: 'LATIN', count: 1500 },
+      { label: 'BEZ GATUNKU', count: 100 },
+    ],
+    styles: [{ label: 'salsa', count: 700 }],
+    tempoClasses: [{ label: 'MEDIUM', count: 900 }],
+    energies: [{ label: 'high', count: 1200 }],
+    bpmHistogram: [
+      { label: '90–99', count: 200 },
+      { label: '100–109', count: 400 },
+      { label: '110–119', count: 150 },
+    ],
+    camelotKeys: [
+      { label: '8A', count: 300 },
+      { label: '9A', count: 120 },
+      { label: 'BEZ TONACJI', count: 380 },
+    ],
+    durations: [
+      { label: '3 min', count: 800 },
+      { label: '4 min', count: 900 },
+      { label: '5 min', count: 300 },
+    ],
+    popularity: [
+      { label: '40–49', count: 500 },
+      { label: '50–59', count: 700 },
+      { label: '60–69', count: 400 },
+    ],
+    explicitness: [
+      { label: 'czyste', count: 2300 },
+      { label: 'wulgarne', count: 140 },
+      { label: 'BEZ DANYCH', count: 60 },
+    ],
+    timeSignatures: [
+      { label: '3/4', count: 8 },
+      { label: '4/4', count: 110 },
+      { label: 'BEZ METRUM', count: 2 },
+    ],
+    tempoEnergy: [
+      { tempoClass: 'MEDIUM', energy: 'HIGH', count: 700 },
+      { tempoClass: 'FAST', energy: 'HIGH', count: 220 },
+    ],
+    audioProfile: [
+      { label: 'danceability', value: 0.78 },
+      { label: 'energy', value: 0.64 },
+      { label: 'valence', value: 0.71 },
+      { label: 'acousticness', value: 0.18 },
+      { label: 'instrumentalness', value: 0.04 },
+      { label: 'speechiness', value: 0.09 },
+      { label: 'liveness', value: 0.16 },
+    ],
+  },
+  timeline: {
+    monthlyGrowth: [
+      { label: '2026-06', count: 100 },
+      { label: '2026-07', count: 300 },
+    ],
+    decades: [
+      { label: '1990s', count: 400 },
+      { label: '2000s', count: 1200 },
+    ],
+  },
+  taste: {
+    topArtists: [
+      { label: 'Marc Anthony', count: 42 },
+      { label: 'Romeo Santos', count: 31 },
+    ],
+    topAlbums: [
+      { label: '3.0', count: 18 },
+      { label: 'Fórmula, Vol. 2', count: 11 },
+    ],
+    topTags: [
+      { label: 'parkiet', count: 60 },
+      { label: 'wolne', count: 12 },
+    ],
+    ratings: [
+      { label: '5', count: 210 },
+      { label: 'bez oceny', count: 2000 },
+    ],
+  },
+  recentlyAdded: [
+    {
+      spotifyId: 'sp-1',
+      title: 'Vivir Mi Vida',
+      artist: 'Marc Anthony',
+      albumImageUrl: null,
+      addedAt: '2026-07-30T18:00:00Z',
+    },
+  ],
 }
 
 export function aPage<T>(content: T[], overrides: Partial<PageResponse<T>> = {}): PageResponse<T> {

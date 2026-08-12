@@ -125,9 +125,18 @@ export interface EnrichJobResponse {
   fields: string
   readCount: number
   writeCount: number
+  /** Utwory pominięte przez job (D37); powody pod `jobFailures`. */
+  failedCount: number
   startTime: string | null
   endTime: string | null
   exitDescription: string | null
+}
+
+/** Utwór pominięty przez job wzbogacania razem z powodem (D37). */
+export interface EnrichFailureResponse {
+  spotifyId: string
+  reason: string
+  failedAt: string
 }
 
 /** Stan automatycznego odświeżania playlist w tle (M4.7/D35). */
@@ -196,22 +205,92 @@ export interface BucketResponse {
   count: number
 }
 
-export interface LibraryOverviewResponse {
+/** Komórka macierzy tempo × energia — dwa wymiary naraz (M5.4). */
+export interface MatrixCellResponse {
+  tempoClass: string
+  energy: string
+  count: number
+}
+
+/** Średnia cecha audio z metryk ręcznych (D24), skala 0..1. */
+export interface MetricResponse {
+  label: string
+  value: number
+}
+
+export interface RecentTrackResponse {
+  spotifyId: string
+  title: string | null
+  artist: string | null
+  albumImageUrl: string | null
+  addedAt: string
+}
+
+/**
+ * Skala zbioru — same utwory (D36); playlisty i sety mają własne zakładki.
+ * Średnie = null dla pustego katalogu, nie zero.
+ */
+export interface OverviewScaleResponse {
   catalogTracks: number
   libraryTracks: number
   tracksWithMetrics: number
+  libraryDurationMs: number
+  distinctArtists: number
+  distinctAlbums: number
+  averageBpm: number | null
+  averageDurationMs: number | null
+  averagePopularity: number | null
+  /** Taneczność z katalogu (AcousticBrainz/LLM) — szersza próbka niż metryki z pliku. */
+  averageDanceability: number | null
+  tracksWithDanceability: number
+}
+
+export interface OverviewQualityResponse {
   metadataMissing: number
   audioMissing: number
   aiMissing: number
-  genres: BucketResponse[]
-  tempoClasses: BucketResponse[]
-  energies: BucketResponse[]
   /** Ile biblioteki stoi na faktach, a ile na estymacie LLM (kryterium D19). */
   bpmSources: BucketResponse[]
-  ratings: BucketResponse[]
+  confidences: BucketResponse[]
+}
+
+export interface OverviewSoundResponse {
+  genres: BucketResponse[]
+  styles: BucketResponse[]
+  tempoClasses: BucketResponse[]
+  energies: BucketResponse[]
   bpmHistogram: BucketResponse[]
-  topArtists: BucketResponse[]
+  /** Pozycje koła Camelot policzone z tonacji (D25), w kolejności koła. */
+  camelotKeys: BucketResponse[]
+  durations: BucketResponse[]
+  popularity: BucketResponse[]
+  explicitness: BucketResponse[]
+  /** Metrum z metryk ręcznych (D24) — obejmuje tylko utwory z pliku. */
+  timeSignatures: BucketResponse[]
+  tempoEnergy: MatrixCellResponse[]
+  audioProfile: MetricResponse[]
+}
+
+export interface OverviewTimelineResponse {
   monthlyGrowth: BucketResponse[]
+  decades: BucketResponse[]
+}
+
+export interface OverviewTasteResponse {
+  topArtists: BucketResponse[]
+  topAlbums: BucketResponse[]
+  topTags: BucketResponse[]
+  ratings: BucketResponse[]
+}
+
+/** Pięć grup = pięć stref czytania ekranu przeglądu (M5.4/D36). */
+export interface LibraryOverviewResponse {
+  scale: OverviewScaleResponse
+  quality: OverviewQualityResponse
+  sound: OverviewSoundResponse
+  timeline: OverviewTimelineResponse
+  taste: OverviewTasteResponse
+  recentlyAdded: RecentTrackResponse[]
 }
 
 /** Profil kształtu wieczoru dla generatora (M4.5/D33) — udziały faz D9. */
@@ -548,6 +627,11 @@ export const api = {
 
   jobStatus(executionId: number): Promise<EnrichJobResponse> {
     return request(`/api/enrich/jobs/${executionId}`)
+  },
+
+  /** Co dokładnie odpadło w danym przebiegu i dlaczego (D37). */
+  jobFailures(executionId: number, limit = 200): Promise<EnrichFailureResponse[]> {
+    return request(`/api/enrich/jobs/${executionId}/failures?limit=${limit}`)
   },
 
   restartJob(executionId: number): Promise<{ executionId: number }> {

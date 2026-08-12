@@ -604,6 +604,60 @@ automatycznie, nie ręcznie.
 sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok przepływu
 przestaje działać.
 
+## M5.4 Przegląd jako pulpit *(po M4.3)*
+
+**Cel:** ekran Przegląd opisuje **sam zbiór utworów** — co mam, jakie to jest i skąd
+o tym wiemy — i wygląda jak pulpit, a nie jak zrzut z bazy.
+
+- **Zakres to utwory, nie playlisty i nie sety** (D36): playlisty, generator i domykanie
+  setu mają własne zakładki, więc na przeglądzie nie ma liczby playlist, utworów wpiętych
+  w sety ani „poza setami"; rozkład trybów importu ustąpił najczęstszym albumom
+- **Pięć stref czytania** zamiast sześciu równorzędnych paneli: skala → wnioski → brzmienie
+  → kompletność danych → czas i zawartość; kontrakt `GET /api/library/overview` dostaje ten
+  sam podział na pięć grup zamiast płaskiej listy pól (D36)
+- **Nowe agregaty w bazie** (D27 bez zmian): czas grania, liczba wykonawców i albumów,
+  średnie tempo, długość i popularność utworu, dekady, rozkład długości i popularności,
+  pewność analizy AI, top tagi, albumy i style, macierz tempo × energia, uśredniony profil
+  brzmienia z metryk (D24), próbka ostatnio dodanych z okładkami
+- **Koło Camelot** rysowane z tonacji (D25) — 24 pozycje z obrysem tonacji zgodnych
+  z dominującą; sąsiedztwo na kole jest informacją, listy alfabetyczne ją gubiły
+- **Sekcja „co z tego wynika"** — najgęstsze tempo, dominująca tonacja, udział tempa
+  z pomiaru wobec estymaty (D19), dominujący rocznik, średnia długość utworu, najlepszy
+  miesiąc, najczęstszy wykonawca; liczone na froncie z danych, które i tak przyszły
+  (`overviewInsights.ts`), więc sprawdzalne testem
+- **Animacje jako dekoracja**: moduły zapalają się po kolei, kreski rysują od lewej, liczniki
+  nabijają od zera — przy `prefers-reduced-motion` wszystko startuje w stanie końcowym
+- **Osobna rampa kolorów wykresów** (`--viz-1..6`) obok kolorów semantycznych motywu, żeby
+  podmiana palety pod większy system była podmianą sześciu zmiennych (D36)
+
+**DoD:** `./mvnw verify` i `npm test` zielone; przegląd pokazuje komplet agregatów jednym
+wywołaniem API, nie wspomina słowem o playlistach ani setach (pilnuje tego test widoku),
+koło Camelot nie kłamie na utworach bez tonacji, a ekran czyta się przy ograniczonym
+ruchu tak samo dobrze jak z animacjami.
+
+## M5.5 Wzbogacanie na dowolnej skali i odporne na porażki *(po M5.1)*
+
+**Cel:** zlecenie wzbogacania da się puścić na całej bibliotece, a jedna felerna odpowiedź
+zewnętrznego API nie kasuje efektu całego przebiegu.
+
+- **Sufit `llm.max-tracks-per-job` liczy się po utworach idących do modelu**, nie po
+  wielkości przebiegu (D37): zlecenie bez grupy AI nie ma limitu, bo metadane i cechy
+  audio jadą z darmowych źródeł (D6)
+- **Limit 100 przy SELECTED zostaje** jako to, czym jest — szerokość kolumny parametru
+  joba w Spring Batchu — z komunikatem kierującym na zakres MISSING
+- **Krok `faultTolerant` ze `skip(Exception.class)`**: utwór, który padł, wypada
+  z przebiegu, reszta wchodzi; powtórka chunka pozycja po pozycji izoluje winowajcę
+- **Tabela `enrichment_failure`** (migracja V8) z powodem per utwór, zapisywana własną
+  transakcją, bo `SkipListener` woła się w wycofywanym chunku
+- **`GET /api/enrich/jobs/{id}/failures`** i licznik `failedCount` w statusie joba
+- **UI:** kolumna „nieudane" w historii i działające „szczegóły" — okno z komunikatem
+  zakończenia oraz listą pominiętych utworów zamiast atrybutu `title` na `<span>`,
+  którego nie da się otworzyć z klawiatury ani z dotyku
+
+**DoD:** `./mvnw verify` i `npm test` zielone; zlecenie METADATA+AUDIO na całym katalogu
+startuje, job z trwale padającym utworem kończy się statusem COMPLETED, wzbogaca resztę
+i raportuje, co odpadło i dlaczego.
+
 ---
 
 # Zależności między kamieniami
@@ -635,9 +689,11 @@ flowchart LR
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
+    M43 --> M54[M5.4<br/>pulpit przeglądu]
+    M51 --> M55[M5.5<br/>wzbogacanie bez sufitu]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53 plan
+    class M41,M42,M43,M44,M45,M46,M47,M51,M52,M53,M54,M55 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

@@ -782,3 +782,89 @@ więc samo: przy starcie aplikacji i potem co `ingestion.playlist-refresh.interv
   (`ingestion.playlist-refresh.enabled=false`). Zadanie ruszające w środku testu poszłoby
   po realne dane do Spotify — a test, który zależy od cudzego serwera, przestaje coś
   znaczyć (ten sam argument co w D30).
+
+## D36. Przegląd jako pulpit — pięć stref, jedno wywołanie (M5.4)
+
+Przegląd z M4.3 odpowiadał na „co ja mam" sześcioma panelami: cztery liczby i pięć
+rozkładów. Listy słupków wyglądały jak zrzut z bazy, a ekran nie mówił nic o samych
+utworach ponad to, ile ich jest. Rozstrzygnięcia:
+
+- **Przegląd jest o utworach i tylko o utworach.** Playlisty, sety i generator mają
+  własne zakładki; wciąganie ich tutaj robiło z przeglądu drugi pulpit tego samego,
+  a nie odpowiedź na „co mam w bibliotece". Dlatego z ekranu (i z kontraktu) wypadły
+  liczby playlist, utworów wpiętych w sety i utworów „poza setami", a rozkład trybów
+  importu ustąpił miejsca najczęstszym albumom. Wnioski też mówią o zbiorze, nie
+  o układaniu wieczoru.
+- **Ekran ma pięć stref czytania, w kolejności malejącej ogólności:** skala → wnioski →
+  brzmienie → kompletność danych → czas i zawartość. Odpowiedź na to samo pytanie ma być
+  w jednym miejscu, a nie rozsypana po panelach ułożonych w kolejności pisania kodu.
+- **Odpowiedź idzie tym samym jednym wywołaniem, agregaty nadal liczy baza (D27).**
+  Doszło dziesięć wymiarów rozkładów, macierz tempo × energia, profil brzmienia
+  i próbka ostatnio dodanych — wszystko na tej samej zasadzie: front nie dostaje
+  2500 wierszy po to, żeby je zliczyć w przeglądarce. Rozkłady kategorialne schodzą
+  jednym `union all` z etykietą wymiaru i własnym kluczem sortowania.
+- **Kontrakt `GET /api/library/overview` przestaje być płaski.** Pięć grup zamiast
+  dwudziestu ośmiu pól obok siebie: konstruktor z kilkunastoma argumentami typu
+  `List<Bucket>` nie ma jak wyłapać przestawienia dwóch rozkładów miejscami, a nazwa
+  grupy mówi frontowi, do której strefy dana liczba należy.
+- **Ekran wyciąga wnioski, nie tylko rysuje słupki.** Najgęstszy przedział tempa,
+  dominująca tonacja z listą wchodzących w nią pozycji koła (D25), udział tempa
+  z pomiaru wobec estymaty (D19), utwory poza wszystkimi setami — liczone na froncie
+  z tego, co i tak przyszło (`overviewInsights.ts`), więc dają się sprawdzić testem
+  bez renderowania pulpitu.
+- **Tonacje pokazujemy jako koło Camelot, nie jako listę.** Sąsiedztwo na kole *jest*
+  zgodnością harmoniczną (D25); lista posortowana alfabetycznie tę informację gubi.
+  Koszyk zastępczy dla braku tonacji omija parser — „BEZ TONACJI" zaczyna się od nazwy
+  dźwięku, więc bez tego wyjątku wszystkie utwory bez tonacji lądowały na pozycji 1B.
+- **Tempo i energia dostają wspólną macierz.** Dwa rozkłady osobno mówią „mam dużo
+  szybkich" i „mam dużo energetycznych"; dopiero skrzyżowanie mówi, czy to te same
+  utwory, czy dwa różne kawałki biblioteki.
+- **Animacje są dekoracją i tak są traktowane.** Moduły zapalają się po kolei, kreski
+  rysują się od lewej, liczniki nabijają od zera — ale przy `prefers-reduced-motion`
+  wszystko startuje w stanie końcowym (`animation: none`), a nie znika. Ta sama zasada
+  co w M3.2: poświaty zostają, ruch znika.
+- **Wykresy nadal rysujemy inline w SVG** (D23) — doszło koło Camelot, pajęczyna cech
+  audio, wstęga i wskaźnik pierścieniowy, wszystkie na tej samej zasadzie co krzywa
+  tempa z M3.1: bez biblioteki wykresów i bez zasobów z sieci.
+- **Kolory wykresów to osobna rampa (`--viz-1..6`) obok kolorów semantycznych.**
+  Segmenty jednego paska muszą się od siebie odróżniać, a bursztyn i cyjan mają
+  w tym motywie znaczenie (akcja / pomiar). Znaczenie segmentu niesie legenda, nie kolor
+  (D23), więc podmiana palety pod większy system to podmiana tych sześciu zmiennych.
+
+## D37. Wzbogacanie bez sufitu tam, gdzie nie ma rachunku, i bez wywrotki na jednym błędzie (M5.5)
+
+Trzy rzeczy w zakładce Wzbogacanie działały wbrew temu, po co powstały:
+
+- **Sufit z D28 pilnował nie tego, co miał.** `llm.max-tracks-per-job` porównywał się
+  z liczbą utworów w zleceniu, a nie z liczbą utworów idących do modelu. Uzasadnieniem
+  limitu jest rachunek za LLM („pomyłka w LLM_MODEL przy 2500 utworach to realny
+  rachunek"), a metadane i cechy audio jadą z darmowych źródeł (D6). Efekt: zlecenie
+  na 2500 utworów w grupach METADATA+AUDIO nie startowało, chroniąc budżet, którego
+  w ogóle nie ruszało. **Sufit liczy się teraz po `aiTracks`** — zlecenie bez grupy AI
+  nie ma limitu, choćby obejmowało cały katalog.
+- **Limit 100 przy zakresie SELECTED zostaje, ale przestaje udawać decyzję.** To nie
+  jest limit kosztowy, tylko szerokość kolumny `BATCH_JOB_EXECUTION_PARAMS.PARAMETER_VALUE`
+  (2500 znaków): lista identyfikatorów jedzie w parametrze joba, żeby restart dokańczał
+  dokładnie ten zakres, a nie ten wynikający z aktualnego stanu bazy. Komunikat mówi to
+  wprost i kieruje na zakres MISSING, który tego ograniczenia nie ma.
+- **Job przechodzi przez całą listę zamiast wywracać się na pierwszym błędzie.** Krok
+  jest `faultTolerant` ze `skip(Exception.class)`; utwór, który padł, wypada z przebiegu,
+  a reszta wchodzi. Wcześniej jedna felerna odpowiedź zewnętrznego API kasowała efekt
+  kwadransów pracy — ten sam argument, który w D31 kazał nie przerywać importu hurtem.
+  Pominięcie w writerze każe Spring Batchowi powtórzyć chunk pozycja po pozycji, więc
+  odpada wyłącznie ten utwór, który realnie padł, a nie cała piątka, z którą jechał.
+- **Bez sufitu pominięć.** Sufit zamieniałby „awarię 600. utworu" z powrotem w „przebieg
+  wywrócony", czyli w to, co usuwamy. Awarię systemową (zły klucz, padnięty provider)
+  widać po tym, że nieudanych jest tyle co wszystkich — od tego jest raport, nie limit.
+- **Powody porażek trafiają do tabeli `enrichment_failure`, nie do logu.** „Pominięto 37"
+  bez powodów nie mówi, czy padł jeden serwis, czy 37 razy to samo. Zapis idzie własną
+  transakcją (`REQUIRES_NEW`), bo `SkipListener` woła się w środku chunka, który Spring
+  Batch właśnie wycofuje — inaczej powód znikałby razem z rollbackiem. Bez klucza obcego
+  do tabel `BATCH_*`: należą do Spring Batcha i to on decyduje o czyszczeniu historii.
+- **Konsekwencja dla restartu:** awaria pojedynczych utworów nie kończy się już statusem
+  FAILED, więc restart od checkpointu przestaje dotyczyć tego przypadku (job kończy się
+  sukcesem, z raportem). Restart zostaje dla wykonań STOPPED i awarii infrastrukturalnych.
+- **„Szczegóły" w historii jobów były atrybutem `title` na `<span>`.** Dymek systemowy:
+  nie otwiera się z klawiatury, nie istnieje na dotyku, a dłuższy komunikat i tak jest
+  ucinany przez przeglądarkę. Teraz to przycisk otwierający okno z komunikatem
+  zakończenia i listą pominiętych utworów z powodami; historia dostaje kolumnę „nieudane".
