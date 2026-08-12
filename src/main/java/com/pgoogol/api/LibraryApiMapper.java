@@ -38,10 +38,10 @@ public class LibraryApiMapper {
             scale.tracksWithMetrics(),
             scale.libraryDurationMs(),
             scale.distinctArtists(),
+            scale.distinctAlbums(),
             scale.averageBpm(),
-            scale.playlists(),
-            scale.tracksInPlaylists(),
-            scale.tracksOutsidePlaylists());
+            scale.averageDurationMs(),
+            scale.averagePopularity());
     }
 
     private LibraryOverviewResponse.QualityResponse quality(LibraryOverview.Quality quality) {
@@ -86,9 +86,9 @@ public class LibraryApiMapper {
 
         return new LibraryOverviewResponse.TasteResponse(
             buckets(taste.topArtists()),
+            buckets(taste.topAlbums()),
             buckets(taste.topTags()),
-            buckets(taste.ratings()),
-            buckets(taste.sources()));
+            buckets(taste.ratings()));
     }
 
     private List<LibraryOverviewResponse.BucketResponse> buckets(List<LibraryOverview.Bucket> source) {

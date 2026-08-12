@@ -606,29 +606,34 @@ przestaje działać.
 
 ## M5.4 Przegląd jako pulpit *(po M4.3)*
 
-**Cel:** ekran Przegląd odpowiada nie tylko na „co ja mam", ale i na „czy da się z tego
-zagrać" — i wygląda jak pulpit, a nie jak zrzut z bazy.
+**Cel:** ekran Przegląd opisuje **sam zbiór utworów** — co mam, jakie to jest i skąd
+o tym wiemy — i wygląda jak pulpit, a nie jak zrzut z bazy.
 
+- **Zakres to utwory, nie playlisty i nie sety** (D36): playlisty, generator i domykanie
+  setu mają własne zakładki, więc na przeglądzie nie ma liczby playlist, utworów wpiętych
+  w sety ani „poza setami"; rozkład trybów importu ustąpił najczęstszym albumom
 - **Pięć stref czytania** zamiast sześciu równorzędnych paneli: skala → wnioski → brzmienie
-  → kompletność danych → czas i gust; kontrakt `GET /api/library/overview` dostaje ten sam
-  podział na pięć grup zamiast płaskiej listy pól (D36)
-- **Nowe agregaty w bazie** (D27 bez zmian): czas grania i liczba wykonawców biblioteki,
-  średnie tempo, utwory poza wszystkimi setami, dekady, długości, popularność, pewność
-  analizy AI, źródła wpisów, top tagi i style, macierz tempo × energia, uśredniony profil
+  → kompletność danych → czas i zawartość; kontrakt `GET /api/library/overview` dostaje ten
+  sam podział na pięć grup zamiast płaskiej listy pól (D36)
+- **Nowe agregaty w bazie** (D27 bez zmian): czas grania, liczba wykonawców i albumów,
+  średnie tempo, długość i popularność utworu, dekady, rozkład długości i popularności,
+  pewność analizy AI, top tagi, albumy i style, macierz tempo × energia, uśredniony profil
   brzmienia z metryk (D24), próbka ostatnio dodanych z okładkami
 - **Koło Camelot** rysowane z tonacji (D25) — 24 pozycje z obrysem tonacji zgodnych
   z dominującą; sąsiedztwo na kole jest informacją, listy alfabetyczne ją gubiły
 - **Sekcja „co z tego wynika"** — najgęstsze tempo, dominująca tonacja, udział tempa
-  z pomiaru wobec estymaty (D19), utwory poza setami, najlepszy miesiąc; liczone na froncie
-  z danych, które i tak przyszły (`overviewInsights.ts`), więc sprawdzalne testem
+  z pomiaru wobec estymaty (D19), dominujący rocznik, średnia długość utworu, najlepszy
+  miesiąc, najczęstszy wykonawca; liczone na froncie z danych, które i tak przyszły
+  (`overviewInsights.ts`), więc sprawdzalne testem
 - **Animacje jako dekoracja**: moduły zapalają się po kolei, kreski rysują od lewej, liczniki
   nabijają od zera — przy `prefers-reduced-motion` wszystko startuje w stanie końcowym
 - **Osobna rampa kolorów wykresów** (`--viz-1..6`) obok kolorów semantycznych motywu, żeby
   podmiana palety pod większy system była podmianą sześciu zmiennych (D36)
 
 **DoD:** `./mvnw verify` i `npm test` zielone; przegląd pokazuje komplet agregatów jednym
-wywołaniem API, koło Camelot nie kłamie na utworach bez tonacji, a ekran czyta się przy
-ograniczonym ruchu tak samo dobrze jak z animacjami.
+wywołaniem API, nie wspomina słowem o playlistach ani setach (pilnuje tego test widoku),
+koło Camelot nie kłamie na utworach bez tonacji, a ekran czyta się przy ograniczonym
+ruchu tak samo dobrze jak z animacjami.
 
 ---
 

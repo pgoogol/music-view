@@ -16,6 +16,15 @@ export const MEASURED_BPM_SOURCES = ['MANUAL', 'ACOUSTICBRAINZ', 'DEEZER'] as co
 
 export const NO_KEY = 'BEZ TONACJI'
 
+export const NO_YEAR = 'BEZ ROKU'
+
+/** Czas w ms jako „m:ss" — średnia długość utworu czyta się tak, a nie w minutach. */
+export function formatMinutes(durationMs: number): string {
+
+  const totalSeconds = Math.round(durationMs / 1000)
+  return `${Math.floor(totalSeconds / 60)}:${String(totalSeconds % 60).padStart(2, '0')}`
+}
+
 export interface CoveragePart {
   label: string
   covered: number
@@ -150,7 +159,7 @@ export function insights(overview: LibraryOverviewResponse): Insight[] {
       id: 'bpm',
       label: 'najgęstsze tempo',
       value: `${densest.label} BPM`,
-      hint: `${densest.count} utworów — tu masz z czego budować środek wieczoru`,
+      hint: `${densest.count} utworów siedzi w tym przedziale — to trzon biblioteki`,
     })
   }
 
@@ -174,13 +183,23 @@ export function insights(overview: LibraryOverviewResponse): Insight[] {
     })
   }
 
-  const outside = overview.scale.tracksOutsidePlaylists
-  if (overview.scale.libraryTracks > 0) {
+  const decade = largestBucket(overview.timeline.decades, [NO_YEAR])
+  if (decade !== null) {
     found.push({
-      id: 'unused',
-      label: 'poza setami',
-      value: String(outside),
-      hint: `${percentLabel(outside, overview.scale.libraryTracks)} biblioteki nie trafiło jeszcze do żadnej playlisty`,
+      id: 'decade',
+      label: 'dominujący rocznik',
+      value: decade.label,
+      hint: `${decade.count} utworów, czyli ${percentLabel(decade.count, overview.scale.catalogTracks)} katalogu`,
+    })
+  }
+
+  const averageDuration = overview.scale.averageDurationMs
+  if (averageDuration !== null) {
+    found.push({
+      id: 'length',
+      label: 'średnia długość',
+      value: formatMinutes(averageDuration),
+      hint: 'przeciętny utwór w katalogu, licząc po polu z metadanych',
     })
   }
 

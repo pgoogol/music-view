@@ -64,9 +64,9 @@ class LibraryOverviewIntegrationTest {
         save("sp-goly", null, null, null, null, null);
 
         // dwa zapisy tej samej tonacji — na kole Camelot mają zejść się w 2A (D25)
-        describe("sp-latin-1", 1998, 240_000, "Eb minor", "salsa dura");
-        describe("sp-latin-2", 2004, 195_000, "D# minor", "bachata");
-        describe("sp-rock-1", 2015, 300_000, "C major", "rock");
+        describe("sp-latin-1", 1998, 240_000, "Eb minor", "salsa dura", "Contra La Corriente");
+        describe("sp-latin-2", 2004, 195_000, "D# minor", "bachata", "Contra La Corriente");
+        describe("sp-rock-1", 2015, 300_000, "C major", "rock", "Wybór");
 
         addToLibrary("sp-latin-1", 5, List.of("parkiet", "pewniak"));
         addToLibrary("sp-latin-2", 3, List.of("parkiet"));
@@ -102,7 +102,8 @@ class LibraryOverviewIntegrationTest {
             // 240 + 195 + 300 tysięcy ms; utwór spoza biblioteki nie wchodzi
             .andExpect(jsonPath("$.scale.libraryDurationMs").value(735_000))
             .andExpect(jsonPath("$.scale.distinctArtists").value(1))
-            .andExpect(jsonPath("$.scale.tracksOutsidePlaylists").value(3))
+            // dwa utwory dzielą album, trzeci ma własny — to dwa różne wydawnictwa
+            .andExpect(jsonPath("$.scale.distinctAlbums").value(2))
             .andReturn().getResponse().getContentAsString();
 
         JsonNode scale = new ObjectMapper().readTree(body).get("scale");
@@ -110,6 +111,9 @@ class LibraryOverviewIntegrationTest {
         // średnia z 184, 92 i 128 — utwór bez BPM nie zaniża wyniku
         Assertions.assertThat(scale.get("averageBpm").asDouble())
             .isCloseTo(134.67, Assertions.within(0.01));
+        // średnia długość liczona po katalogu: (240 + 195 + 300) / 3 tysięcy ms
+        Assertions.assertThat(scale.get("averageDurationMs").asDouble())
+            .isCloseTo(245_000, Assertions.within(1.0));
     }
 
     @Test
@@ -227,6 +231,20 @@ class LibraryOverviewIntegrationTest {
     }
 
     @Test
+    @DisplayName("przegląd opisuje utwory, nie playlisty — najczęstsze albumy zamiast źródeł wpisów")
+    void overview_ranksAlbumsAndKeepsPlaylistsOut() throws Exception {
+
+        mockMvc.perform(get("/api/library/overview"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.taste.topAlbums[0].label").value("Contra La Corriente"))
+            .andExpect(jsonPath("$.taste.topAlbums[0].count").value(2))
+            // playlisty i sety mają własne zakładki (D36)
+            .andExpect(jsonPath("$.taste.sources").doesNotExist())
+            .andExpect(jsonPath("$.scale.playlists").doesNotExist())
+            .andExpect(jsonPath("$.scale.tracksOutsidePlaylists").doesNotExist());
+    }
+
+    @Test
     @DisplayName("najczęstsze tagi rozwijają tablicę i pomijają wpisy bez tagów")
     void overview_topTagsUnnestCustomTags() throws Exception {
 
@@ -280,13 +298,14 @@ class LibraryOverviewIntegrationTest {
     }
 
     private void describe(String spotifyId, Integer year, Integer durationMs,
-                          String musicalKey, String style) {
+                          String musicalKey, String style, String album) {
 
         TrackCatalog track = trackCatalogRepository.findById(spotifyId).orElseThrow();
         track.setYear(year);
         track.setDurationMs(durationMs);
         track.setMusicalKey(musicalKey);
         track.setStyle(style);
+        track.setAlbum(album);
         trackCatalogRepository.save(track);
     }
 

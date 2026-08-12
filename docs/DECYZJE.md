@@ -786,14 +786,20 @@ więc samo: przy starcie aplikacji i potem co `ingestion.playlist-refresh.interv
 ## D36. Przegląd jako pulpit — pięć stref, jedno wywołanie (M5.4)
 
 Przegląd z M4.3 odpowiadał na „co ja mam" sześcioma panelami: cztery liczby i pięć
-rozkładów. Odpowiedzi na „czy da się z tego zagrać" nie było, a listy słupków wyglądały
-jak zrzut z bazy. Rozstrzygnięcia:
+rozkładów. Listy słupków wyglądały jak zrzut z bazy, a ekran nie mówił nic o samych
+utworach ponad to, ile ich jest. Rozstrzygnięcia:
 
+- **Przegląd jest o utworach i tylko o utworach.** Playlisty, sety i generator mają
+  własne zakładki; wciąganie ich tutaj robiło z przeglądu drugi pulpit tego samego,
+  a nie odpowiedź na „co mam w bibliotece". Dlatego z ekranu (i z kontraktu) wypadły
+  liczby playlist, utworów wpiętych w sety i utworów „poza setami", a rozkład trybów
+  importu ustąpił miejsca najczęstszym albumom. Wnioski też mówią o zbiorze, nie
+  o układaniu wieczoru.
 - **Ekran ma pięć stref czytania, w kolejności malejącej ogólności:** skala → wnioski →
-  brzmienie → kompletność danych → czas i gust. Odpowiedź na to samo pytanie ma być
+  brzmienie → kompletność danych → czas i zawartość. Odpowiedź na to samo pytanie ma być
   w jednym miejscu, a nie rozsypana po panelach ułożonych w kolejności pisania kodu.
 - **Odpowiedź idzie tym samym jednym wywołaniem, agregaty nadal liczy baza (D27).**
-  Doszło jedenaście wymiarów rozkładów, macierz tempo × energia, profil brzmienia
+  Doszło dziesięć wymiarów rozkładów, macierz tempo × energia, profil brzmienia
   i próbka ostatnio dodanych — wszystko na tej samej zasadzie: front nie dostaje
   2500 wierszy po to, żeby je zliczyć w przeglądarce. Rozkłady kategorialne schodzą
   jednym `union all` z etykietą wymiaru i własnym kluczem sortowania.
@@ -810,9 +816,9 @@ jak zrzut z bazy. Rozstrzygnięcia:
   zgodnością harmoniczną (D25); lista posortowana alfabetycznie tę informację gubi.
   Koszyk zastępczy dla braku tonacji omija parser — „BEZ TONACJI" zaczyna się od nazwy
   dźwięku, więc bez tego wyjątku wszystkie utwory bez tonacji lądowały na pozycji 1B.
-- **Tempo i energia dostają wspólną macierz.** Dwa rozkładu osobno mówią „mam dużo
+- **Tempo i energia dostają wspólną macierz.** Dwa rozkłady osobno mówią „mam dużo
   szybkich" i „mam dużo energetycznych"; dopiero skrzyżowanie mówi, czy to te same
-  utwory — czyli czy jest z czego zbudować szczyt wieczoru.
+  utwory, czy dwa różne kawałki biblioteki.
 - **Animacje są dekoracją i tak są traktowane.** Moduły zapalają się po kolei, kreski
   rysują się od lewej, liczniki nabijają od zera — ale przy `prefers-reduced-motion`
   wszystko startuje w stanie końcowym (`animation: none`), a nie znika. Ta sama zasada

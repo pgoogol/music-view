@@ -1,10 +1,13 @@
 // Przegląd biblioteki (M4.3, przebudowany na pulpit w M5.4/D36) — ekran
-// odpowiadający na pytanie „co ja właściwie mam" i „czy da się z tego zagrać".
+// o samych utworach: co mam, jakie to jest i skąd o tym wiemy.
+//
+// Świadomie nie ma tu playlist, setów ani generatora (D36) — to, co DJ z tych
+// utworów układa, ma własne zakładki; przegląd opisuje sam zbiór.
 //
 // Czyta się go w pięciu strefach, w kolejności malejącej ogólności: skala →
-// wnioski → brzmienie → kompletność danych → czas i gust. Wszystkie agregaty
-// liczy baza jednym wywołaniem (D27); front tylko rysuje, inline w SVG,
-// bez biblioteki wykresów i bez zasobów z sieci (D23).
+// wnioski → brzmienie → kompletność danych → czas i zawartość. Wszystkie
+// agregaty liczy baza jednym wywołaniem (D27); front tylko rysuje, inline
+// w SVG, bez biblioteki wykresów i bez zasobów z sieci (D23).
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { api, type LibraryOverviewResponse } from '../api'
@@ -20,10 +23,10 @@ import RankedBars from '../components/viz/RankedBars'
 import StackedBar from '../components/viz/StackedBar'
 import StatTile from '../components/viz/StatTile'
 import TagCloud from '../components/viz/TagCloud'
-import { SOURCE_LABELS } from '../format'
 import {
   coverageParts,
   cumulativeGrowth,
+  formatMinutes,
   insights,
   percentLabel,
   readinessScore,
@@ -52,8 +55,6 @@ const CONFIDENCE_LABELS: Record<string, string> = {
   LOW: 'pewność niska',
   'BEZ ANALIZY': 'bez analizy AI',
 }
-
-const LIBRARY_SOURCE_LABELS: Record<string, string> = { ...SOURCE_LABELS, nieznane: 'nieznane' }
 
 const RATING_LABELS: Record<string, string> = {
   '1': '★', '2': '★★', '3': '★★★', '4': '★★★★', '5': '★★★★★',
@@ -116,13 +117,17 @@ export default function OverviewView({ refreshKey }: Props) {
                       hint="gdyby puścić bibliotekę raz, bez przerw" />
             <StatTile label="wykonawców" value={scale.distinctArtists} tone="measure"
                       hint="różnych nazwisk w bibliotece" />
+            <StatTile label="albumów" value={scale.distinctAlbums} tone="measure"
+                      hint="różnych wydawnictw, z których pochodzą utwory" />
             <StatTile label="średnie tempo" value={scale.averageBpm ?? 0} unit=" BPM"
                       tone="measure" format={(value) => String(Math.round(value))}
                       hint={scale.averageBpm === null ? 'brak utworów z tempem' : 'średnia po całym katalogu'} />
-            <StatTile label="playlist" value={scale.playlists} tone="measure"
-                      hint={`${scale.tracksInPlaylists} utworów wpiętych w sety`} />
-            <StatTile label="poza setami" value={scale.tracksOutsidePlaylists} tone="warn"
-                      hint="nigdy nie trafiły do żadnej playlisty" />
+            <StatTile label="średnia długość" value={scale.averageDurationMs ?? 0}
+                      tone="measure" format={formatMinutes}
+                      hint={scale.averageDurationMs === null ? 'brak utworów z czasem' : 'przeciętny utwór katalogu'} />
+            <StatTile label="średnia popularność" value={scale.averagePopularity ?? 0}
+                      tone="measure" format={(value) => String(Math.round(value))}
+                      hint={scale.averagePopularity === null ? 'brak danych ze Spotify' : 'skala 0–100 z metadanych'} />
             <StatTile label="z metrykami" value={scale.tracksWithMetrics} tone="measure"
                       hint="utwory z pełnymi cechami audio z pliku (D24)" />
           </div>
@@ -264,12 +269,13 @@ export default function OverviewView({ refreshKey }: Props) {
         </p>
       </DashPanel>
 
-      <DashPanel title="Skąd wpisy" span={2} index={14}>
-        <StackedBar
-          buckets={taste.sources}
-          labels={LIBRARY_SOURCE_LABELS}
-          caption="Tryby importu z D6 — plik CSV zawsze działa jako fallback."
-          testId="library-sources"
+      <DashPanel title="Najczęstsze albumy" span={2} index={14}>
+        <RankedBars
+          buckets={taste.topAlbums}
+          total={scale.libraryTracks}
+          ranked
+          emptyText="Żaden utwór nie ma jeszcze nazwy albumu."
+          testId="top-albums"
         />
       </DashPanel>
 
@@ -277,7 +283,7 @@ export default function OverviewView({ refreshKey }: Props) {
         <AreaChart
           points={sound.durations}
           title="Rozkład czasu trwania"
-          caption="Koszyki po pełnej minucie; przy secie liczy się, ile masz dłużyzn."
+          caption="Koszyki po pełnej minucie — widać, gdzie leży typowy utwór, a gdzie dłużyzny."
           testId="durations"
         />
       </DashPanel>

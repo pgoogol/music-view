@@ -28,6 +28,19 @@ describe('OverviewView', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/library/overview')
   })
 
+  it('liczby nagłówkowe mówią o utworach, nie o playlistach ani setach', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const headline = await screen.findByTestId('overview-headline')
+
+    expect(within(headline).getByText('410')).toBeInTheDocument()
+    expect(within(headline).getByText('3:51')).toBeInTheDocument()
+    expect(within(headline).getByText('albumów')).toBeInTheDocument()
+    expect(within(headline).queryByText(/playlist/i)).not.toBeInTheDocument()
+    expect(within(headline).queryByText(/setami/i)).not.toBeInTheDocument()
+  })
+
   it('nazywa braki po imieniu zamiast pokazywać samo „gotowość 80%"', async () => {
 
     renderWithToasts(<OverviewView refreshKey={0} />)
@@ -73,8 +86,22 @@ describe('OverviewView', () => {
     expect(screen.getByTestId('audio-profile')).toBeInTheDocument()
     expect(screen.getByTestId('tempo-energy')).toBeInTheDocument()
     expect(screen.getByTestId('top-artists')).toBeInTheDocument()
+    expect(screen.getByTestId('top-albums')).toBeInTheDocument()
     expect(screen.getByTestId('top-tags')).toBeInTheDocument()
     expect(screen.getByTestId('recently-added')).toBeInTheDocument()
+  })
+
+  it('nie pokazuje niczego o playlistach ani generowaniu setów', async () => {
+
+    const { container } = renderWithToasts(<OverviewView refreshKey={0} />)
+
+    await screen.findByTestId('overview')
+
+    expect(screen.queryByTestId('library-sources')).not.toBeInTheDocument()
+    expect(container.textContent).not.toMatch(/playlist/i)
+    // wszystkie przypadki „setu": set, setu, secie, setach, setami, sety, setów
+    expect(container.textContent).not.toMatch(/\bset(y|u|ów|om|ami|ach)?\b|\bsecie\b/i)
+    expect(container.textContent).not.toMatch(/wieczor/i)
   })
 
   it('macierz tempo × energia pokazuje skrzyżowanie obu wymiarów', async () => {

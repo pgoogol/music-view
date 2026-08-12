@@ -217,17 +217,20 @@ export interface RecentTrackResponse {
   addedAt: string
 }
 
-/** Skala zbioru; `averageBpm` = null dla pustego katalogu, nie zero. */
+/**
+ * Skala zbioru — same utwory (D36); playlisty i sety mają własne zakładki.
+ * Średnie = null dla pustego katalogu, nie zero.
+ */
 export interface OverviewScaleResponse {
   catalogTracks: number
   libraryTracks: number
   tracksWithMetrics: number
   libraryDurationMs: number
   distinctArtists: number
+  distinctAlbums: number
   averageBpm: number | null
-  playlists: number
-  tracksInPlaylists: number
-  tracksOutsidePlaylists: number
+  averageDurationMs: number | null
+  averagePopularity: number | null
 }
 
 export interface OverviewQualityResponse {
@@ -260,9 +263,9 @@ export interface OverviewTimelineResponse {
 
 export interface OverviewTasteResponse {
   topArtists: BucketResponse[]
+  topAlbums: BucketResponse[]
   topTags: BucketResponse[]
   ratings: BucketResponse[]
-  sources: BucketResponse[]
 }
 
 /** Pięć grup = pięć stref czytania ekranu przeglądu (M5.4/D36). */

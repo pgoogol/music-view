@@ -145,10 +145,10 @@ export const overviewFixture: LibraryOverviewResponse = {
     tracksWithMetrics: 120,
     libraryDurationMs: 22_000_000,
     distinctArtists: 640,
+    distinctAlbums: 410,
     averageBpm: 118.4,
-    playlists: 7,
-    tracksInPlaylists: 310,
-    tracksOutsidePlaylists: 2000,
+    averageDurationMs: 231_000,
+    averagePopularity: 54.2,
   },
   quality: {
     metadataMissing: 4,
@@ -222,6 +222,10 @@ export const overviewFixture: LibraryOverviewResponse = {
       { label: 'Marc Anthony', count: 42 },
       { label: 'Romeo Santos', count: 31 },
     ],
+    topAlbums: [
+      { label: '3.0', count: 18 },
+      { label: 'Fórmula, Vol. 2', count: 11 },
+    ],
     topTags: [
       { label: 'parkiet', count: 60 },
       { label: 'wolne', count: 12 },
@@ -229,10 +233,6 @@ export const overviewFixture: LibraryOverviewResponse = {
     ratings: [
       { label: '5', count: 210 },
       { label: 'bez oceny', count: 2000 },
-    ],
-    sources: [
-      { label: 'FILE', count: 2000 },
-      { label: 'PLAYLIST', count: 310 },
     ],
   },
   recentlyAdded: [

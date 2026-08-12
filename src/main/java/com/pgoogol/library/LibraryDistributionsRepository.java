@@ -15,9 +15,9 @@ import java.util.Optional;
 
 /**
  * Rozkłady przeglądu biblioteki (M4.3, rozszerzone w M5.4) liczone w bazie
- * (D27). Jedenaście wymiarów schodzi jednym zapytaniem z {@code union all}
- * i etykietą wymiaru — jedenaście osobnych {@code group by} czytałoby tę samą
- * tabelę jedenaście razy.
+ * (D27). Dziesięć wymiarów schodzi jednym zapytaniem z {@code union all}
+ * i etykietą wymiaru — dziesięć osobnych {@code group by} czytałoby tę samą
+ * tabelę dziesięć razy.
  *
  * <p>Każdy wymiar podaje własny {@code sort_key}, bo naturalna kolejność
  * kategorii bywa inna niż alfabetyczna („SLOW" przed „MEDIUM"); {@code null}
@@ -80,9 +80,6 @@ public class LibraryDistributionsRepository {
         select 'rating', coalesce(rating::text, 'bez oceny'), count(*),
                coalesce(rating::text, 'z')
           from library_entry group by rating
-        union all
-        select 'source', coalesce(source, 'nieznane'), count(*), coalesce(source, 'zzz')
-          from library_entry group by source
         order by 1, 4, 2
         """;
 

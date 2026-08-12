@@ -46,8 +46,12 @@ public record LibraryOverview(
         Instant addedAt) { }
 
     /**
-     * Skala zbioru. {@code averageBpm} jest {@code null} dla pustego katalogu —
-     * zero znaczyłoby „średnie tempo 0 BPM", a to nieprawda.
+     * Skala zbioru — same utwory. Playlisty i sety świadomie nie wchodzą na ten
+     * ekran (D36): przegląd odpowiada na „co mam w bibliotece", a nie „co z tego
+     * ułożyłem"; to drugie ma własne zakładki.
+     *
+     * <p>Średnie są {@code null} dla pustego zbioru — zero znaczyłoby „średnie
+     * tempo 0 BPM", a to nieprawda.</p>
      */
     public record Scale(
         long catalogTracks,
@@ -55,10 +59,10 @@ public record LibraryOverview(
         long tracksWithMetrics,
         long libraryDurationMs,
         long distinctArtists,
+        long distinctAlbums,
         @Nullable Double averageBpm,
-        long playlists,
-        long tracksInPlaylists,
-        long tracksOutsidePlaylists) { }
+        @Nullable Double averageDurationMs,
+        @Nullable Double averagePopularity) { }
 
     /** Kompletność danych: czego brakuje i skąd wiemy to, co wiemy. */
     public record Quality(
@@ -86,10 +90,10 @@ public record LibraryOverview(
         List<Bucket> monthlyGrowth,
         List<Bucket> decades) { }
 
-    /** Gust DJ-a — to, co wynika z jego własnych decyzji, nie z metadanych. */
+    /** Kto i co dominuje w zbiorze — wykonawcy, albumy, własne tagi i oceny. */
     public record Taste(
         List<Bucket> topArtists,
+        List<Bucket> topAlbums,
         List<Bucket> topTags,
-        List<Bucket> ratings,
-        List<Bucket> sources) { }
+        List<Bucket> ratings) { }
 }

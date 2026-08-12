@@ -33,17 +33,20 @@ public record LibraryOverviewResponse(
         @Nullable String albumImageUrl,
         Instant addedAt) { }
 
-    /** {@code averageBpm} jest {@code null} dla pustego katalogu, nie zerem. */
+    /**
+     * Skala zbioru — same utwory (D36); playlisty i sety mają własne zakładki.
+     * Średnie są {@code null} dla pustego katalogu, nie zerem.
+     */
     public record ScaleResponse(
         long catalogTracks,
         long libraryTracks,
         long tracksWithMetrics,
         long libraryDurationMs,
         long distinctArtists,
+        long distinctAlbums,
         @Nullable Double averageBpm,
-        long playlists,
-        long tracksInPlaylists,
-        long tracksOutsidePlaylists) { }
+        @Nullable Double averageDurationMs,
+        @Nullable Double averagePopularity) { }
 
     public record QualityResponse(
         long metadataMissing,
@@ -70,7 +73,7 @@ public record LibraryOverviewResponse(
 
     public record TasteResponse(
         List<BucketResponse> topArtists,
+        List<BucketResponse> topAlbums,
         List<BucketResponse> topTags,
-        List<BucketResponse> ratings,
-        List<BucketResponse> sources) { }
+        List<BucketResponse> ratings) { }
 }

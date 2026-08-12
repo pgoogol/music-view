@@ -156,6 +156,17 @@ describe('insights', () => {
     expect(byId.get('artist')?.value).toBe('Marc Anthony')
   })
 
+  it('opisuje sam zbiór utworów — rocznik i długość, bez playlist i setów', () => {
+
+    const found = insights(overviewFixture)
+    const byId = new Map(found.map((insight) => [insight.id, insight]))
+
+    expect(byId.get('decade')?.value).toBe('2000s')
+    // 231 000 ms to 3:51
+    expect(byId.get('length')?.value).toBe('3:51')
+    expect(found.map((insight) => insight.id)).not.toContain('unused')
+  })
+
   it('podpowiada tonacje wchodzące zgodnie z dominującą (D25)', () => {
 
     const key = insights(overviewFixture).find((insight) => insight.id === 'key')
@@ -167,10 +178,10 @@ describe('insights', () => {
 
     const empty = {
       ...overviewFixture,
-      scale: { ...overviewFixture.scale, libraryTracks: 0, tracksOutsidePlaylists: 0 },
+      scale: { ...overviewFixture.scale, libraryTracks: 0, averageDurationMs: null },
       sound: { ...overviewFixture.sound, bpmHistogram: [], camelotKeys: [] },
       quality: { ...overviewFixture.quality, bpmSources: [] },
-      timeline: { ...overviewFixture.timeline, monthlyGrowth: [] },
+      timeline: { ...overviewFixture.timeline, monthlyGrowth: [], decades: [] },
       taste: { ...overviewFixture.taste, topArtists: [] },
     }
 

@@ -1,6 +1,6 @@
 // Macierz tempo × energia (M5.4). Dwa rozkłady osobno mówią „mam dużo szybkich"
-// i „mam dużo energetycznych"; dopiero skrzyżowanie mówi, czy szybkie i
-// energetyczne to te same utwory — czyli czy jest z czego zbudować szczyt wieczoru.
+// i „mam dużo energetycznych"; dopiero skrzyżowanie mówi, czy szybkie
+// i energetyczne to te same utwory, czy dwa różne kawałki biblioteki.
 
 import type { CSSProperties } from 'react'
 import type { MatrixCellResponse } from '../../api'

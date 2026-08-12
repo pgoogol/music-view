@@ -25,38 +25,50 @@ import java.util.Objects;
 public class LibraryOverviewRepository {
 
     private static final int TOP_ARTISTS = 10;
+    private static final int TOP_ALBUMS = 10;
     private static final int TOP_TAGS = 16;
     private static final int TOP_STYLES = 12;
     private static final int GROWTH_MONTHS = 12;
     private static final int RECENT_TRACKS = 12;
 
     /**
-     * Liczby nagłówkowe jednym zapytaniem. Czas i wykonawców liczymy po
-     * bibliotece, nie po katalogu: katalog trzyma też utwory, które DJ zna
-     * ze wzbogacania, ale których u siebie nie ma.
+     * Liczby nagłówkowe jednym zapytaniem — wyłącznie o utworach (D36).
+     * Czas, wykonawców i albumy liczymy po bibliotece, nie po katalogu: katalog
+     * trzyma też utwory, które DJ zna ze wzbogacania, ale których u siebie nie ma.
      */
     private static final String COUNTS = """
         select
           (select count(*) from track_catalog)                     as catalog_tracks,
           (select count(*) from library_entry)                     as library_tracks,
           (select count(*) from manual_metrics)                    as tracks_with_metrics,
-          (select count(*) from playlist)                          as playlists,
-          (select count(distinct spotify_id) from playlist_track)  as tracks_in_playlists,
           (select coalesce(sum(t.duration_ms), 0)
              from library_entry e join track_catalog t on t.spotify_id = e.spotify_id)
                                                                    as library_duration_ms,
           (select count(distinct t.artist)
              from library_entry e join track_catalog t on t.spotify_id = e.spotify_id
             where t.artist is not null)                            as distinct_artists,
-          (select avg(bpm) from track_catalog where bpm is not null) as average_bpm,
-          (select count(*) from library_entry e
-            where not exists (select 1 from playlist_track p
-                               where p.spotify_id = e.spotify_id)) as tracks_outside_playlists
+          (select count(distinct t.album)
+             from library_entry e join track_catalog t on t.spotify_id = e.spotify_id
+            where t.album is not null and t.album <> '')           as distinct_albums,
+          (select avg(bpm) from track_catalog where bpm is not null)
+                                                                   as average_bpm,
+          (select avg(duration_ms) from track_catalog where duration_ms is not null)
+                                                                   as average_duration_ms,
+          (select avg(popularity) from track_catalog where popularity is not null)
+                                                                   as average_popularity
         """;
 
     private static final String TOP_ARTISTS_QUERY = """
         select coalesce(t.artist, 'nieznany wykonawca') as label, count(*) as total
           from library_entry e join track_catalog t on t.spotify_id = e.spotify_id
+         group by 1 order by total desc, label asc limit ?
+        """;
+
+    /** Album bez nazwy nie jest albumem — singiel z pustym polem nie ma tu czego szukać. */
+    private static final String TOP_ALBUMS_QUERY = """
+        select t.album as label, count(*) as total
+          from library_entry e join track_catalog t on t.spotify_id = e.spotify_id
+         where t.album is not null and t.album <> ''
          group by 1 order by total desc, label asc limit ?
         """;
 
@@ -125,17 +137,21 @@ public class LibraryOverviewRepository {
 
     private LibraryOverview.Scale scale(Map<String, Object> counts) {
 
-        Number averageBpm = (Number) counts.get("average_bpm");
         return new LibraryOverview.Scale(
             number(counts.get("catalog_tracks")),
             number(counts.get("library_tracks")),
             number(counts.get("tracks_with_metrics")),
             number(counts.get("library_duration_ms")),
             number(counts.get("distinct_artists")),
-            Objects.isNull(averageBpm) ? null : averageBpm.doubleValue(),
-            number(counts.get("playlists")),
-            number(counts.get("tracks_in_playlists")),
-            number(counts.get("tracks_outside_playlists")));
+            number(counts.get("distinct_albums")),
+            average(counts.get("average_bpm")),
+            average(counts.get("average_duration_ms")),
+            average(counts.get("average_popularity")));
+    }
+
+    /** Średnia z pustego zbioru to brak odpowiedzi, nie zero. */
+    private Double average(Object value) {
+        return Objects.isNull(value) ? null : ((Number) value).doubleValue();
     }
 
     private LibraryOverview.Quality quality(long metadataMissing, long audioMissing, long aiMissing,
@@ -175,9 +191,9 @@ public class LibraryOverviewRepository {
 
         return new LibraryOverview.Taste(
             jdbcTemplate.query(TOP_ARTISTS_QUERY, this::bucket, TOP_ARTISTS),
+            jdbcTemplate.query(TOP_ALBUMS_QUERY, this::bucket, TOP_ALBUMS),
             jdbcTemplate.query(TOP_TAGS_QUERY, this::bucket, TOP_TAGS),
-            dimension(distributions, "rating"),
-            dimension(distributions, "source"));
+            dimension(distributions, "rating"));
     }
 
     private List<Metric> audioProfile() {
