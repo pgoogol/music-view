@@ -183,22 +183,83 @@ export interface BucketResponse {
   count: number
 }
 
-export interface LibraryOverviewResponse {
+/** Komórka macierzy tempo × energia — dwa wymiary naraz (M5.4). */
+export interface MatrixCellResponse {
+  tempoClass: string
+  energy: string
+  count: number
+}
+
+/** Średnia cecha audio z metryk ręcznych (D24), skala 0..1. */
+export interface MetricResponse {
+  label: string
+  value: number
+}
+
+export interface RecentTrackResponse {
+  spotifyId: string
+  title: string | null
+  artist: string | null
+  albumImageUrl: string | null
+  addedAt: string
+}
+
+/** Skala zbioru; `averageBpm` = null dla pustego katalogu, nie zero. */
+export interface OverviewScaleResponse {
   catalogTracks: number
   libraryTracks: number
   tracksWithMetrics: number
+  libraryDurationMs: number
+  distinctArtists: number
+  averageBpm: number | null
+  playlists: number
+  tracksInPlaylists: number
+  tracksOutsidePlaylists: number
+}
+
+export interface OverviewQualityResponse {
   metadataMissing: number
   audioMissing: number
   aiMissing: number
-  genres: BucketResponse[]
-  tempoClasses: BucketResponse[]
-  energies: BucketResponse[]
   /** Ile biblioteki stoi na faktach, a ile na estymacie LLM (kryterium D19). */
   bpmSources: BucketResponse[]
-  ratings: BucketResponse[]
+  confidences: BucketResponse[]
+}
+
+export interface OverviewSoundResponse {
+  genres: BucketResponse[]
+  styles: BucketResponse[]
+  tempoClasses: BucketResponse[]
+  energies: BucketResponse[]
   bpmHistogram: BucketResponse[]
-  topArtists: BucketResponse[]
+  /** Pozycje koła Camelot policzone z tonacji (D25), w kolejności koła. */
+  camelotKeys: BucketResponse[]
+  durations: BucketResponse[]
+  popularity: BucketResponse[]
+  tempoEnergy: MatrixCellResponse[]
+  audioProfile: MetricResponse[]
+}
+
+export interface OverviewTimelineResponse {
   monthlyGrowth: BucketResponse[]
+  decades: BucketResponse[]
+}
+
+export interface OverviewTasteResponse {
+  topArtists: BucketResponse[]
+  topTags: BucketResponse[]
+  ratings: BucketResponse[]
+  sources: BucketResponse[]
+}
+
+/** Pięć grup = pięć stref czytania ekranu przeglądu (M5.4/D32). */
+export interface LibraryOverviewResponse {
+  scale: OverviewScaleResponse
+  quality: OverviewQualityResponse
+  sound: OverviewSoundResponse
+  timeline: OverviewTimelineResponse
+  taste: OverviewTasteResponse
+  recentlyAdded: RecentTrackResponse[]
 }
 
 /** Propozycja setu (M4.2/D26) — generator niczego nie zapisuje. */

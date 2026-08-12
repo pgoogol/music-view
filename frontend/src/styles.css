@@ -39,6 +39,14 @@
   --slot-break: #8e9ab6;
   --slot-unknown: #3b455e;
 
+  /* rampa kolorów wykresów (M5.4) — odróżnia segmenty, znaczenie niesie legenda */
+  --viz-1: #57dbe6;
+  --viz-2: #ffa63d;
+  --viz-3: #7f9cff;
+  --viz-4: #57d6a0;
+  --viz-5: #d98cff;
+  --viz-6: #8e9ab6;
+
   /* moduł pulpitu: dwa narożniki ścięte po skosie, dwa zaokrąglone */
   --module: 26px 8px 26px 8px;
   --module-sm: 14px 4px 14px 4px;
@@ -877,10 +885,16 @@ tbody tr.selected {
 .toast-info { border-left-color: var(--accent-2); box-shadow: -4px 0 16px -6px var(--accent-2), 0 12px 32px rgba(0, 0, 0, 0.55); }
 .toast-close { color: var(--muted); font-size: 16px; }
 
-/* Poświaty zostają, ruch znika — przesunięcia są tylko dekoracją. */
+/*
+ * Poświaty zostają, ruch znika — przesunięcia i wjazdy są tylko dekoracją.
+ * Pulpit przeglądu (M5.4) animuje wejście modułów, rysowanie kresek i rosnące
+ * słupki; przy ograniczonym ruchu wszystko to ma być od razu w stanie końcowym,
+ * a nie zniknąć — stąd `animation: none` zamiast zerowania krycia.
+ */
 @media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; }
+  * { transition: none !important; animation: none !important; }
   .playlist-card:hover, button:hover:not(:disabled) { transform: none; }
+  .area-line { stroke-dasharray: none; }
 }
 
 /* --- generator setu (M4.2) --- */
@@ -903,57 +917,428 @@ tbody tr.selected {
 .proposal-tracks li:first-child { border-top: 0; }
 .proposal-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* --- przegląd biblioteki (M4.3) --- */
+/* --- przegląd biblioteki: pulpit (M4.3, przebudowa M5.4/D32) --- */
 
-.overview-layout {
+/*
+ * Sześć kolumn zamiast dwóch panelów obok siebie: moduł ma dostać dokładnie
+ * tyle miejsca, ile potrzebuje jego wykres (koło Camelot jest kwadratowe,
+ * histogram BPM potrzebuje szerokości), a nie połowę ekranu z rozpędu.
+ */
+.dash {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-4);
   align-items: start;
 }
-@media (max-width: 960px) { .overview-layout { grid-template-columns: 1fr; } }
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-6 { grid-column: span 6; }
 
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--space-3);
-  margin: 0 0 var(--space-3);
+@media (max-width: 1180px) {
+  .dash { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .span-3, .span-4, .span-6 { grid-column: span 4; }
 }
-.stat-grid dt {
+@media (max-width: 780px) {
+  .dash { grid-template-columns: 1fr; }
+  .span-2, .span-3, .span-4, .span-6 { grid-column: span 1; }
+}
+
+/* moduły zapalają się jeden po drugim, jak sekcje pulpitu po włączeniu zasilania */
+.dash-panel {
+  animation: module-power-on 420ms ease-out both;
+}
+@keyframes module-power-on {
+  from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.dash-panel h3 { margin-top: var(--space-4); }
+.dash-panel h3:first-of-type { margin-top: var(--space-2); }
+
+.dash-hero { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5); }
+.dash-hero .stat-tiles { flex: 1 1 620px; }
+
+/* --- kafle odczytu --- */
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-3);
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-2);
+  border-radius: var(--module-sm);
+  box-shadow: inset 0 0 18px rgba(87, 219, 230, 0.06);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.stat-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 18px rgba(87, 219, 230, 0.1), 0 0 22px rgba(87, 219, 230, 0.14);
+}
+.stat-tile-label {
+  color: var(--muted);
   font: 600 10px/1.6 var(--font-display);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted);
+  letter-spacing: 0.12em;
 }
-.stat-grid dd {
-  margin: 0;
-  font: 700 24px/1.2 var(--font-mono);
+.stat-tile-value {
+  font: 700 26px/1.15 var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--accent-2);
-  text-shadow: 0 0 12px var(--glow-cyan);
+  text-shadow: 0 0 14px var(--glow-cyan);
+}
+.stat-tile-unit { font-size: 14px; opacity: 0.7; }
+.stat-tile-hint { color: var(--muted); font-size: 11px; line-height: 1.4; }
+
+.stat-tile.tone-accent { border-left-color: var(--accent); }
+.stat-tile.tone-accent .stat-tile-value { color: var(--accent); text-shadow: 0 0 14px var(--glow-accent); }
+.stat-tile.tone-warn { border-left-color: var(--danger); }
+.stat-tile.tone-warn .stat-tile-value { color: var(--danger); text-shadow: 0 0 14px rgba(255, 111, 106, 0.3); }
+
+/* --- wskaźnik pierścieniowy --- */
+
+.gauge { margin: 0; flex: 0 0 auto; text-align: center; }
+.gauge svg { width: 132px; height: 132px; }
+.gauge-track { fill: none; stroke: rgba(0, 0, 0, 0.5); }
+.gauge-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 6px var(--glow-accent));
+}
+.gauge-value {
+  fill: var(--accent);
+  font: 700 22px var(--font-mono);
+  text-shadow: 0 0 12px var(--glow-accent);
+}
+.gauge figcaption { display: block; margin-top: var(--space-1); font-size: 11px; }
+.gauge-label {
+  color: var(--accent-2);
+  font: 600 10px/1.6 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
-.distribution { margin-top: var(--space-4); }
-.distribution:first-of-type { margin-top: var(--space-2); }
+/* --- wnioski --- */
 
-.bars { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
-.bars li { display: grid; grid-template-columns: 9rem 1fr auto; align-items: center; gap: var(--space-2); }
-.bar-label {
+.insight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+.insight-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3);
+  background: linear-gradient(180deg, var(--panel-2), var(--bg-2));
+  border: 1px solid var(--border);
+  border-radius: var(--module-sm);
+  position: relative;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
 }
-.bar-track { height: 10px; background: rgba(0, 0, 0, 0.35); border: 1px solid var(--border); border-radius: var(--pill); overflow: hidden; }
-.bar-fill {
+/* szyna świetlna u góry — ten sam sygnał „aktywny moduł" co na kartach playlist */
+.insight-list li::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 14%; right: 10%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.55;
+}
+.insight-label {
+  color: var(--muted);
+  font: 600 10px/1.6 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+.insight-value {
+  font: 700 20px/1.2 var(--font-mono);
+  color: var(--accent);
+  text-shadow: 0 0 12px var(--glow-accent);
+}
+.insight-hint { font-size: 11px; line-height: 1.45; }
+
+/* --- wspólne dla wykresów sekcji --- */
+
+.viz { margin-top: var(--space-3); }
+.viz:first-of-type { margin-top: 0; }
+/* wstęga jest wyższa niż krzywa tempa z M3.1 — 150 px ucinałoby jej szczyt */
+.viz .chart svg { max-height: 230px; }
+
+.area-fill { opacity: 0.9; animation: area-rise 520ms ease-out both; }
+.area-stop-top { stop-color: var(--accent-2); stop-opacity: 0.45; }
+.area-stop-bottom { stop-color: var(--accent-2); stop-opacity: 0.02; }
+@keyframes area-rise {
+  from { opacity: 0; transform: scaleY(0.6); transform-origin: bottom; }
+  to   { opacity: 0.9; transform: none; }
+}
+.area-line {
+  fill: none;
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  /* pathLength=1, więc kreska rysuje się od lewej niezależnie od długości ścieżki */
+  stroke-dasharray: 1;
+  animation: draw-line 900ms ease-out both;
+}
+@keyframes draw-line {
+  from { stroke-dashoffset: 1; }
+  to   { stroke-dashoffset: 0; }
+}
+.area-dot { fill: var(--accent-2); stroke: var(--bg); stroke-width: 1.5; }
+.chart-hit:hover + .area-dot, .area-dot:hover { fill: var(--accent); }
+
+/* --- koło Camelot --- */
+
+.wheel svg { width: 100%; max-width: 300px; height: auto; max-height: none; margin: 0 auto; display: block; }
+.wheel-cell {
+  stroke: var(--bg);
+  stroke-width: 1;
+  animation: wheel-in 420ms ease-out both;
+  transition: filter 140ms ease;
+  cursor: default;
+}
+@keyframes wheel-in {
+  from { opacity: 0; transform: scale(0.82); transform-origin: center; }
+}
+.wheel-side-A { fill: var(--accent-2); }
+.wheel-side-B { fill: var(--accent); }
+.wheel-cell:hover { filter: brightness(1.4); }
+.wheel-cell.compatible { stroke: var(--text); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.wheel-cell.dominant { stroke: #fff; stroke-width: 2; }
+.wheel-number { fill: var(--accent-ink); font: 700 9px var(--font-mono); pointer-events: none; }
+.wheel-hub { fill: var(--bg-2); stroke: var(--border); }
+.wheel-hub-value {
+  fill: var(--accent);
+  font: 700 20px var(--font-mono);
+  text-shadow: 0 0 12px var(--glow-accent);
+}
+.wheel-hub-label {
+  fill: var(--muted);
+  font: 600 8px var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* --- pajęczyna cech audio --- */
+
+.radar svg { width: 100%; max-width: 320px; height: auto; max-height: none; margin: 0 auto; display: block; }
+.radar-ring { fill: none; stroke: var(--border); stroke-width: 0.6; opacity: 0.7; }
+.radar-spoke { stroke: var(--border); stroke-width: 0.6; opacity: 0.6; }
+.radar-label { fill: var(--muted); font: 9px var(--font-mono); }
+.radar-shape {
+  fill: rgba(87, 219, 230, 0.22);
+  stroke: var(--accent-2);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px var(--glow-cyan));
+  animation: radar-open 620ms ease-out both;
+  transform-origin: center;
+}
+@keyframes radar-open {
+  from { opacity: 0; transform: scale(0.2) rotate(-14deg); }
+  to   { opacity: 1; transform: none; }
+}
+.radar-dot { fill: var(--accent); }
+
+/* --- macierz tempo × energia --- */
+
+.heat { overflow-x: auto; }
+.heat-table { width: 100%; border-collapse: separate; border-spacing: 3px; }
+.heat-table caption { caption-side: bottom; padding-top: var(--space-2); font-size: 11px; text-align: left; }
+.heat-table thead th, .heat-table tbody th {
+  color: var(--accent-2);
+  font: 600 10px/1.4 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 0;
+  white-space: nowrap;
+}
+.heat-table tbody th { text-align: right; color: var(--muted); }
+.heat-cell {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--module-sm);
+  padding: 10px 6px;
+  text-align: center;
+  font: 600 13px/1.2 var(--font-mono);
+  color: var(--text);
+  /* --heat 0..1 z komponentu; jasność i poświata rosną razem z liczbą utworów */
+  background: rgba(87, 219, 230, calc(0.06 + var(--heat, 0) * 0.5));
+  box-shadow: inset 0 0 18px rgba(87, 219, 230, calc(var(--heat, 0) * 0.25));
+  animation: heat-in 380ms ease-out both;
+}
+@keyframes heat-in { from { opacity: 0; transform: scale(0.9); } }
+.heat-cell.empty { background: rgba(0, 0, 0, 0.3); color: var(--muted); }
+.heat-cell:hover { border-color: var(--accent-2); }
+
+/* --- pasek udziałów --- */
+
+.stacked-bar {
+  display: flex;
+  height: 16px;
+  gap: 2px;
+  margin: var(--space-2) 0 var(--space-3);
+  border-radius: var(--pill);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+}
+.stacked-seg {
+  display: block;
+  min-width: 2px;
+  animation: seg-grow 620ms ease-out both;
+  transition: filter 140ms ease;
+}
+.stacked-seg:hover { filter: brightness(1.3); }
+@keyframes seg-grow { from { transform: scaleX(0); transform-origin: left; } }
+
+.stacked-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.stacked-legend li { display: flex; align-items: center; gap: var(--space-2); font-size: 12px; }
+.legend-dot { width: 10px; height: 10px; flex: none; border-radius: 3px; }
+.legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend-value { font: 600 11px/1.6 var(--font-mono); white-space: nowrap; }
+
+/*
+ * Rampa kolorów wykresów. Świadomie osobna od kolorów semantycznych (akcent =
+ * akcja, cyjan = pomiar): segmenty jednego paska muszą się od siebie odróżniać,
+ * a znaczenie i tak niesie legenda (D23). Podmiana palety = podmiana tych sześciu.
+ */
+.viz-tone-0 { background: var(--viz-1); }
+.viz-tone-1 { background: var(--viz-2); }
+.viz-tone-2 { background: var(--viz-3); }
+.viz-tone-3 { background: var(--viz-4); }
+.viz-tone-4 { background: var(--viz-5); }
+.viz-tone-5 { background: var(--viz-6); }
+
+/* --- ranking słupkowy --- */
+
+.ranked { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: var(--space-1); }
+.ranked li {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  animation: rank-in 380ms ease-out both;
+}
+.ranked-numbered li { grid-template-columns: 1.5rem 8rem 1fr auto; }
+@keyframes rank-in { from { opacity: 0; transform: translateX(-10px); } }
+.ranked-position {
+  font: 700 11px/1.6 var(--font-mono);
+  color: var(--accent);
+  text-align: right;
+}
+.ranked-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.ranked-track {
+  height: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: var(--pill);
+  overflow: hidden;
+}
+.ranked-fill {
   display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--slot-middle), var(--accent-2));
   box-shadow: 0 0 10px var(--glow-cyan);
+  animation: seg-grow 700ms ease-out both;
 }
-.bar-value { font: 600 11px/1.6 var(--font-mono); white-space: nowrap; }
+.ranked-value { font: 600 11px/1.6 var(--font-mono); white-space: nowrap; }
 
-.chart-bar { fill: var(--accent-2); opacity: 0.85; }
+/* --- chmura tagów --- */
+
+.tag-cloud { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.tag-cloud li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  padding: 2px 12px;
+  background: rgba(87, 219, 230, 0.08);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--pill);
+  line-height: 1.6;
+  animation: rank-in 380ms ease-out both;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.tag-cloud li:hover { border-color: var(--accent-2); box-shadow: 0 0 14px var(--glow-cyan); }
+.tag-name { color: var(--text); }
+.tag-count { color: var(--muted); font: 600 10px var(--font-mono); }
+
+/* --- taśma ostatnio dodanych --- */
+
+.cover-strip {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0 0 var(--space-2);
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+}
+.cover-strip li { flex: 0 0 108px; animation: module-power-on 420ms ease-out both; }
+.cover-strip a { display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--text); }
+.cover-tile {
+  width: 108px;
+  height: 108px;
+  border-radius: 12px 4px 12px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 700 28px var(--font-display);
+  color: var(--muted);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.cover-strip a:hover .cover-tile {
+  transform: translateY(-3px) scale(1.03);
+  border-color: var(--accent-2);
+  box-shadow: 0 0 22px rgba(87, 219, 230, 0.25);
+}
+.cover-title {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 108px;
+}
+.cover-artist { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 108px; }
+
+/* --- szkielet ładowania --- */
+
+.dash-panel.skeleton { min-height: 148px; }
+.skeleton-line {
+  display: block;
+  height: 12px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--pill);
+  background: linear-gradient(
+    90deg,
+    rgba(87, 219, 230, 0.05) 0%,
+    rgba(87, 219, 230, 0.16) 50%,
+    rgba(87, 219, 230, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1400ms linear infinite;
+}
+.skeleton-title { width: 45%; height: 16px; }
+.skeleton-line.short { width: 65%; }
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* --- wykres słupkowy (M4.3) --- */
+
+.chart-bar { fill: var(--accent-2); opacity: 0.85; animation: bar-grow 620ms ease-out both; transform-origin: bottom; }
 .chart-bar:hover { opacity: 1; }
+@keyframes bar-grow { from { transform: scaleY(0); } }
 .chart-tick { fill: var(--muted); font: 9px var(--font-mono); }
 
 /* --- szacunek zlecenia (M5.1) --- */

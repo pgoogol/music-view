@@ -1,40 +1,13 @@
 import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import OverviewView from './OverviewView'
+import { overviewFixture } from '../test/fixtures'
 import { jsonResponse, renderWithToasts } from '../test/renderWithToasts'
-
-const overview = {
-  catalogTracks: 2500,
-  libraryTracks: 2310,
-  tracksWithMetrics: 120,
-  metadataMissing: 4,
-  audioMissing: 380,
-  aiMissing: 90,
-  genres: [
-    { label: 'LATIN', count: 1500 },
-    { label: 'BEZ GATUNKU', count: 100 },
-  ],
-  tempoClasses: [{ label: 'MEDIUM', count: 900 }],
-  energies: [{ label: 'high', count: 1200 }],
-  bpmSources: [
-    { label: 'MANUAL', count: 120 },
-    { label: 'DEEZER', count: 900 },
-    { label: 'LLM', count: 1100 },
-    { label: 'BRAK BPM', count: 380 },
-  ],
-  ratings: [{ label: 'bez oceny', count: 2000 }],
-  bpmHistogram: [
-    { label: '90–99', count: 200 },
-    { label: '100–109', count: 400 },
-  ],
-  topArtists: [{ label: 'Marc Anthony', count: 42 }],
-  monthlyGrowth: [{ label: '2026-07', count: 300 }],
-}
 
 let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
-  fetchMock = vi.fn().mockResolvedValue(jsonResponse(overview))
+  fetchMock = vi.fn().mockResolvedValue(jsonResponse(overviewFixture))
   globalThis.fetch = fetchMock as unknown as typeof fetch
 })
 
@@ -48,30 +21,84 @@ describe('OverviewView', () => {
 
     expect(within(headline).getByText('2500')).toBeInTheDocument()
     expect(within(headline).getByText('2310')).toBeInTheDocument()
-    expect(within(headline).getByText('120')).toBeInTheDocument()
-    // opisane przez AI = katalog minus braki grupy AI
-    expect(within(headline).getByText('2410')).toBeInTheDocument()
+    // 22 mln ms to nieco ponad sześć godzin grania
+    expect(within(headline).getByText('6,1')).toBeInTheDocument()
+    expect(within(headline).getByText('640')).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(String(fetchMock.mock.calls[0][0])).toContain('/api/library/overview')
   })
 
-  it('pokazuje udział źródeł BPM — ile faktu, ile estymaty (D19)', async () => {
+  it('nazywa braki po imieniu zamiast pokazywać samo „gotowość 80%"', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const coverage = await screen.findByTestId('coverage')
+
+    expect(within(coverage).getByText('metadane')).toBeInTheDocument()
+    expect(within(coverage).getByText('analiza AI')).toBeInTheDocument()
+    expect(within(coverage).getByText('metryki z pliku')).toBeInTheDocument()
+    expect(screen.getByTestId('readiness')).toBeInTheDocument()
+  })
+
+  it('tłumaczy źródła BPM na słowa — ile faktu, ile estymaty (D19)', async () => {
 
     renderWithToasts(<OverviewView refreshKey={0} />)
 
     const sources = await screen.findByTestId('bpm-sources')
 
-    expect(within(sources).getByText('MANUAL')).toBeInTheDocument()
-    expect(within(sources).getByText('LLM')).toBeInTheDocument()
-    expect(within(sources).getByText('BRAK BPM')).toBeInTheDocument()
+    expect(within(sources).getByText('pomiar z pliku')).toBeInTheDocument()
+    expect(within(sources).getByText('estymata modelu')).toBeInTheDocument()
+    expect(within(sources).getByText('bez tempa')).toBeInTheDocument()
   })
 
-  it('rysuje histogram BPM i przyrost jako wykresy SVG', async () => {
+  it('wyciąga wnioski, a nie tylko rysuje słupki', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const found = await screen.findByTestId('insights')
+
+    expect(within(found).getByText('100–109 BPM')).toBeInTheDocument()
+    expect(within(found).getByText('8A')).toBeInTheDocument()
+    expect(within(found).getByText('Marc Anthony')).toBeInTheDocument()
+  })
+
+  it('rysuje komplet wykresów pulpitu', async () => {
 
     renderWithToasts(<OverviewView refreshKey={0} />)
 
     expect(await screen.findByTestId('bpm-histogram')).toBeInTheDocument()
     expect(screen.getByTestId('monthly-growth')).toBeInTheDocument()
+    expect(screen.getByTestId('growth-cumulative')).toBeInTheDocument()
+    expect(screen.getByTestId('camelot-wheel')).toBeInTheDocument()
+    expect(screen.getByTestId('audio-profile')).toBeInTheDocument()
+    expect(screen.getByTestId('tempo-energy')).toBeInTheDocument()
+    expect(screen.getByTestId('top-artists')).toBeInTheDocument()
+    expect(screen.getByTestId('top-tags')).toBeInTheDocument()
+    expect(screen.getByTestId('recently-added')).toBeInTheDocument()
+  })
+
+  it('macierz tempo × energia pokazuje skrzyżowanie obu wymiarów', async () => {
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    const matrix = await screen.findByTestId('tempo-energy')
+
+    // 700 utworów jest jednocześnie średnich tempem i wysokich energią
+    expect(within(matrix).getByText('700')).toBeInTheDocument()
+    expect(within(matrix).getByText('średnie')).toBeInTheDocument()
+  })
+
+  it('przy braku tonacji mówi o tym zamiast rysować puste koło', async () => {
+
+    fetchMock.mockResolvedValue(jsonResponse({
+      ...overviewFixture,
+      sound: { ...overviewFixture.sound, camelotKeys: [{ label: 'BEZ TONACJI', count: 2500 }] },
+    }))
+
+    renderWithToasts(<OverviewView refreshKey={0} />)
+
+    expect(await screen.findByText(/Żaden utwór nie ma jeszcze rozpoznanej tonacji/))
+      .toBeInTheDocument()
   })
 
   it('gdy przegląd padnie, mówi o tym zamiast pokazywać puste wykresy', async () => {

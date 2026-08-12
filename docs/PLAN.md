@@ -483,6 +483,32 @@ automatycznie, nie ręcznie.
 sklonowanym repo; test E2E przechodzi w CI i wywraca się, gdy którykolwiek krok przepływu
 przestaje działać.
 
+## M5.4 Przegląd jako pulpit *(po M4.3)*
+
+**Cel:** ekran Przegląd odpowiada nie tylko na „co ja mam", ale i na „czy da się z tego
+zagrać" — i wygląda jak pulpit, a nie jak zrzut z bazy.
+
+- **Pięć stref czytania** zamiast sześciu równorzędnych paneli: skala → wnioski → brzmienie
+  → kompletność danych → czas i gust; kontrakt `GET /api/library/overview` dostaje ten sam
+  podział na pięć grup zamiast płaskiej listy pól (D32)
+- **Nowe agregaty w bazie** (D27 bez zmian): czas grania i liczba wykonawców biblioteki,
+  średnie tempo, utwory poza wszystkimi setami, dekady, długości, popularność, pewność
+  analizy AI, źródła wpisów, top tagi i style, macierz tempo × energia, uśredniony profil
+  brzmienia z metryk (D24), próbka ostatnio dodanych z okładkami
+- **Koło Camelot** rysowane z tonacji (D25) — 24 pozycje z obrysem tonacji zgodnych
+  z dominującą; sąsiedztwo na kole jest informacją, listy alfabetyczne ją gubiły
+- **Sekcja „co z tego wynika"** — najgęstsze tempo, dominująca tonacja, udział tempa
+  z pomiaru wobec estymaty (D19), utwory poza setami, najlepszy miesiąc; liczone na froncie
+  z danych, które i tak przyszły (`overviewInsights.ts`), więc sprawdzalne testem
+- **Animacje jako dekoracja**: moduły zapalają się po kolei, kreski rysują od lewej, liczniki
+  nabijają od zera — przy `prefers-reduced-motion` wszystko startuje w stanie końcowym
+- **Osobna rampa kolorów wykresów** (`--viz-1..6`) obok kolorów semantycznych motywu, żeby
+  podmiana palety pod większy system była podmianą sześciu zmiennych (D32)
+
+**DoD:** `./mvnw verify` i `npm test` zielone; przegląd pokazuje komplet agregatów jednym
+wywołaniem API, koło Camelot nie kłamie na utworach bez tonacji, a ekran czyta się przy
+ograniczonym ruchu tak samo dobrze jak z animacjami.
+
 ---
 
 # Zależności między kamieniami
@@ -510,9 +536,10 @@ flowchart LR
     M16[M1.6<br/>batch] -.-> M51[M5.1<br/>estymaty + koszty]
     M17[M1.7<br/>REST] -.-> M52[M5.2<br/>współbieżność]
     M42 & M43 --> M53[M5.3<br/>artefakt + E2E]
+    M43 --> M54[M5.4<br/>pulpit przeglądu]
 
     classDef plan fill:#FFE699,stroke:#B6912E
-    class M41,M42,M43,M51,M52,M53 plan
+    class M41,M42,M43,M51,M52,M53,M54 plan
 ```
 
 Etap 5 nie zależy od Etapu 4 — M5.1 i M5.2 da się zrobić w dowolnym momencie.

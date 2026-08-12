@@ -18,20 +18,77 @@ public class LibraryApiMapper {
     public LibraryOverviewResponse toResponse(LibraryOverview overview) {
 
         return new LibraryOverviewResponse(
-            overview.catalogTracks(),
-            overview.libraryTracks(),
-            overview.tracksWithMetrics(),
-            overview.metadataMissing(),
-            overview.audioMissing(),
-            overview.aiMissing(),
-            buckets(overview.genres()),
-            buckets(overview.tempoClasses()),
-            buckets(overview.energies()),
-            buckets(overview.bpmSources()),
-            buckets(overview.ratings()),
-            buckets(overview.bpmHistogram()),
-            buckets(overview.topArtists()),
-            buckets(overview.monthlyGrowth()));
+            scale(overview.scale()),
+            quality(overview.quality()),
+            sound(overview.sound()),
+            timeline(overview.timeline()),
+            taste(overview.taste()),
+            overview.recentlyAdded().stream()
+                .map(track -> new LibraryOverviewResponse.RecentTrackResponse(
+                    track.spotifyId(), track.title(), track.artist(),
+                    track.albumImageUrl(), track.addedAt()))
+                .toList());
+    }
+
+    private LibraryOverviewResponse.ScaleResponse scale(LibraryOverview.Scale scale) {
+
+        return new LibraryOverviewResponse.ScaleResponse(
+            scale.catalogTracks(),
+            scale.libraryTracks(),
+            scale.tracksWithMetrics(),
+            scale.libraryDurationMs(),
+            scale.distinctArtists(),
+            scale.averageBpm(),
+            scale.playlists(),
+            scale.tracksInPlaylists(),
+            scale.tracksOutsidePlaylists());
+    }
+
+    private LibraryOverviewResponse.QualityResponse quality(LibraryOverview.Quality quality) {
+
+        return new LibraryOverviewResponse.QualityResponse(
+            quality.metadataMissing(),
+            quality.audioMissing(),
+            quality.aiMissing(),
+            buckets(quality.bpmSources()),
+            buckets(quality.confidences()));
+    }
+
+    private LibraryOverviewResponse.SoundResponse sound(LibraryOverview.Sound sound) {
+
+        return new LibraryOverviewResponse.SoundResponse(
+            buckets(sound.genres()),
+            buckets(sound.styles()),
+            buckets(sound.tempoClasses()),
+            buckets(sound.energies()),
+            buckets(sound.bpmHistogram()),
+            buckets(sound.camelotKeys()),
+            buckets(sound.durations()),
+            buckets(sound.popularity()),
+            sound.tempoEnergy().stream()
+                .map(cell -> new LibraryOverviewResponse.MatrixCellResponse(
+                    cell.tempoClass(), cell.energy(), cell.count()))
+                .toList(),
+            sound.audioProfile().stream()
+                .map(metric -> new LibraryOverviewResponse.MetricResponse(
+                    metric.label(), metric.value()))
+                .toList());
+    }
+
+    private LibraryOverviewResponse.TimelineResponse timeline(LibraryOverview.Timeline timeline) {
+
+        return new LibraryOverviewResponse.TimelineResponse(
+            buckets(timeline.monthlyGrowth()),
+            buckets(timeline.decades()));
+    }
+
+    private LibraryOverviewResponse.TasteResponse taste(LibraryOverview.Taste taste) {
+
+        return new LibraryOverviewResponse.TasteResponse(
+            buckets(taste.topArtists()),
+            buckets(taste.topTags()),
+            buckets(taste.ratings()),
+            buckets(taste.sources()));
     }
 
     private List<LibraryOverviewResponse.BucketResponse> buckets(List<LibraryOverview.Bucket> source) {

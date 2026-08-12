@@ -620,3 +620,45 @@ playlist (tryb C) i importu metryk z plików CSV (D24).
   playlist powstaje per playlista, więc uzupełnienie biblioteki to kilkanaście plików pod
   rząd. Osobne żądanie na plik działałoby tak samo, ale raport rozjechałby się na
   kilkanaście toastów zamiast jednego podsumowania.
+
+## D32. Przegląd jako pulpit — pięć stref, jedno wywołanie (M5.4)
+
+Przegląd z M4.3 odpowiadał na „co ja mam" sześcioma panelami: cztery liczby i pięć
+rozkładów. Odpowiedzi na „czy da się z tego zagrać" nie było, a listy słupków wyglądały
+jak zrzut z bazy. Rozstrzygnięcia:
+
+- **Ekran ma pięć stref czytania, w kolejności malejącej ogólności:** skala → wnioski →
+  brzmienie → kompletność danych → czas i gust. Odpowiedź na to samo pytanie ma być
+  w jednym miejscu, a nie rozsypana po panelach ułożonych w kolejności pisania kodu.
+- **Odpowiedź idzie tym samym jednym wywołaniem, agregaty nadal liczy baza (D27).**
+  Doszło jedenaście wymiarów rozkładów, macierz tempo × energia, profil brzmienia
+  i próbka ostatnio dodanych — wszystko na tej samej zasadzie: front nie dostaje
+  2500 wierszy po to, żeby je zliczyć w przeglądarce. Rozkłady kategorialne schodzą
+  jednym `union all` z etykietą wymiaru i własnym kluczem sortowania.
+- **Kontrakt `GET /api/library/overview` przestaje być płaski.** Pięć grup zamiast
+  dwudziestu ośmiu pól obok siebie: konstruktor z kilkunastoma argumentami typu
+  `List<Bucket>` nie ma jak wyłapać przestawienia dwóch rozkładów miejscami, a nazwa
+  grupy mówi frontowi, do której strefy dana liczba należy.
+- **Ekran wyciąga wnioski, nie tylko rysuje słupki.** Najgęstszy przedział tempa,
+  dominująca tonacja z listą wchodzących w nią pozycji koła (D25), udział tempa
+  z pomiaru wobec estymaty (D19), utwory poza wszystkimi setami — liczone na froncie
+  z tego, co i tak przyszło (`overviewInsights.ts`), więc dają się sprawdzić testem
+  bez renderowania pulpitu.
+- **Tonacje pokazujemy jako koło Camelot, nie jako listę.** Sąsiedztwo na kole *jest*
+  zgodnością harmoniczną (D25); lista posortowana alfabetycznie tę informację gubi.
+  Koszyk zastępczy dla braku tonacji omija parser — „BEZ TONACJI" zaczyna się od nazwy
+  dźwięku, więc bez tego wyjątku wszystkie utwory bez tonacji lądowały na pozycji 1B.
+- **Tempo i energia dostają wspólną macierz.** Dwa rozkładu osobno mówią „mam dużo
+  szybkich" i „mam dużo energetycznych"; dopiero skrzyżowanie mówi, czy to te same
+  utwory — czyli czy jest z czego zbudować szczyt wieczoru.
+- **Animacje są dekoracją i tak są traktowane.** Moduły zapalają się po kolei, kreski
+  rysują się od lewej, liczniki nabijają od zera — ale przy `prefers-reduced-motion`
+  wszystko startuje w stanie końcowym (`animation: none`), a nie znika. Ta sama zasada
+  co w M3.2: poświaty zostają, ruch znika.
+- **Wykresy nadal rysujemy inline w SVG** (D23) — doszło koło Camelot, pajęczyna cech
+  audio, wstęga i wskaźnik pierścieniowy, wszystkie na tej samej zasadzie co krzywa
+  tempa z M3.1: bez biblioteki wykresów i bez zasobów z sieci.
+- **Kolory wykresów to osobna rampa (`--viz-1..6`) obok kolorów semantycznych.**
+  Segmenty jednego paska muszą się od siebie odróżniać, a bursztyn i cyjan mają
+  w tym motywie znaczenie (akcja / pomiar). Znaczenie segmentu niesie legenda, nie kolor
+  (D23), więc podmiana palety pod większy system to podmiana tych sześciu zmiennych.

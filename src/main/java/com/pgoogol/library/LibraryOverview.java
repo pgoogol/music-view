@@ -1,33 +1,95 @@
 package com.pgoogol.library;
 
+import org.springframework.lang.Nullable;
+
+import java.time.Instant;
 import java.util.List;
 
 /**
- * Przegląd biblioteki (M4.3) — odpowiedź na pytanie „co ja właściwie mam".
- * Wszystkie rozkłady mają ten sam kształt {@link Bucket}, żeby front rysował
- * je jednym komponentem zamiast pięciu prawie identycznych.
+ * Przegląd biblioteki (M4.3, rozbudowa M5.4) — odpowiedź na pytanie „co ja
+ * właściwie mam". Rozkłady mają wspólny kształt {@link Bucket}, żeby front
+ * rysował je jednym komponentem zamiast kilkunastu prawie identycznych.
  *
- * <p>{@code bpmSources} jest tu najważniejszą liczbą, nie ozdobą: mówi, ile
- * biblioteki stoi na faktach (manual / AcousticBrainz / Deezer), a ile na
+ * <p>Pola siedzą w pięciu grupach zamiast w jednej płaskiej liście
+ * (D32): ekran ma pięć stref czytania, a konstruktor z dwudziestoma
+ * argumentami tego samego typu {@code List<Bucket>} to zaproszenie do
+ * przestawienia dwóch rozkładów miejscami bez żadnego błędu kompilacji.</p>
+ *
+ * <p>{@code bpmSources} jest tu nadal najważniejszą liczbą, nie ozdobą: mówi,
+ * ile biblioteki stoi na faktach (manual / AcousticBrainz / Deezer), a ile na
  * estymacie LLM — czyli podaje na bieżąco wskaźnik, który D19 uczynił
  * kryterium decyzji o {@code AudioAnalyzer}.</p>
  */
 public record LibraryOverview(
-    long catalogTracks,
-    long libraryTracks,
-    long tracksWithMetrics,
-    long metadataMissing,
-    long audioMissing,
-    long aiMissing,
-    List<Bucket> genres,
-    List<Bucket> tempoClasses,
-    List<Bucket> energies,
-    List<Bucket> bpmSources,
-    List<Bucket> ratings,
-    List<Bucket> bpmHistogram,
-    List<Bucket> topArtists,
-    List<Bucket> monthlyGrowth) {
+    Scale scale,
+    Quality quality,
+    Sound sound,
+    Timeline timeline,
+    Taste taste,
+    List<RecentTrack> recentlyAdded) {
 
     /** Jeden słupek rozkładu: etykieta i liczba utworów. */
     public record Bucket(String label, long count) { }
+
+    /** Komórka macierzy tempo × energia — dwa wymiary naraz, stąd własny kształt. */
+    public record MatrixCell(String tempoClass, String energy, long count) { }
+
+    /** Średnia cecha audio z metryk ręcznych (D24), skala 0..1. */
+    public record Metric(String label, double value) { }
+
+    /** Próbka ostatnio dodanych utworów — okładki są jedyną grafiką na ekranie. */
+    public record RecentTrack(
+        String spotifyId,
+        @Nullable String title,
+        @Nullable String artist,
+        @Nullable String albumImageUrl,
+        Instant addedAt) { }
+
+    /**
+     * Skala zbioru. {@code averageBpm} jest {@code null} dla pustego katalogu —
+     * zero znaczyłoby „średnie tempo 0 BPM", a to nieprawda.
+     */
+    public record Scale(
+        long catalogTracks,
+        long libraryTracks,
+        long tracksWithMetrics,
+        long libraryDurationMs,
+        long distinctArtists,
+        @Nullable Double averageBpm,
+        long playlists,
+        long tracksInPlaylists,
+        long tracksOutsidePlaylists) { }
+
+    /** Kompletność danych: czego brakuje i skąd wiemy to, co wiemy. */
+    public record Quality(
+        long metadataMissing,
+        long audioMissing,
+        long aiMissing,
+        List<Bucket> bpmSources,
+        List<Bucket> confidences) { }
+
+    /** Brzmienie katalogu — wszystko, co odpowiada na „co ja właściwie gram". */
+    public record Sound(
+        List<Bucket> genres,
+        List<Bucket> styles,
+        List<Bucket> tempoClasses,
+        List<Bucket> energies,
+        List<Bucket> bpmHistogram,
+        List<Bucket> camelotKeys,
+        List<Bucket> durations,
+        List<Bucket> popularity,
+        List<MatrixCell> tempoEnergy,
+        List<Metric> audioProfile) { }
+
+    /** Biblioteka w czasie: kiedy rosła i z jakich roczników się składa. */
+    public record Timeline(
+        List<Bucket> monthlyGrowth,
+        List<Bucket> decades) { }
+
+    /** Gust DJ-a — to, co wynika z jego własnych decyzji, nie z metadanych. */
+    public record Taste(
+        List<Bucket> topArtists,
+        List<Bucket> topTags,
+        List<Bucket> ratings,
+        List<Bucket> sources) { }
 }
