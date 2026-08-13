@@ -29,6 +29,24 @@ export interface TrackResponse {
   enrichVersion: number | null
 }
 
+/** Dane prywatne DJ-a pokazywane w wierszu biblioteki (M5.6) — reszta w szufladzie. */
+export interface TrackLibraryResponse {
+  rating: number | null
+  customTags: string[] | null
+  addedAt: string
+  source: string
+}
+
+/**
+ * Wiersz wyszukiwarki (M5.6): katalog i dane DJ-a jako dwa obiekty, bo rozdział
+ * z D3 obowiązuje też w kontrakcie. `library === null` znaczy „utwór jest
+ * w katalogu, ale nie w bibliotece" — co innego niż „w bibliotece bez oceny".
+ */
+export interface CatalogRowResponse {
+  track: TrackResponse
+  library: TrackLibraryResponse | null
+}
+
 export interface PageResponse<T> {
   content: T[]
   page: number
@@ -407,25 +425,45 @@ export interface MissingCountResponse {
   ai: number
 }
 
-/** Biała lista sortowania po stronie API (M3.1, enum CatalogSort). */
+/** Biała lista sortowania po stronie API (M3.1, dane DJ-a w M5.6; enum CatalogSort). */
 export const CATALOG_SORTS = [
   'RELEVANCE',
   'TITLE',
   'ARTIST',
+  'ALBUM',
   'YEAR',
   'BPM',
   'POPULARITY',
   'DURATION',
+  'DANCEABILITY',
   'ENERGY',
+  'RATING',
+  'ADDED_AT',
 ] as const
 
 export type CatalogSort = (typeof CATALOG_SORTS)[number]
 
 export type SortDirection = 'ASC' | 'DESC'
 
+/** Grupy braków (D11) w wersji filtra biblioteki — ANY = „do wzbogacenia" (M5.6). */
+export const MISSING_GROUPS = ['ANY', 'METADATA', 'AUDIO', 'AI'] as const
+
+export type MissingGroup = (typeof MISSING_GROUPS)[number]
+
+/** Źródła BPM z kaskady D6/D24 — kryterium D19: pomiar czy estymata. */
+export const BPM_SOURCES = ['MANUAL', 'ACOUSTICBRAINZ', 'DEEZER', 'LLM'] as const
+
 export interface SearchParams {
   search?: string
+  /** Filtry samego utworu (M5.6): gatunek, rocznik, długość, popularność, explicit. */
   genreFamily?: string
+  yearMin?: number
+  yearMax?: number
+  durationMinSec?: number
+  durationMaxSec?: number
+  popularityMin?: number
+  explicit?: boolean
+  /** Filtry brzmienia: tempo i energia. */
   bpmMin?: number
   bpmMax?: number
   tempoClass?: string
@@ -442,6 +480,9 @@ export interface SearchParams {
   valenceMax?: number
   instrumentalMin?: number
   livenessMax?: number
+  /** Filtry kompletności danych (M5.6): skąd tempo i czego brakuje. */
+  bpmSource?: string
+  missing?: MissingGroup
   sort?: CatalogSort
   direction?: SortDirection
   page?: number
@@ -494,7 +535,7 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 })
 
 export const api = {
-  searchTracks(params: SearchParams): Promise<PageResponse<TrackResponse>> {
+  searchTracks(params: SearchParams): Promise<PageResponse<CatalogRowResponse>> {
     const query = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {

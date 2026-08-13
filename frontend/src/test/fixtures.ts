@@ -2,6 +2,7 @@
 // zgodne z DTO backendu, z nadpisywaniem tylko istotnych pól w teście.
 
 import type {
+  CatalogRowResponse,
   IngestPlaylistResponse,
   LibraryOverviewResponse,
   TrackMetricsResponse,
@@ -9,6 +10,7 @@ import type {
   PlaylistResponse,
   PlaylistSummaryResponse,
   PlaylistTrackResponse,
+  TrackLibraryResponse,
   TrackResponse,
 } from '../api'
 
@@ -41,6 +43,31 @@ export function aTrack(overrides: Partial<TrackResponse> = {}): TrackResponse {
     modelUsed: 'test-model-1',
     enrichVersion: 1,
     ...overrides,
+  }
+}
+
+/**
+ * Wiersz wyszukiwarki (M5.6): katalog plus dane DJ-a. Domyślnie utwór jest
+ * w bibliotece z oceną — test, który bada utwór spoza biblioteki, podaje
+ * `library: null` wprost.
+ */
+export function aRow(
+  track: Partial<TrackResponse> = {},
+  library: Partial<TrackLibraryResponse> | null = {},
+): CatalogRowResponse {
+
+  return {
+    track: aTrack(track),
+    library:
+      library === null
+        ? null
+        : {
+            rating: 4,
+            customTags: ['parkiet'],
+            addedAt: '2026-07-01T18:00:00Z',
+            source: 'FILE',
+            ...library,
+          },
   }
 }
 

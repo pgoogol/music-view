@@ -20,6 +20,15 @@ public interface LibraryEntryRepository extends JpaRepository<LibraryEntry, Long
            countQuery = "select count(e) from LibraryEntry e")
     Page<LibraryEntry> findPageWithTrack(Pageable pageable);
 
+    /**
+     * Wpisy biblioteczne dla jednej strony wyników wyszukiwarki (M5.6).
+     * {@code join fetch} jest tu obowiązkowy: {@code track} jest LAZY, a wołający
+     * pyta o {@code spotifyId} po wyjściu z transakcji (open-in-view=false).
+     */
+    @Query("select e from LibraryEntry e join fetch e.track where e.track.spotifyId in :spotifyIds")
+    List<LibraryEntry> findWithTrackByTrackSpotifyIdIn(
+        @Param("spotifyIds") Collection<String> spotifyIds);
+
     /** Wpis z dociągniętym katalogiem — encja opuszcza transakcję serwisu (open-in-view=false). */
     @Query("select e from LibraryEntry e join fetch e.track where e.track.spotifyId = :spotifyId")
     Optional<LibraryEntry> findWithTrackByTrackSpotifyId(@Param("spotifyId") String spotifyId);

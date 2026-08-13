@@ -2,28 +2,31 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import LibraryView from './LibraryView'
-import { aPage, aTrack } from '../test/fixtures'
+import { aPage, aRow } from '../test/fixtures'
 import { jsonResponse, renderWithToasts } from '../test/renderWithToasts'
 
-const tracks = [
-  aTrack({ spotifyId: 'sp-vivir', title: 'Vivir Mi Vida', artist: 'Marc Anthony', bpm: 92 }),
-  aTrack({
-    spotifyId: 'sp-nowy',
-    title: 'Nowy Import',
-    artist: 'Nieznany',
-    bpm: null,
-    genreFamily: null,
-    durationMs: null,
-  }),
+const rows = [
+  aRow(
+    { spotifyId: 'sp-vivir', title: 'Vivir Mi Vida', artist: 'Marc Anthony', bpm: 92 },
+    { rating: 5, customTags: ['parkiet'] },
+  ),
+  aRow(
+    {
+      spotifyId: 'sp-nowy',
+      title: 'Nowy Import',
+      artist: 'Nieznany',
+      bpm: null,
+      genreFamily: null,
+      durationMs: null,
+    },
+    null,
+  ),
 ]
 
 let fetchMock: ReturnType<typeof vi.fn>
-let searchResponse = aPage(tracks)
+let searchResponse = aPage(rows)
 
-/**
- * Widok pyta też o słownik tagów (M3.2) i pokrycie metrykami (M4.1) — liczy się
- * ostatnie zapytanie o same utwory.
- */
+/** Liczy się ostatnie zapytanie o utwory — po nim widać komplet filtrów z adresu. */
 function lastRequestUrl(): string {
 
   const catalogCalls = fetchMock.mock.calls.filter((call) =>
@@ -45,16 +48,14 @@ function renderLibrary(overrides: Partial<Parameters<typeof LibraryView>[0]> = {
   return props
 }
 
+/** Filtry poza pierwszym rzutem siedzą w panelu — test otwiera go tak jak DJ. */
+async function openAdvanced(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId('toggle-advanced-filters'))
+}
+
 beforeEach(() => {
-  searchResponse = aPage(tracks)
-  fetchMock = vi.fn().mockImplementation((url: string) => {
-    const target = String(url)
-    if (target.includes('/api/library/tags')) return Promise.resolve(jsonResponse(['wesele']))
-    if (target.includes('/api/catalog/metrics-coverage')) {
-      return Promise.resolve(jsonResponse({ withMetrics: 120, total: 2500 }))
-    }
-    return Promise.resolve(jsonResponse(searchResponse))
-  })
+  searchResponse = aPage(rows)
+  fetchMock = vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(searchResponse)))
   globalThis.fetch = fetchMock as unknown as typeof fetch
 })
 
@@ -69,6 +70,20 @@ describe('LibraryView', () => {
 
     const rowWithGaps = screen.getByText('Nowy Import').closest('tr')!
     expect(within(rowWithGaps).getByText('do wzbogacenia')).toBeInTheDocument()
+  })
+
+  it('tabela opisuje utwór, a dane prywatne DJ-a zostawia szufladzie (D39)', async () => {
+
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    expect(screen.queryByRole('columnheader', { name: /Ocena/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /Tagi DJ-a/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /Dodano/ })).toBeNull()
+
+    const rated = screen.getByText('Vivir Mi Vida').closest('tr')!
+    expect(within(rated).queryByLabelText(/ocena:/)).toBeNull()
+    expect(within(rated).queryByText('parkiet')).toBeNull()
   })
 
   it('pierwsze kliknięcie kolumny sortuje rosnąco, drugie odwraca kierunek', async () => {
@@ -119,30 +134,15 @@ describe('LibraryView', () => {
     expect(props.onSelectionChange).toHaveBeenCalledWith(new Set(['sp-vivir']))
   })
 
-  it('filtr biblioteki zawęża wyszukiwarkę do utworów DJ-a', async () => {
-
-    const user = userEvent.setup()
-    renderLibrary()
-    await screen.findByText('Vivir Mi Vida')
-
-    await user.selectOptions(screen.getByLabelText('biblioteka'), 'yes')
-
-    await waitFor(() => expect(lastRequestUrl()).toContain('inLibrary=true'))
-    expect(window.location.hash).toContain('lib=yes')
-  })
-
-  it('filtr oceny i tagu DJ-a trafia do zapytania', async () => {
+  it('filtr oceny trafia do zapytania i wraca po odświeżeniu w adresie', async () => {
 
     const user = userEvent.setup()
     renderLibrary()
     await screen.findByText('Vivir Mi Vida')
 
     await user.selectOptions(screen.getByLabelText('ocena co najmniej'), '4')
+
     await waitFor(() => expect(lastRequestUrl()).toContain('ratingMin=4'))
-
-    await user.type(screen.getByTestId('tag-input'), 'wesele')
-
-    await waitFor(() => expect(lastRequestUrl()).toContain('tag=wesele'))
     expect(window.location.hash).toContain('rating=4')
   })
 
@@ -151,6 +151,7 @@ describe('LibraryView', () => {
     const user = userEvent.setup()
     renderLibrary()
     await screen.findByText('Vivir Mi Vida')
+    await openAdvanced(user)
 
     await user.selectOptions(screen.getByLabelText('tonacja (Camelot)'), '8A')
 
@@ -163,34 +164,88 @@ describe('LibraryView', () => {
     expect(window.location.hash).toContain('key=8A')
   })
 
-  it('przy filtrach metryk mówi, ilu utworów one dotyczą', async () => {
+  it('filtr długości trafia do zapytania', async () => {
 
     const user = userEvent.setup()
     renderLibrary()
     await screen.findByText('Vivir Mi Vida')
+    await openAdvanced(user)
 
-    expect(screen.queryByTestId('metrics-coverage')).toBeNull()
+    await user.type(screen.getByLabelText('czas do (sek)'), '240')
 
-    await user.type(screen.getByLabelText('instrumentalność od'), '0.5')
-
-    await waitFor(() => expect(lastRequestUrl()).toContain('instrumentalMin=0.5'))
-    expect(await screen.findByTestId('metrics-coverage')).toHaveTextContent('120 z 2500')
+    await waitFor(() => expect(lastRequestUrl()).toContain('durationMaxSec=240'))
+    expect(window.location.hash).toContain('durMax=240')
   })
 
-  it('wyczyszczenie filtrów kasuje także filtry biblioteczne', async () => {
+  it('panel filtrów ma już tylko utwór i brzmienie (D39)', async () => {
 
     const user = userEvent.setup()
-    window.location.hash = '#/library?lib=yes&rating=3&tag=wesele&key=8A&valMin=0.3'
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+    await openAdvanced(user)
+
+    expect(screen.getByTestId('track-filters')).toBeInTheDocument()
+    expect(screen.getByTestId('harmonic-filters')).toBeInTheDocument()
+    expect(screen.queryByTestId('library-filters')).toBeNull()
+    expect(screen.queryByTestId('metric-filters')).toBeNull()
+    expect(screen.queryByTestId('quality-filters')).toBeNull()
+    expect(screen.queryByLabelText('biblioteka')).toBeNull()
+    expect(screen.queryByLabelText('rok od')).toBeNull()
+    expect(screen.queryByLabelText('wulgaryzmy')).toBeNull()
+  })
+
+  it('panel filtrów otwiera się sam, gdy filtr spoza pierwszego rzutu jest w adresie', async () => {
+
+    window.location.hash = '#/library?bpmMin=120'
+    renderLibrary()
+
+    expect(await screen.findByTestId('advanced-filters')).toBeInTheDocument()
+    expect(screen.getByLabelText('BPM od')).toHaveValue(120)
+  })
+
+  it('aktywne filtry są widoczne jako chipsy i dają się zdejmować pojedynczo', async () => {
+
+    const user = userEvent.setup()
+    window.location.hash = '#/library?genre=LATIN&bpmMin=100&bpmMax=130'
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    const chips = screen.getByTestId('active-filters')
+    expect(within(chips).getByText('gatunek: LATIN')).toBeInTheDocument()
+    expect(within(chips).getByText('BPM 100–130')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('usuń filtr BPM 100–130'))
+
+    await waitFor(() => expect(window.location.hash).not.toContain('bpmMin=100'))
+    expect(window.location.hash).not.toContain('bpmMax=130')
+    expect(window.location.hash).toContain('genre=LATIN')
+  })
+
+  it('wyczyszczenie filtrów kasuje także te z panelu', async () => {
+
+    const user = userEvent.setup()
+    window.location.hash = '#/library?genre=LATIN&rating=3&key=8A&durMax=240'
     renderLibrary()
     await screen.findByText('Vivir Mi Vida')
 
     await user.click(screen.getByTestId('clear-filters'))
 
-    await waitFor(() => expect(window.location.hash).not.toContain('lib=yes'))
+    await waitFor(() => expect(window.location.hash).not.toContain('genre=LATIN'))
     expect(window.location.hash).not.toContain('rating=3')
-    expect(window.location.hash).not.toContain('tag=wesele')
     expect(window.location.hash).not.toContain('key=8A')
-    expect(window.location.hash).not.toContain('valMin=0.3')
+    expect(window.location.hash).not.toContain('durMax=240')
+  })
+
+  it('zdjęty filtr ze starego linku nie zawęża wyniku ani nie wraca na ekran (D39)', async () => {
+
+    window.location.hash = '#/library?lib=yes&missing=ANY&instr=0.5'
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    expect(lastRequestUrl()).not.toContain('inLibrary')
+    expect(lastRequestUrl()).not.toContain('missing')
+    expect(lastRequestUrl()).not.toContain('instrumentalMin')
+    expect(screen.queryByTestId('active-filters')).toBeNull()
   })
 
   it('gdy filtry nic nie zwracają, tłumaczy to filtrami zamiast pustą biblioteką', async () => {
@@ -200,5 +255,50 @@ describe('LibraryView', () => {
     renderLibrary()
 
     expect(await screen.findByText('Brak utworów dla tych filtrów.')).toBeInTheDocument()
+  })
+
+  it('wybrane kolumny wracają w adresie i zmieniają zestaw nagłówków', async () => {
+
+    const user = userEvent.setup()
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    expect(screen.queryByRole('columnheader', { name: /Popularność/ })).toBeNull()
+
+    await user.click(screen.getByTestId('column-picker-toggle'))
+    await user.click(within(screen.getByTestId('column-picker-panel')).getByText('Popularność'))
+
+    expect(await screen.findByRole('columnheader', { name: /Popularność/ })).toBeInTheDocument()
+    expect(window.location.hash).toContain('cols=')
+    expect(decodeURIComponent(window.location.hash)).toContain('popularity')
+  })
+
+  it('kolumny z adresu wygrywają z zestawem domyślnym', async () => {
+
+    window.location.hash = '#/library?cols=title,artist,style'
+
+    renderLibrary()
+
+    expect(await screen.findByRole('columnheader', { name: /Styl/ })).toBeInTheDocument()
+    expect(screen.queryByRole('columnheader', { name: /Gatunek/ })).toBeNull()
+
+    const row = screen.getByText('Vivir Mi Vida').closest('tr')!
+    expect(within(row).getByText('salsa')).toBeInTheDocument()
+  })
+
+  it('większa strona i skok na ostatnią stronę idą do zapytania', async () => {
+
+    const user = userEvent.setup()
+    searchResponse = aPage(rows, { totalElements: 2500, totalPages: 13, size: 200 })
+    renderLibrary()
+    await screen.findByText('Vivir Mi Vida')
+
+    await user.selectOptions(screen.getByLabelText('utworów na stronie'), '200')
+    await waitFor(() => expect(lastRequestUrl()).toContain('size=200'))
+
+    await user.click(screen.getByLabelText('ostatnia strona'))
+
+    await waitFor(() => expect(lastRequestUrl()).toContain('page=12'))
+    expect(screen.getByTestId('result-summary')).toHaveTextContent('2500 utworów')
   })
 })

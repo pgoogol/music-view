@@ -99,7 +99,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("search", "vida"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(2))
-            .andExpect(jsonPath("$.content[*].spotifyId").value(
+            .andExpect(jsonPath("$.content[*].track.spotifyId").value(
                 org.hamcrest.Matchers.containsInAnyOrder("sp-vivir", "sp-carnaval")));
     }
 
@@ -112,7 +112,7 @@ class CatalogApiIntegrationTest {
                 .param("bpmMax", "200"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -123,16 +123,24 @@ class CatalogApiIntegrationTest {
                 .param("energy", "MEDIUM"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bohemian"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-bohemian"));
     }
 
     @Test
-    void searchTracks_whenPageSizeAboveLimit_capsAtHundred() throws Exception {
+    void searchTracks_whenPageSizeAboveLimit_capsAtMaximum() throws Exception {
 
         mockMvc.perform(get("/api/catalog/tracks").param("size", "5000"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.size").value(100))
+            .andExpect(jsonPath("$.size").value(500))
             .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void searchTracks_whenLargePageRequested_returnsItWithoutCapping() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("size", "200"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.size").value(200));
     }
 
     @Test
@@ -142,9 +150,9 @@ class CatalogApiIntegrationTest {
                 .param("sort", "BPM")
                 .param("direction", "DESC"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"))
-            .andExpect(jsonPath("$.content[1].spotifyId").value("sp-carnaval"))
-            .andExpect(jsonPath("$.content[2].spotifyId").value("sp-bohemian"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[1].track.spotifyId").value("sp-carnaval"))
+            .andExpect(jsonPath("$.content[2].track.spotifyId").value("sp-bohemian"));
     }
 
     @Test
@@ -154,9 +162,9 @@ class CatalogApiIntegrationTest {
                 .param("sort", "TITLE")
                 .param("direction", "ASC"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].title").value("Bohemian Rhapsody"))
-            .andExpect(jsonPath("$.content[1].title").value("La Vida Es Un Carnaval"))
-            .andExpect(jsonPath("$.content[2].title").value("Vivir Mi Vida"));
+            .andExpect(jsonPath("$.content[0].track.title").value("Bohemian Rhapsody"))
+            .andExpect(jsonPath("$.content[1].track.title").value("La Vida Es Un Carnaval"))
+            .andExpect(jsonPath("$.content[2].track.title").value("Vivir Mi Vida"));
     }
 
     @Test
@@ -169,8 +177,8 @@ class CatalogApiIntegrationTest {
                 .param("direction", "ASC"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(4))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bohemian"))
-            .andExpect(jsonPath("$.content[3].spotifyId").value("sp-szkielet"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-bohemian"))
+            .andExpect(jsonPath("$.content[3].track.spotifyId").value("sp-szkielet"));
     }
 
     @Test
@@ -180,9 +188,9 @@ class CatalogApiIntegrationTest {
                 .param("sort", "ENERGY")
                 .param("direction", "ASC"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bohemian"))
-            .andExpect(jsonPath("$.content[1].energy").value("high"))
-            .andExpect(jsonPath("$.content[2].energy").value("high"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-bohemian"))
+            .andExpect(jsonPath("$.content[1].track.energy").value("high"))
+            .andExpect(jsonPath("$.content[2].track.energy").value("high"));
     }
 
     @Test
@@ -198,7 +206,7 @@ class CatalogApiIntegrationTest {
 
         mockMvc.perform(get("/api/catalog/tracks").param("search", "carnaval"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-carnaval"));
     }
 
     @Test
@@ -209,7 +217,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("inLibrary", "true"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -220,7 +228,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("inLibrary", "false"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(2))
-            .andExpect(jsonPath("$.content[*].spotifyId").value(
+            .andExpect(jsonPath("$.content[*].track.spotifyId").value(
                 org.hamcrest.Matchers.containsInAnyOrder("sp-carnaval", "sp-bohemian")));
     }
 
@@ -234,7 +242,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("ratingMin", "4"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -246,7 +254,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("tag", "chill"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-carnaval"));
     }
 
     @Test
@@ -260,7 +268,7 @@ class CatalogApiIntegrationTest {
                 .param("genreFamily", "LATIN"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -275,8 +283,8 @@ class CatalogApiIntegrationTest {
                 .param("direction", "DESC"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(2))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"))
-            .andExpect(jsonPath("$.content[1].spotifyId").value("sp-carnaval"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[1].track.spotifyId").value("sp-carnaval"));
     }
 
     @Test
@@ -306,7 +314,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("camelot", "8A"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(3))
-            .andExpect(jsonPath("$.content[*].spotifyId").value(
+            .andExpect(jsonPath("$.content[*].track.spotifyId").value(
                 org.hamcrest.Matchers.containsInAnyOrder("sp-vivir", "sp-carnaval", "sp-bohemian")));
     }
 
@@ -318,7 +326,7 @@ class CatalogApiIntegrationTest {
                 .param("camelotCompatible", "false"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -331,8 +339,8 @@ class CatalogApiIntegrationTest {
                 .param("camelotCompatible", "false"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-bemol"))
-            .andExpect(jsonPath("$.content[0].camelot").value("2A"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-bemol"))
+            .andExpect(jsonPath("$.content[0].track.camelot").value("2A"));
     }
 
     @Test
@@ -352,7 +360,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("valenceMin", "0.5"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -363,7 +371,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("instrumentalMin", "0.5"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-vivir"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"));
     }
 
     @Test
@@ -375,7 +383,7 @@ class CatalogApiIntegrationTest {
         mockMvc.perform(get("/api/catalog/tracks").param("livenessMax", "0.5"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.totalElements").value(1))
-            .andExpect(jsonPath("$.content[0].spotifyId").value("sp-carnaval"));
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-carnaval"));
     }
 
     @Test
@@ -387,6 +395,146 @@ class CatalogApiIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.withMetrics").value(1))
             .andExpect(jsonPath("$.total").value(3));
+    }
+
+    @Test
+    void searchTracks_whenTrackInLibrary_returnsDjDataNextToCatalogRecord() throws Exception {
+
+        addToLibrary("sp-vivir", 5, "wesele");
+
+        mockMvc.perform(get("/api/catalog/tracks").param("search", "vivir"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[0].library.rating").value(5))
+            .andExpect(jsonPath("$.content[0].library.customTags[0]").value("wesele"))
+            .andExpect(jsonPath("$.content[0].library.source").value("FILE"));
+    }
+
+    @Test
+    void searchTracks_whenTrackOutsideLibrary_leavesDjDataEmpty() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("search", "vivir"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[0].library").doesNotExist());
+    }
+
+    @Test
+    void searchTracks_whenSortedByRating_putsUnratedTracksLast() throws Exception {
+
+        addToLibrary("sp-carnaval", 3, null);
+        addToLibrary("sp-vivir", 5, null);
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("sort", "RATING")
+                .param("direction", "DESC"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-vivir"))
+            .andExpect(jsonPath("$.content[1].track.spotifyId").value("sp-carnaval"))
+            .andExpect(jsonPath("$.content[2].track.spotifyId").value("sp-bohemian"));
+    }
+
+    @Test
+    void searchTracks_whenYearRangeFilter_keepsOnlyTracksFromThoseYears() throws Exception {
+
+        saveTrackWithYear("sp-lata90", "Lata 90", 1994);
+        saveTrackWithYear("sp-wspolczesny", "Współczesny", 2020);
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("yearMin", "1990")
+                .param("yearMax", "1999"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-lata90"));
+    }
+
+    @Test
+    void searchTracks_whenDurationFilterInSeconds_dropsTooLongTracks() throws Exception {
+
+        saveTrackWithDuration("sp-krotki", "Krótki", 180_000);
+        saveTrackWithDuration("sp-epopeja", "Epopeja", 420_000);
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("durationMinSec", "60")
+                .param("durationMaxSec", "300"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-krotki"));
+    }
+
+    @Test
+    void searchTracks_whenPopularityAndExplicitFilters_combineThem() throws Exception {
+
+        savePopularTrack("sp-hit", "Hit", 80, false);
+        savePopularTrack("sp-wulgarny", "Wulgarny", 90, true);
+
+        mockMvc.perform(get("/api/catalog/tracks")
+                .param("popularityMin", "70")
+                .param("explicit", "false"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-hit"));
+    }
+
+    @Test
+    void searchTracks_whenBpmSourceFilter_separatesMeasurementFromEstimate() throws Exception {
+
+        TrackCatalog estimated = new TrackCatalog("sp-estymata", "Estymata", "Nieznany");
+        estimated.setBpm(120);
+        estimated.setBpmSource(BpmSource.LLM);
+        trackCatalogRepository.save(estimated);
+
+        mockMvc.perform(get("/api/catalog/tracks").param("bpmSource", "LLM"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1))
+            .andExpect(jsonPath("$.content[0].track.spotifyId").value("sp-estymata"));
+    }
+
+    @Test
+    void searchTracks_whenMissingAny_returnsTracksMarkedForEnrichment() throws Exception {
+
+        mockMvc.perform(get("/api/catalog/tracks").param("missing", "ANY"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(3));
+    }
+
+    @Test
+    void searchTracks_whenMissingAudio_skipsTracksWithCompleteAudioFields() throws Exception {
+
+        TrackCatalog complete = new TrackCatalog("sp-komplet", "Komplet", "Nieznany");
+        complete.setBpm(120);
+        complete.setMusicalKey("A minor");
+        complete.setDanceability(new BigDecimal("0.700"));
+        complete.setTempoClass(TempoClass.MEDIUM);
+        trackCatalogRepository.save(complete);
+
+        mockMvc.perform(get("/api/catalog/tracks").param("missing", "AUDIO"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(3))
+            .andExpect(jsonPath("$.content[*].track.spotifyId").value(
+                org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("sp-komplet"))));
+    }
+
+    private void saveTrackWithYear(String spotifyId, String title, int year) {
+
+        TrackCatalog track = new TrackCatalog(spotifyId, title, "Nieznany");
+        track.setYear(year);
+        trackCatalogRepository.save(track);
+    }
+
+    private void saveTrackWithDuration(String spotifyId, String title, int durationMs) {
+
+        TrackCatalog track = new TrackCatalog(spotifyId, title, "Nieznany");
+        track.setDurationMs(durationMs);
+        trackCatalogRepository.save(track);
+    }
+
+    private void savePopularTrack(String spotifyId, String title, int popularity, boolean explicit) {
+
+        TrackCatalog track = new TrackCatalog(spotifyId, title, "Nieznany");
+        track.setPopularity(popularity);
+        track.setExplicit(explicit);
+        trackCatalogRepository.save(track);
     }
 
     private void saveTrackWithKey(String spotifyId, String title, String musicalKey) {

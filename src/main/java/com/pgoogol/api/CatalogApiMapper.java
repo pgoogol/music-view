@@ -3,6 +3,8 @@ package com.pgoogol.api;
 import com.pgoogol.catalog.CamelotKey;
 import com.pgoogol.catalog.ManualMetrics;
 import com.pgoogol.catalog.TrackCatalog;
+import com.pgoogol.library.LibraryEntry;
+import com.pgoogol.library.LibraryRow;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -28,6 +30,23 @@ public class CatalogApiMapper {
             metrics.getTimeSignature(),
             metrics.getSource(),
             metrics.getImportedAt());
+    }
+
+    /** Wiersz ekranu Biblioteka — katalog plus dane DJ-a, o ile utwór jest u niego (D3). */
+    public CatalogRowResponse toResponse(LibraryRow row) {
+
+        return new CatalogRowResponse(
+            toResponse(row.track()),
+            row.libraryEntry().map(this::toLibraryResponse).orElse(null));
+    }
+
+    private CatalogRowResponse.TrackLibraryResponse toLibraryResponse(LibraryEntry entry) {
+
+        return new CatalogRowResponse.TrackLibraryResponse(
+            entry.getRating(),
+            entry.getCustomTags(),
+            entry.getAddedAt(),
+            Objects.toString(entry.getSource(), null));
     }
 
     public TrackResponse toResponse(TrackCatalog track) {

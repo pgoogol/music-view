@@ -356,10 +356,16 @@ label { color: var(--muted); }
 
 .filters {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+}
+/* rząd pierwszego rzutu — cztery filtry, po które DJ sięga za każdym razem */
+.filters-basic {
+  display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-2);
 }
 .filter-group { display: flex; flex-direction: column; gap: 3px; }
 .filter-group > span {
@@ -368,29 +374,42 @@ label { color: var(--muted); }
   text-transform: uppercase;
   letter-spacing: 0.12em;
 }
-/* filtry biblioteki (M3.2) odgrodzone świetlną szyną od filtrów katalogu */
-.filters-library {
+
+/* co jest realnie włączone — chipsy działają też przy zwiniętym panelu (M5.6) */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.chip-remove { padding: 0 0 0 6px; font-weight: 700; }
+
+/* panel „więcej filtrów": grupy odgrodzone świetlną szyną, żeby było widać,
+   że to osobne pytania, a nie kolejne pola w jednym rzędzie */
+.filters-advanced {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.filter-box {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--space-3);
-  padding: var(--space-1) 0 var(--space-1) var(--space-4);
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+  border: 0;
   border-left: 2px solid var(--accent-2);
   box-shadow: -6px 0 14px -8px var(--accent-2);
 }
-/* harmonia i metryki (M4.1) — ta sama „szyna" co filtry biblioteczne, żeby
-   było widać, że to osobne grupy, a nie kolejne pola w jednym rzędzie */
-.filters-harmonic,
-.filters-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-3);
-  padding: var(--space-1) 0 var(--space-1) var(--space-4);
-  border-left: 2px solid var(--accent-2);
-  box-shadow: -6px 0 14px -8px var(--accent-2);
+.filter-box > legend {
+  padding: 0;
+  color: var(--accent-2);
+  font: 600 10px/1.4 var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
-.filters-metrics input[type='number'] { width: 6.5rem; }
+.filter-box input[type='number'] { width: 6.5rem; }
 
 .filter-check {
   display: flex;
@@ -402,13 +421,41 @@ label { color: var(--muted); }
   white-space: nowrap;
 }
 
+/* pasek nad tabelą: ile widać, jakie kolumny, jak duża strona.
+   z-index ponad domyślną warstwę modułu (`.panel > *`) — bez tego rozwinięty
+   wybierak kolumn ląduje POD tabelą, bo tabela jest w DOM-ie po nim */
+.table-toolbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-2);
+}
 .result-summary {
-  margin: 0 var(--space-2) var(--space-2);
+  margin: 0;
   font: 600 11px/1.6 var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.1em;
 }
-.metrics-coverage { margin: 0 var(--space-2) var(--space-2); font-size: 12px; }
+
+.column-picker { position: relative; }
+.column-picker-panel {
+  position: absolute;
+  right: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(9rem, 1fr));
+  gap: var(--space-1) var(--space-3);
+  min-width: 20rem;
+  margin-top: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 12px 30px rgba(4, 6, 12, 0.6);
+}
 
 /* --- tabele --- */
 
@@ -462,6 +509,11 @@ tbody tr.selected {
   font: 600 11px/1.6 var(--font-mono);
   letter-spacing: 0.08em;
 }
+.pager-jump { display: inline-flex; align-items: center; gap: var(--space-2); }
+.pager-jump input[type='number'] { width: 4.5rem; text-align: center; }
+
+/* ocena w tabeli to sam odczyt — gwiazdki mają nie rozpychać wiersza */
+td .stars-static { font-size: 12px; letter-spacing: -1px; }
 
 .status-COMPLETED { color: var(--ok); }
 .status-FAILED { color: var(--danger); }
